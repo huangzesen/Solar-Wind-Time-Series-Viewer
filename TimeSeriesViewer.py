@@ -126,6 +126,7 @@ class TimeSeriesViewer:
         """ Initialize the class """
 
         print("Initializing...")
+        print("Current Directory: %s" %(os.getcwd()))
 
         self.start_time_0 = start_time_0
         self.end_time_0 = end_time_0
@@ -155,17 +156,6 @@ class TimeSeriesViewer:
 
         self.PreLoadSCDataFrame(paths = paths)
 
-        # # load pickles
-        # print("Loading PSP pickles...")
-        # self.dfmag_psp = pd.read_pickle(self.paths['psp_mag_sc'])
-        # self.dfpar_psp = pd.read_pickle(self.paths['psp_par_sc'])
-        # self.dfdis_psp = pd.read_pickle(self.paths['psp_dis'])
-
-        # print("Loading SolO pickles...")
-        # self.dfmag_solo = pd.read_pickle(self.paths['solo_mag_sc'])
-        # self.dfpar_solo = pd.read_pickle(self.paths['solo_par_sc'])
-        # self.dfdis_solo = pd.read_pickle(self.paths['solo_dis'])
-
         # collect garbage
         collect()
 
@@ -185,19 +175,34 @@ class TimeSeriesViewer:
         else:
             pass
 
-        if self.sc == 0:
-            print("Loading PSP pickles...")
-            dfmag0 = pd.read_pickle(self.paths['psp_mag_sc'])
-            dfpar0 = pd.read_pickle(self.paths['psp_par_sc'])
-            dfdis0 = pd.read_pickle(self.paths['psp_dis'])
-        elif self.sc == 1:
-            print("Loading SolO pickles...")
-            dfmag0 = pd.read_pickle(self.paths['solo_mag_sc'])
-            dfpar0 = pd.read_pickle(self.paths['solo_par_sc'])
-            dfdis0 = pd.read_pickle(self.paths['solo_dis'])
-
-        else:
-            raise ValueError("SC=%d not supported!" %(self.sc))
+        # look for dataframe locally
+        try:
+            print("Looking for files in local folder: %s" %(str(Path(os.getcwd()).absolute().joinpath("data"))))
+            if self.sc == 0:
+                print("Loading PSP pickles...")
+                dfmag0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfmag_psp_merged.pkl"))
+                dfpar0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfpar_psp_merged.pkl"))
+                dfdis0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfdis_psp_merged.pkl"))
+            elif self.sc == 1:
+                print("Loading SolO pickles...")
+                dfmag0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfmag_solo_merged.pkl"))
+                dfpar0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfpar_solo_merged.pkl"))
+                dfdis0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfdis_solo_merged.pkl"))
+            else:
+                raise ValueError("SC=%d not supported!" %(self.sc))
+        except:
+            if self.sc == 0:
+                print("Loading PSP pickles...")
+                dfmag0 = pd.read_pickle(self.paths['psp_mag_sc'])
+                dfpar0 = pd.read_pickle(self.paths['psp_par_sc'])
+                dfdis0 = pd.read_pickle(self.paths['psp_dis'])
+            elif self.sc == 1:
+                print("Loading SolO pickles...")
+                dfmag0 = pd.read_pickle(self.paths['solo_mag_sc'])
+                dfpar0 = pd.read_pickle(self.paths['solo_par_sc'])
+                dfdis0 = pd.read_pickle(self.paths['solo_dis'])
+            else:
+                raise ValueError("SC=%d not supported!" %(self.sc))
 
         if rolling_rate != '1H':
             # redo the rolling average
@@ -853,6 +858,11 @@ class TimeSeriesViewer:
         # B R angle (need spdf)
         if load_spdf:
             dfts['brangle'] = (dfts['Br_RTN']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
+
+        # deal with weird values
+        vth = dfts['Vth'].to_numpy()
+        vth[vth < 0] = np.nan
+        dfts['Vth'] = vth
 
         # update dfts
         self.dfts = dfts
