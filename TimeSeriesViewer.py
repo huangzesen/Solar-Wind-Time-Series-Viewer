@@ -121,26 +121,45 @@ class TimeSeriesViewer:
     """ View Time Series and Select Intervals """
 
     def __init__(
-        self, paths = None, load_spdf = True, start_time_0 = None, end_time_0 = None, sc = 0
+        self, paths = None, 
+        load_spdf = True, 
+        start_time_0 = None, 
+        end_time_0 = None, 
+        sc = 0, 
+        preload = True, 
+        verbose = True,
+        rolling_rate = '1H',
+        resample_rate = '5min'
     ):
         """ Initialize the class """
 
         print("Initializing...")
         print("Current Directory: %s" %(os.getcwd()))
-
+        
+        # session info
         self.start_time_0 = start_time_0
         self.end_time_0 = end_time_0
         self.sc = sc
 
+        # dataframe:
+        self.dfmag = None
+        self.dfpar = None
+        self.dfdis = None
+
+        # misc
         self.load_spdf = load_spdf
         self.resample_rate_key = 1
         self.resample_rate_list = ['1min', '5min','10min','20min','30min','60min']
-        self.length_list = ['8H','12H','24H','48H','72H','96H','5d','10d','20d','30d']
+        self.length_list = ['12H','24H','2d','5d','10d','20d','30d','60d','120d','365d']
         self.length_key = 2
         self.red_vlines = []
         self.selected_intervals = []
         self.green_vlines = []
         self.window_size_histories = []
+        self.verbose = verbose
+        self.rolling_rate = rolling_rate
+        self.resample_rate = resample_rate
+        self.mag_option = {'norm':0, 'sc':0}
 
         if paths is None:
             self.paths = {
@@ -154,7 +173,11 @@ class TimeSeriesViewer:
         else:
             self.paths = paths
 
-        self.PreLoadSCDataFrame(paths = paths)
+        # Preload Time Series
+        if preload:
+            if verbose: print("Preloading Dataframe... This may take some time...")
+            self.PreLoadSCDataFrame(rolling_rate = rolling_rate)
+            if verbose: print("Done.")
 
         # collect garbage
         collect()
@@ -216,6 +239,8 @@ class TimeSeriesViewer:
             dfpar0['Vt0'] = dfpar0['Vt'].rolling(rolling_rate).mean()
             dfpar0['Vn0'] = dfpar0['Vn'].rolling(rolling_rate).mean()
 
+        try: print("Initial Session Range: [%s - %s]" %(self.start_time_0, self.end_time_0))
+        except: print("No start_time_0 and end_time_0 defined!")
 
         if (self.start_time_0 is None) & (self.end_time_0 is None):
             self.start_time_0 = dfmag0.index[0]
@@ -224,8 +249,10 @@ class TimeSeriesViewer:
         if self.start_time_0 < dfmag0.index[0]:
             self.start_time_0 = dfmag0.index[0]
 
-        if self.end_time_0 > dfmag0.index[0]:
+        if self.end_time_0 > dfmag0.index[-1]:
             self.end_time_0 = dfmag0.index[-1]
+
+        print("Final Session Range: [%s - %s]" %(self.start_time_0, self.end_time_0))
 
         indmag0 = (dfmag0.index > self.start_time_0) & (dfmag0.index < self.end_time_0)
         indpar0 = (dfpar0.index > self.start_time_0) & (dfpar0.index < self.end_time_0)
@@ -262,14 +289,23 @@ class TimeSeriesViewer:
         }
 
 
-    def InitFigure(self, start_time, end_time, verbose = True, resample_rate = '5min'):
+    def InitFigure(self, start_time, end_time, 
+        verbose = True, resample_rate = '5min', no_plot = False, rolling_rate = '1H'
+        ):
         """ make figure """
 
         # default values
         self.start_time = start_time
         self.end_time = end_time
         self.resample_rate = resample_rate
+        self.rolling_rate = rolling_rate
         self.verbose = verbose
+
+        # Preload Time Series
+        if (self.dfmag is None) | (self.dfpar is None) | (self.dfdis is None):
+            if verbose: print("Preloading Dataframe... This may take some time...")
+            self.PreLoadSCDataFrame(rolling_rate = rolling_rate)
+            if verbose: print("Done.")
 
         # Prepare Time Series
         if verbose: print("Preparing Time Series....")
@@ -299,6 +335,63 @@ class TimeSeriesViewer:
 
         # redraw
         self.fig.canvas.draw()
+
+        # connect to mpl
+        self.connect()
+
+
+    def ExportSelectedIntervals(self):
+        """ 
+        Export selected Intervals 
+        Return:
+            intervals   :   list of dictionaries
+            keys        :   list of keys for dict
+        """
+        intervals = []
+        keys = ['spacecraft', 'start_time', 'end_time', 'TimeSeries']
+        print("Current Keys:")
+        for k in keys: print(k)
+        try:
+            for interval in self.selected_intervals:
+                temp = {}
+                for k in keys:
+                    temp[k] = interval[k]
+                intervals.append(temp)
+        except:
+            print("Not enough intervals... len(self.selected_intervals) = %d" %(len(self.selected_intervals)))
+
+        return intervals, keys
+
+
+    def ExportTimeSeries(self, start_time, end_time, 
+        rolling_rate = '1H', verbose = True, resample_rate = '5min'
+        ):
+        """ 
+        A wrapper to export time series 
+        start_time/end_time should be pd.Timestamp
+        will return a data product, but other data can be accessed via:
+        self.dfts | self.dfts_raw | self.dfmag | self.dfpar | self.dfdis
+        """
+        # check time range
+        if (start_time < self.start_time_0) | (end_time > self.end_time_0):
+            raise ValueError("%s or %s out of range [%s, %s]" %(start_time, end_time, self.start_time_0, self.end_time_0))
+
+        # Preload dataframe
+        if (self.dfmag is None) | (self.dfpar is None) | (self.dfdis is None):
+            if verbose: print("Preloading Dataframe... This may take some time...")
+            self.PreLoadSCDataFrame(rolling_rate = rolling_rate)
+            if verbose: print("Done.")
+
+        # Process dataframe
+        if verbose: print("Preparing Time Series....")
+        self.PrepareTimeSeries(
+            start_time, end_time, 
+            verbose = verbose, 
+            resample_rate = resample_rate
+            )
+        if verbose: print("Done.")
+
+        return self.dfts
 
 
     def UpdateFigure(
@@ -360,7 +453,7 @@ class TimeSeriesViewer:
         fig.suptitle(
             "%s to %s" %(str(self.start_time), str(self.end_time))
             + "\n"
-            + "SpaceCraft: %d, Resample Rate: %s, Window Option: %s (key=%d)" %(self.sc, self.resample_rate, self.length_list[self.length_key], self.length_key)
+            + "SpaceCraft: %d, Resample Rate: %s, Window Option: %s (key=%d), MAG Frame: %d, Normed Mag : %d" %(self.sc, self.resample_rate, self.length_list[self.length_key], self.length_key, self.mag_option['sc'], self.mag_option['norm'])
             + "\n"
             + "Real Window Size = %s, Current Session (%s - %s)" %(str(self.end_time-self.start_time), self.start_time_0, self.end_time_0),
             fontsize = 'xx-large', horizontalalignment = 'left', x = 0.02
@@ -368,62 +461,130 @@ class TimeSeriesViewer:
 
 
         """magnetic field"""
-        if not(update):
-            # initialization
-            try:
+        # self.mag_option = {norm: normalized with r^2, sc: 0 for RTN, 1 for SC}
+        try:
+            if not(update):
+                # initialization
                 ax = axes['mag']
-                dfts[['Br_RTN','Bt_RTN','Bn_RTN','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
-                ax.legend(['Br','Bt','Bn','|B|'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                if self.mag_option['norm'] == 0:
+                    if self.mag_option['sc'] == 0:
+                        dfts[['Br_RTN','Bt_RTN','Bn_RTN','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        ax.legend(['Br [nT]','Bt','Bn','|B|'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dfts['B_RTN'].max()
+                    elif self.mag_option['sc'] == 1:
+                        dfts[['Br','Bt','Bn','B']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        ax.legend(['Br_SC [nT]','Bt_SC','Bn_SC','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dfts['B'].max()
+                    else:
+                        raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
+                elif self.mag_option['norm'] == 1:
+                    if self.mag_option['sc'] == 0:
+                        dftemp = pd.DataFrame(index = self.dfts.index)
+                        dftemp['Br_RTN'] = self.dfts['Br_RTN'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
+                        dftemp['Bt_RTN'] = self.dfts['Bt_RTN'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['Bn_RTN'] = self.dfts['Bn_RTN'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['B_RTN'] = (dftemp[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis=1).apply(np.sqrt)
+                        dftemp.plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        ax.legend([r'$Br*a(R)^2\ [nT]$',r'$Bt*a(R)\ a(R)=R/0.1AU$',r'$Bn*a(R)$',r'$|B|$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dftemp['B_RTN'].max()
+                    elif self.mag_option['sc'] == 1:
+                        dftemp = pd.DataFrame(index = self.dfts.index)
+                        dftemp['Br'] = self.dfts['Br'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
+                        dftemp['Bt'] = self.dfts['Bt'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['Bn'] = self.dfts['Bn'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['B'] = (dftemp[['Br','Bt','Bn']]**2).sum(axis=1).apply(np.sqrt)
+                        dfts[['Br','Bt','Bn','B']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        ax.legend([r'$Br_{SC}*a(R)^2\ [nT]$',r'$Bt_{SC}*a(R)\ a(R)=R/0.1AU$',r'$Bn_{SC}*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dftemp['B'].max()
+                    else:
+                        raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
+                else:
+                    raise ValueError("mag_option['norm']==%d not supported!" %(self.mag_option['norm']))
+
+                # aesthetic
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                lim = 1.1*dfts['B_RTN'].max()
                 ax.set_ylim([-lim, lim])
                 lines['mag'] = ax.get_lines()
-            except:
-                ax = axes['mag']
-                dfts[['Br','Bt','Bn','B']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
-                ax.legend(['Br_SC','Bt_SC','Bn_SC','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                lim = 1.1*dfts['B'].max()
-                ax.set_ylim([-lim, lim])
-                lines['mag'] = ax.get_lines()
-        else:
-            # update
-            try:
+            else:
+                # update
                 ax = axes['mag']
                 ls = lines['mag']
-                ls[0].set_data(dfts['Br_RTN'].index, dfts['Br_RTN'].values)
-                ls[1].set_data(dfts['Bt_RTN'].index, dfts['Bt_RTN'].values)
-                ls[2].set_data(dfts['Bn_RTN'].index, dfts['Bn_RTN'].values)
-                ls[3].set_data(dfts['B_RTN'].index, dfts['B_RTN'].values)
-                ax.legend(['Br','Bt','Bn','|B|'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                if self.mag_option['norm'] == 0:
+                    if self.mag_option['sc'] == 0:
+                        ls[0].set_data(dfts['Br_RTN'].index, dfts['Br_RTN'].values)
+                        ls[1].set_data(dfts['Bt_RTN'].index, dfts['Bt_RTN'].values)
+                        ls[2].set_data(dfts['Bn_RTN'].index, dfts['Bn_RTN'].values)
+                        ls[3].set_data(dfts['B_RTN'].index, dfts['B_RTN'].values)
+                        ax.legend(['Br [nT]','Bt','Bn','|B|'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dfts['B_RTN'].max()
+                    elif self.mag_option['sc'] == 1:
+                        ls[0].set_data(dfts['Br'].index, dfts['Br'].values)
+                        ls[1].set_data(dfts['Bt'].index, dfts['Bt'].values)
+                        ls[2].set_data(dfts['Bn'].index, dfts['Bn'].values)
+                        ls[3].set_data(dfts['B'].index, dfts['B'].values)
+                        ax.legend(['Br_SC [nT]','Bt_SC','Bn_SC','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dfts['B'].max()
+                    else:
+                        raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
+                elif self.mag_option['norm'] == 1:
+                    if self.mag_option['sc'] == 0:
+                        dftemp = pd.DataFrame(index = self.dfts.index)
+                        dftemp['Br_RTN'] = self.dfts['Br_RTN'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
+                        dftemp['Bt_RTN'] = self.dfts['Bt_RTN'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['Bn_RTN'] = self.dfts['Bn_RTN'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['B_RTN'] = (dftemp[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis=1).apply(np.sqrt)
+                        ls[0].set_data(dftemp['Br_RTN'].index, dftemp['Br_RTN'].values)
+                        ls[1].set_data(dftemp['Bt_RTN'].index, dftemp['Bt_RTN'].values)
+                        ls[2].set_data(dftemp['Bn_RTN'].index, dftemp['Bn_RTN'].values)
+                        ls[3].set_data(dftemp['B_RTN'].index, dftemp['B_RTN'].values)
+                        ax.legend([r'$Br*a(R)^2\ [nT]$',r'$Bt*a(R)\ a(R)=R/0.1AU$',r'$Bn*a(R)$',r'$|B|$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dftemp['B_RTN'].max()
+                    elif self.mag_option['sc'] == 1:
+                        dftemp = pd.DataFrame(index = self.dfts.index)
+                        dftemp['Br'] = self.dfts['Br'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
+                        dftemp['Bt'] = self.dfts['Bt'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['Bn'] = self.dfts['Bn'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['B'] = (dftemp[['Br','Bt','Bn']]**2).sum(axis=1).apply(np.sqrt)
+                        ls[0].set_data(dftemp['Br'].index, dftemp['Br'].values)
+                        ls[1].set_data(dftemp['Bt'].index, dftemp['Bt'].values)
+                        ls[2].set_data(dftemp['Bn'].index, dftemp['Bn'].values)
+                        ls[3].set_data(dftemp['B'].index, dftemp['B'].values)
+                        ax.legend([r'$Br_{SC}*a(R)^2\ [nT]$',r'$Bt_{SC}*a(R)\ a(R)=R/0.1AU$',r'$Bn_{SC}*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dftemp['B'].max()
+                    else:
+                        raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
+                else:
+                    raise ValueError("mag_option['norm']==%d not supported!" %(self.mag_option['norm']))
+                # try:
+                #     ax = axes['mag']
+                #     ls = lines['mag']
+                #     ls[0].set_data(dfts['Br_RTN'].index, dfts['Br_RTN'].values)
+                #     ls[1].set_data(dfts['Bt_RTN'].index, dfts['Bt_RTN'].values)
+                #     ls[2].set_data(dfts['Bn_RTN'].index, dfts['Bn_RTN'].values)
+                #     ls[3].set_data(dfts['B_RTN'].index, dfts['B_RTN'].values)
+                #     ax.legend(['Br','Bt','Bn','|B|'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                # except:
+                #     ax = axes['mag']
+                #     ls = lines['mag']
+                    # ls[0].set_data(dfts['Br'].index, dfts['Br'].values)
+                    # ls[1].set_data(dfts['Bt'].index, dfts['Bt'].values)
+                    # ls[2].set_data(dfts['Bn'].index, dfts['Bn'].values)
+                    # ls[3].set_data(dfts['B'].index, dfts['B'].values)
+                #     ax.legend(['Br_SC','Bt_SC','Bn_SC','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                # aesthetic
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                lim = 1.1*dfts['B_RTN'].max()
                 ax.set_ylim([-lim, lim])
                 lines['mag'] = ax.get_lines()
-            except:
-                ax = axes['mag']
-                ls = lines['mag']
-                ls[0].set_data(dfts['Br'].index, dfts['Br'].values)
-                ls[1].set_data(dfts['Bt'].index, dfts['Bt'].values)
-                ls[2].set_data(dfts['Bn'].index, dfts['Bn'].values)
-                ls[3].set_data(dfts['B'].index, dfts['B'].values)
-                ax.legend(['Br_SC','Bt_SC','Bn_SC','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                lim = 1.1*dfts['B'].max()
-                ax.set_ylim([-lim, lim])
-                lines['mag'] = ax.get_lines()
+
+                collect()
+        except:
+            raise ValueError("MAG Plotting have some problems...")
 
         """speeds"""
         if not(update):
@@ -452,6 +613,7 @@ class TimeSeriesViewer:
                 ls[0].set_data(dfts['V'].index, dfts['V'].values)
                 ls[1].set_data(dfts['Vth'].index, dfts['Vth'].values)
                 ax.legend(['Vsw[km/s]','Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -468,8 +630,10 @@ class TimeSeriesViewer:
         if not(update):
             try:
                 ax = axes['norm']
-                dfts[['sigma_c','sigma_r']].plot(ax = ax, legend=False, style=['C0','C1'], lw = 0.8)
-                ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
+                dfts[['sigma_c']].plot(ax = ax, legend=False, style=['C0'], lw = 0.9)
+                # dfts[['sigma_r']].plot(ax = ax, legend=False, style=['C1'], lw = 0.7)
+                # ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
+                ax.legend([r'$\sigma_c$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -483,8 +647,9 @@ class TimeSeriesViewer:
                 ax = axes['norm']
                 ls = lines['norm']
                 ls[0].set_data(dfts['sigma_c'].index, dfts['sigma_c'].values)
-                ls[1].set_data(dfts['sigma_r'].index, dfts['sigma_r'].values)
-                ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
+                # ls[1].set_data(dfts['sigma_r'].index, dfts['sigma_r'].values)
+                # ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
+                ax.legend([r'$\sigma_c$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -565,8 +730,12 @@ class TimeSeriesViewer:
         if not(update):
             try:
                 ax = axes['ang']
-                dfts[['vbangle','brangle']].plot(ax = ax, legend=False, style = ['r--','b--'], lw = 0.8)
-                ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                try:
+                    dfts[['vbangle','brangle']].plot(ax = ax, legend=False, style = ['r--','b--'], lw = 0.8)
+                    ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                except:
+                    dfts[['vbangle']].plot(ax = ax, legend=False, style = ['r--','b--'], lw = 0.8)
+                    ax.legend([r'$<\vec V, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -581,9 +750,13 @@ class TimeSeriesViewer:
             try:
                 ax = axes['ang']
                 ls = lines['ang']
-                ls[0].set_data(dfts['vbangle'].index, dfts['vbangle'].values)
-                ls[1].set_data(dfts['brangle'].index, dfts['brangle'].values)
-                ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                try:
+                    ls[0].set_data(dfts['vbangle'].index, dfts['vbangle'].values)
+                    ls[1].set_data(dfts['brangle'].index, dfts['brangle'].values)
+                    ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                except:
+                    ls[0].set_data(dfts['vbangle'].index, dfts['vbangle'].values)
+                    ax.legend([r'$<\vec V, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -702,43 +875,27 @@ class TimeSeriesViewer:
             try:
                 ax = axes['rau'].twinx()
                 axes['tadv'] = ax
-                ydata = dfts['Dist_au']/dfts['vsw']*au_to_km/3600
-                (ydata).plot(ax = ax, style = ['r'], legend = False, lw = 0.8)
+                dfts['tadv'].plot(ax = ax, style = ['r'], legend = False, lw = 0.8)
                 ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_ylim([np.nanmin(ydata)*0.95, np.nanmax(ydata)*1.05])
+                ax.set_ylim([np.nanmin(dfts['tadv'])*0.95, np.nanmax(dfts['tadv'])*1.05])
                 lines['tadv'] = ax.get_lines()
             except:
-                ax = axes['rau'].twinx()
-                axes['tadv'] = ax
-                ydata = dfts['RAU_AU']/dfts['vsw']*au_to_km/3600
-                (ydata).plot(ax = ax, style = ['r'], legend = False, lw = 0.8)
-                ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
-                ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_ylim([np.nanmin(ydata)*0.95, np.nanmax(ydata)*1.05])
-                lines['tadv'] = ax.get_lines()
+                pass
         else:
             try:
                 ax = axes['tadv']
                 ls = lines['tadv']
-                ydata = (dfts['Dist_au']/dfts['vsw']*au_to_km/3600)
-                ls[0].set_data(dfts['Dist_au'].index, ydata.values)
+                ls[0].set_data(dfts['tadv'].index, dfts['tadv'].values)
                 ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_ylim([np.nanmin(ydata)*0.95, np.nanmax(ydata)*1.05])
+                ax.set_ylim([np.nanmin(dfts['tadv'])*0.95, np.nanmax(dfts['tadv'])*1.05])
                 lines['tadv'] = ax.get_lines()
             except:
-                ax = axes['tadv']
-                ls = lines['tadv']
-                ydata = (dfts['RAD_AU']/dfts['vsw']*au_to_km/3600)
-                ls[0].set_data(dfts['RAD_AU'].index, ydata.values)
-                ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
-                ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_ylim([np.nanmin(ydata)*0.95, np.nanmax(ydata)*1.05])
-                lines['tadv'] = ax.get_lines()
+                pass
 
 
-        fig.tight_layout()
+        # fig.tight_layout()
         self.lines = lines
         self.axes = axes
         collect()
@@ -748,16 +905,22 @@ class TimeSeriesViewer:
         """ Process time series to produce desired data product """
 
         load_spdf = self.load_spdf
-        dfspdf = self.spdf_data['dfspdf']
-        dfts = self.dfts_raw
+        dfts = self.dfts_raw.copy()
+        # resample_rate = self.resample_rate
 
         """resample the time series"""
         dfts = dfts.resample(resample_rate).mean()
 
         """join the spdf data"""
         if load_spdf:
-            dfts = dfts.join(dfspdf.resample(resample_rate).mean())
-            dfts['B_RTN'] = (dfts[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis = 1).apply(np.sqrt)
+            try:
+                dfspdf = self.spdf_data['dfspdf']
+                dfts = dfts.join(dfspdf.resample(resample_rate).mean())
+                dfts['B_RTN'] = (dfts[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis = 1).apply(np.sqrt)
+                # B R angle (need spdf)
+                dfts['brangle'] = (dfts['Br_RTN']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
+            except:
+                pass
 
         """Modulus of vectors"""
         dfts['B'] = (dfts['Br']**2+dfts['Bt']**2+dfts['Bn']**2).apply(np.sqrt)
@@ -855,14 +1018,32 @@ class TimeSeriesViewer:
         vsw[np.abs(vsw) > 1e5] = np.nan
         dfts['vsw'] = vsw
 
-        # B R angle (need spdf)
-        if load_spdf:
-            dfts['brangle'] = (dfts['Br_RTN']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
-
         # deal with weird values
         vth = dfts['Vth'].to_numpy()
         vth[vth < 0] = np.nan
         dfts['Vth'] = vth
+
+        # distance
+        try:
+            dist = dfts['Dist_au'].to_numpy()
+            dist_spdf = dfts['RAD_AU'].to_numpy()
+            dist[np.isnan(dist)] = dist_spdf[np.isnan(dist)]
+            dfts['Dist_au'] = dist
+        except:
+            pass
+
+        # advection time [Hr]
+        tadv = (dfts['Dist_au']/dfts['vsw']).to_numpy() * au_to_km /3600
+        tadv[tadv < 0] = np.nan
+        dfts['tadv'] = tadv
+        try:
+            tadv_spdf = (dfts['RAD_AU']/dfts['vsw']).to_numpy() * au_to_km /3600
+            tadv_spdf[tadv_spdf < 0] = np.nan
+            dfts['tadv_spdf'] = tadv_spdf
+            tadv[np.isnan(tadv)] = tadv_spdf[np.isnan(tadv)]
+            dfts['tadv'] = tadv
+        except:
+            pass
 
         # update dfts
         self.dfts = dfts
@@ -899,6 +1080,9 @@ class TimeSeriesViewer:
         # create dfts (dataframe time series)
         dfts = pd.DataFrame(index = dfmag.index[indmag])
 
+        if len(dfts) < 5:
+            raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
+
         # join time series
         dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
 
@@ -908,9 +1092,9 @@ class TimeSeriesViewer:
             t0 = start_time - pd.Timedelta('1d')
             t1 = end_time + pd.Timedelta('1d')
             if self.sc==0:
-                spdf_data = self.LoadSPDF(spacecraft = 'PSP', start_time = t0, end_time = t1, verbose = verbose)
+                self.spdf_data = self.LoadSPDF(spacecraft = 'PSP', start_time = t0, end_time = t1, verbose = verbose)
             elif self.sc==1:
-                spdf_data = self.LoadSPDF(spacecraft = 'SolO', start_time = t0, end_time = t1, verbose = verbose)
+                self.spdf_data = self.LoadSPDF(spacecraft = 'SolO', start_time = t0, end_time = t1, verbose = verbose)
         else:
             pass
 
@@ -929,92 +1113,94 @@ class TimeSeriesViewer:
         ):
         """ load data from spdf API """
 
-        # convert datetime type
-        start_time = np.datetime64(start_time).astype(datetime)
-        end_time = np.datetime64(end_time).astype(datetime)
+        try:
 
-        # dict to store all the SPDF information
-        spdf_data = {
-            'spacecraft' : spacecraft,
-            'start_time': start_time,
-            'end_time': end_time
-        }
-        
-        if verbose:
-            print("Spacecraft: ", spacecraft)
-            print("Start Time: "+str(spdf_data['start_time']))
-            print("End Time: "+str(spdf_data['end_time']))
+            # convert datetime type
+            start_time = np.datetime64(start_time).astype(datetime)
+            end_time = np.datetime64(end_time).astype(datetime)
 
-        if spacecraft == 'PSP':
+            # dict to store all the SPDF information
+            spdf_data = {
+                'spacecraft' : spacecraft,
+                'start_time': start_time,
+                'end_time': end_time
+            }
+            
+            if verbose:
+                print("Spacecraft: ", spacecraft)
+                print("Start Time: "+str(spdf_data['start_time']))
+                print("End Time: "+str(spdf_data['end_time']))
 
-            # load ephemeris
-            if verbose: print("Loading PSP_HELIO1DAY_POSITION from CDAWEB...")
-            vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
-            time = [start_time, end_time]
-            status, data = cdas.get_data('PSP_HELIO1DAY_POSITION', vars, time[0], time[1])
+            if spacecraft == 'PSP':
 
-            spdf_data['ephem_status'] = status
-            spdf_data['ephem_data'] = data
+                # load ephemeris
+                if verbose: print("Loading PSP_HELIO1DAY_POSITION from CDAWEB...")
+                vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
+                time = [start_time, end_time]
+                status, data = cdas.get_data('PSP_HELIO1DAY_POSITION', vars, time[0], time[1])
 
-            dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
-            dfdis = dfdis.resample('1min').mean().interpolate('linear')
+                spdf_data['ephem_status'] = status
+                spdf_data['ephem_data'] = data
 
-            # load magnetic field
-            if verbose: print("Loading PSP_FLD_L2_MAG_RTN_1MIN from CDAWEB...")
-            vars = ['psp_fld_l2_mag_RTN_1min']
-            time = [start_time, end_time]
-            status, data = cdas.get_data('PSP_FLD_L2_MAG_RTN_1MIN', vars, time[0], time[1])
+                dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
+                dfdis = dfdis.resample('1min').mean().interpolate('linear')
 
-            spdf_data['mag_status'] = status
-            spdf_data['mag_data'] = data
+                # load magnetic field
+                if verbose: print("Loading PSP_FLD_L2_MAG_RTN_1MIN from CDAWEB...")
+                vars = ['psp_fld_l2_mag_RTN_1min']
+                time = [start_time, end_time]
+                status, data = cdas.get_data('PSP_FLD_L2_MAG_RTN_1MIN', vars, time[0], time[1])
 
-            dfmag = pd.DataFrame(
-                index = spdf_data['mag_data']['epoch_mag_RTN_1min'],
-                data = spdf_data['mag_data']['psp_fld_l2_mag_RTN_1min'],
-                columns = ['Br_RTN','Bt_RTN','Bn_RTN']
-            ).resample('1min').mean()
+                spdf_data['mag_status'] = status
+                spdf_data['mag_data'] = data
 
-            spdf_data['dfspdf'] = dfmag.join(dfdis)
+                dfmag = pd.DataFrame(
+                    index = spdf_data['mag_data']['epoch_mag_RTN_1min'],
+                    data = spdf_data['mag_data']['psp_fld_l2_mag_RTN_1min'],
+                    columns = ['Br_RTN','Bt_RTN','Bn_RTN']
+                ).resample('1min').mean()
 
-        elif spacecraft == 'SolO':
+                spdf_data['dfspdf'] = dfmag.join(dfdis)
 
-            # load ephemeris
-            if verbose: print("Loading SOLO_HELIO1DAY_POSITION from CDAWEB...")
-            vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
-            time = [start_time, end_time]
-            status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', vars, time[0], time[1])
+            elif spacecraft == 'SolO':
 
-            spdf_data['ephem_status'] = status
-            spdf_data['ephem_data'] = data
+                # load ephemeris
+                if verbose: print("Loading SOLO_HELIO1DAY_POSITION from CDAWEB...")
+                vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
+                time = [start_time, end_time]
+                status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', vars, time[0], time[1])
 
-            dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
-            dfdis = dfdis.resample('1min').mean().interpolate('linear')
+                spdf_data['ephem_status'] = status
+                spdf_data['ephem_data'] = data
 
-            # load magnetic field
-            if verbose: print("Loading SOLO_L2_MAG-RTN-NORMAL-1-MINUTE from CDAWEB...")
-            vars = ['B_RTN']
-            time = [start_time, end_time]
-            status, data = cdas.get_data('SOLO_L2_MAG-RTN-NORMAL-1-MINUTE', vars, time[0], time[1])
+                dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
+                dfdis = dfdis.resample('1min').mean().interpolate('linear')
 
-            spdf_data['mag_status'] = status
-            spdf_data['mag_data'] = data
+                # load magnetic field
+                if verbose: print("Loading SOLO_L2_MAG-RTN-NORMAL-1-MINUTE from CDAWEB...")
+                vars = ['B_RTN']
+                time = [start_time, end_time]
+                status, data = cdas.get_data('SOLO_L2_MAG-RTN-NORMAL-1-MINUTE', vars, time[0], time[1])
 
-            dfmag = pd.DataFrame(
-                index = spdf_data['mag_data']['EPOCH'],
-                data = spdf_data['mag_data']['B_RTN'],
-                columns = ['Br_RTN','Bt_RTN','Bn_RTN']
-            ).resample('1min').mean()
+                spdf_data['mag_status'] = status
+                spdf_data['mag_data'] = data
 
-            spdf_data['dfspdf'] = dfmag.join(dfdis)
+                dfmag = pd.DataFrame(
+                    index = spdf_data['mag_data']['EPOCH'],
+                    data = spdf_data['mag_data']['B_RTN'],
+                    columns = ['Br_RTN','Bt_RTN','Bn_RTN']
+                ).resample('1min').mean()
 
-        else:
-            raise ValueError("spacecraft = %s not supported!" %(spacecraft))
+                spdf_data['dfspdf'] = dfmag.join(dfdis)
 
-        if verbose: print("Done...")
+            else:
+                raise ValueError("spacecraft = %s not supported!" %(spacecraft))
 
-        self.spdf_data = spdf_data
+            if verbose: print("Done...")
 
-        return spdf_data
+            return spdf_data
+        except:
+            return None
 
 
     def CheckTimeBoundary(self):
@@ -1091,16 +1277,40 @@ class TimeSeriesViewer:
                     if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
                         t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
                         ind = (self.dfts_raw.index > t0) & (self.dfts_raw.index < t1)
-                        Br = self.dfts_raw[ind]['Br'].values
-                        Bt = self.dfts_raw[ind]['Bt'].values
-                        Bn = self.dfts_raw[ind]['Bn'].values
+                        dftemp = self.dfts_raw.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
+                        Br = dftemp['Br'].values
+                        Bt = dftemp['Bt'].values
+                        Bn = dftemp['Bn'].values
                         freq, B_pow = TracePSD(Br, Bt, Bn, 1)
                         fig1, ax1 = plt.subplots(1, figsize = [6,6])
                         ax1.loglog(freq, B_pow)
                         ax1.xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
                         ax1.ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
+                        # save the time series to dataframe
+                        self.selected_intervals[i1]['TimeSeries'] = dftemp
             except:
                 pass
+            collect()
+            pass
+        # ------ b/n for changing magnetic field options ------ #  
+        elif (event.key == 'b'):
+            # use rtn (sc = 0), sc (sc = 1)
+            if self.mag_option['sc'] == 0:
+                self.mag_option['sc'] = 1
+            elif self.mag_option['sc'] == 1:
+                self.mag_option['sc'] = 0
+            else: raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
+            self.PlotTimeSeries(update=True)
+            pass
+        elif (event.key == 'n'):
+            # original (norm = 0), normalized (norm = 1)
+            if self.mag_option['norm'] == 0:
+                self.mag_option['norm'] = 1
+            elif self.mag_option['norm'] == 1:
+                self.mag_option['norm'] = 0
+            else: raise ValueError("mag_option['norm']==%d not supported!" %(self.mag_option['norm']))
+            self.PlotTimeSeries(update=True)
+            pass
         # ------ left right for navigate ------ #
         elif (event.key == 'right'):
             self.window_size_histories.append(
@@ -1207,6 +1417,7 @@ class TimeSeriesViewer:
                     'spacecraft': self.sc,
                     'start_time': tstart,
                     'end_time': tend,
+                    'TimeSeries': None,
                     'rects': {},
                     'lines1': l1['lines'],
                     'lines2': l2['lines']
@@ -1289,9 +1500,8 @@ class TimeSeriesViewer:
             # try:
             tind = np.where(np.abs(self.dfts.index - xt) < 2*pd.Timedelta(self.resample_rate))[0][0]
             vsw = self.dfts['vsw'][tind]
-            try:
-                rau = self.dfts['Dist_au'][tind]
-            except:
+            rau = self.dfts['Dist_au'][tind]
+            if np.isnan(rau):
                 rau = self.dfts['RAD_AU'][tind]
 
             t_len1 = SolarWindCorrelationLength(rau)
