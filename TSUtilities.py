@@ -340,16 +340,15 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
     Load Solar Orbiter Time Series, this is a wrapper for SPDF API
     All Time Series will be stored with dataframe, NOT resampled
     Keys available for loading:
-    Key:                SPDF Key:                       Description:                                Columns:     
-    ephem               SOLO_HELIO1DAY_POSITION         Ephemeris                                   ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']                                               
-    mag_rtn             PSP_FLD_L2_MAG_RTN              Full resolution magnetic field              ['Br','Bt','Bn']                                        
-    mag_sc              PSP_FLD_L2_MAG_SC               Full resolution sc frame magnetic field     ['Bx','By','Bz']
-    mag_1min_rtn        PSP_FLD_L2_MAG_RTN_1MIN         1min RTN magnetic field                     ['Br','Bt','Bn']
-    mag_1min_sc         PSP_FLD_L2_MAG_SC_1MIN          1min SC magnetic field                      ['Bx','By','Bz']
-    mag_scm             PSP_FLD_L3_MERGED_SCAM_WF       Merged FIELDS and SCAM data                 *Keep as dict
-    swa                 SOLO_L2_SWA-PAS-GRND-MOM        SWA Moments                                 ['Vx','Vy','Vz','np','Vth','Vr','Vt','Vn']   
-    span                PSP_SWP_SPI_SF00_L3_MOM_INST    SPAN Moments                                ['Vx','Vy','Vz','np','Vth']
-
+    Key:                SPDF Key:                           Description:                        Columns:     
+    ephem               SOLO_HELIO1DAY_POSITION             Ephemeris                           ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']                                               
+    mag_rtn             SOLO_L2_MAG-RTN-NORMAL              Normal resolution MAG RTN           ['Br','Bt','Bn']                                        
+    mag_1min_rtn        SOLO_L2_MAG-RTN-NORMAL-1-MINUTE     1min RTN magnetic field             ['Br','Bt','Bn']
+    mag_burst_rtn       SOLO_L2_MAG-RTN-BURST               Burst RTN magnetic field            ['Br','Bt','Bn']
+    mag_srf             SOLO_L2_MAG-SRF-NORMAL              Normal SRF magnetic field           ['Bx','By','Bz']
+    mag_burst_srf       SOLO_L2_MAG-SRF-BURST               Burst SRF magnetic field            ['Bx','By','Bz']
+    swa                 SOLO_L2_SWA-PAS-GRND-MOM            SWA Moments                         ['Vx','Vy','Vz','np','Vth','Vr','Vt','Vn']   
+    
     Input:
         start_time  [datetime.datetime]   :   start of the interval
         end_time    [datetime.datetime]   :   end of the interval
@@ -385,7 +384,7 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
             )
 
     # set keys
-    keys0 = ['ephem', 'mag_rtn', 'mag_sc', 'mag_1min_rtn', 'mag_1min_sc', 'mag_scm', 'spc', 'span']
+    keys0 = ['ephem', 'mag_rtn', 'mag_1min_rtn', 'mag_burst_rtn', 'mag_srf', 'mag_burst_srf', 'swa']
     if keys is None:
         keys = keys0
     else:
@@ -400,57 +399,50 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
     # dict for SPDF keys
     spdf_infos = {
         'ephem': {
-            'key': 'PSP_HELIO1DAY_POSITION',
+            'key': 'SOLO_HELIO1DAY_POSITION',
             'vars': ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON'],
             'status': None,
             'data': None,
             'dataframe': None
         },
         'mag_rtn': {
-            'key': 'PSP_FLD_L2_MAG_RTN',
-            'vars': ['psp_fld_l2_mag_RTN'],
-            'status': None,
-            'data': None,
-            'dataframe': None
-        },
-        'mag_sc': {
-            'key': 'PSP_FLD_L2_MAG_SC',
-            'vars': ['psp_fld_l2_mag_SC'],
+            'key': 'SOLO_L2_MAG-RTN-NORMAL',
+            'vars': ['B_RTN'],
             'status': None,
             'data': None,
             'dataframe': None
         },
         'mag_1min_rtn': {
-            'key': 'PSP_FLD_L2_MAG_RTN_1MIN',
-            'vars': ['psp_fld_l2_mag_RTN_1min'],
+            'key': 'SOLO_L2_MAG-RTN-NORMAL-1-MINUTE',
+            'vars': ['B_RTN'],
             'status': None,
             'data': None,
             'dataframe': None
         },
-        'mag_1min_sc': {
-            'key':'PSP_FLD_L2_MAG_SC_1MIN',
-            'vars': ['psp_fld_l2_mag_SC_1min'],
+        'mag_burst_rtn': {
+            'key': 'SOLO_L2_MAG-RTN-BURST',
+            'vars': ['B_RTN'],
             'status': None,
             'data': None,
             'dataframe': None
         },
-        'mag_scm': {
-            'key': 'PSP_FLD_L3_MERGED_SCAM_WF',
-            'vars': ['psp_fld_l3_merged_scam_wf_uvw','psp_fld_l3_merged_scam_wf_SC','psp_fld_l3_merged_scam_wf_RTN'],
+        'mag_srf': {
+            'key':'SOLO_L2_MAG-SRF-NORMAL',
+            'vars': ['B_SRF'],
+            'status': None,
+            'data': None,
+            'dataframe': None
+        },
+        'mag_burst_srf': {
+            'key': 'SOLO_L2_MAG-SRF-BURST',
+            'vars': ['B_SRF'],
             'status': None,
             'data': None,
             'dataframe': None
             },
-        'spc': {
-            'key': 'PSP_SWP_SPC_L3I',
-            'vars': ['general_flag','vp_moment_SC_gd','vp_moment_SC_deltahigh_gd','vp_moment_SC_deltalow_gd','vp_moment_RTN_gd','vp_moment_RTN_deltahigh_gd','vp_moment_RTN_deltalow_gd','np_moment_gd','np_moment_deltahigh_gd','np_moment_deltalow_gd','wp_moment_gd','wp_moment_deltahigh_gd','wp_moment_deltalow_gd','vp1_fit_SC_gd','vp1_fit_SC_uncertainty_gd','vp1_fit_RTN_gd','vp1_fit_RTN_uncertainty_gd','np1_fit_gd','np1_fit_uncertainty_gd','wp1_fit_gd','wp1_fit_uncertainty_gd','vp_fit_SC_gd','vp_fit_SC_uncertainty_gd','vp_fit_RTN_gd','vp_fit_RTN_uncertainty_gd','np_fit_gd','np_fit_uncertainty_gd','wp_fit_gd','wp_fit_uncertainty_gd','va_fit_SC_gd','va_fit_SC_uncertainty_gd','va_fit_RTN_gd','va_fit_RTN_uncertainty_gd','na_fit_gd','na_fit_uncertainty_gd','wa_fit_gd','wa_fit_uncertainty_gd','v3_fit_SC_gd','v3_fit_SC_uncertainty_gd','v3_fit_RTN_gd','v3_fit_RTN_uncertainty_gd','n3_fit_gd','n3_fit_uncertainty_gd','w3_fit_gd','w3_fit_uncertainty_gd','sc_pos_HCI','sc_vel_HCI','carr_latitude','carr_longitude','vp_moment_SC','vp_moment_SC_deltahigh','vp_moment_SC_deltalow','vp_moment_RTN','vp_moment_RTN_deltahigh','vp_moment_RTN_deltalow','np_moment','np_moment_deltahigh','np_moment_deltalow','wp_moment','wp_moment_deltahigh','wp_moment_deltalow','vp1_fit_SC','vp1_fit_SC_uncertainty','vp1_fit_RTN','vp1_fit_RTN_uncertainty','np1_fit','np1_fit_uncertainty','wp1_fit','wp1_fit_uncertainty','vp_fit_SC','vp_fit_SC_uncertainty','vp_fit_RTN','vp_fit_RTN_uncertainty','np_fit','np_fit_uncertainty','wp_fit','wp_fit_uncertainty','va_fit_SC','va_fit_SC_uncertainty','va_fit_RTN','va_fit_RTN_uncertainty','na_fit','na_fit_uncertainty','wa_fit','wa_fit_uncertainty','v3_fit_SC','v3_fit_SC_uncertainty','v3_fit_RTN','v3_fit_RTN_uncertainty','n3_fit','n3_fit_uncertainty','w3_fit','w3_fit_uncertainty'],
-            'status': None,
-            'data': None,
-            'dataframe': None
-        },
-        'span': {
-            'key': 'PSP_SWP_SPI_SF00_L3_MOM_INST',
-            'vars': ['QUALITY_FLAG','DENS','VEL','T_TENSOR','TEMP','MAGF_SC','MAGF_INST','EFLUX_VS_ENERGY','EFLUX_VS_THETA','EFLUX_VS_PHI'],
+        'swa': {
+            'key': 'SOLO_L2_SWA-PAS-GRND-MOM',
+            'vars': ['unrecovered_count','total_count','quality_factor','N','V_SRF','V_RTN','P_SRF','P_RTN','TxTyTz_SRF','TxTyTz_RTN','T','V_SOLO_RTN'],
             'status': None,
             'data': None,
             'dataframe': None
@@ -459,7 +451,7 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
 
     # ------ initialize dictionary ------ #
     spdf_data = {
-        'spacecraft'    :   'PSP',
+        'spacecraft'    :   'SOLO',
         'sc'            :   0,
         'start_time'    :   start_time,
         'end_time'      :   end_time,
