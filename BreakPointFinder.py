@@ -63,12 +63,13 @@ class BreakPointFinder:
         self.LoadPSD()
 
     def LoadPSD(self):
-        essential_keys = ['freqs', 'PSD', 'sm_freqs', 'sm_PSD', 'resample_info']
+        self.essential_keys = ['freqs', 'PSD', 'sm_freqs', 'sm_PSD', 'resample_info']
         self.path = self.paths[self.which_one]
         path = self.path
         try:
-            self.PSD = pd.read_pickle(path)
-            for k in essential_keys:
+            self.Diagnostics = (pd.read_pickle(path))
+            self.PSD = self.Diagnostics['PSD']
+            for k in self.essential_keys:
                 if k in self.PSD.keys():
                     pass
                 else:
@@ -158,7 +159,9 @@ class BreakPointFinder:
 
 
     def SaveProgress(self):
-        pickle.dump(self.PSD, open( self.path, "wb" ))
+        for k, v in self.PSD.items():
+            self.Diagnostics['PSD'][k] = v
+        pickle.dump(self.Diagnostics, open( self.path, "wb" ))
 
     # -----------------  Visual Part ----------------- #
     def set_cross_hair_visible(self, visible):

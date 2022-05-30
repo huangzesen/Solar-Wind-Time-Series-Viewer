@@ -80,7 +80,7 @@ class TimeSeriesViewer:
         self.verbose = verbose
         self.rolling_rate = rolling_rate
         self.resample_rate = resample_rate
-        self.mag_option = {'norm':0, 'sc':0}
+        self.mag_option = {'norm':1, 'sc':1}
         self.spc_only = True
 
         if paths is None:
@@ -515,7 +515,8 @@ class TimeSeriesViewer:
 
                 collect()
         except:
-            raise ValueError("MAG Plotting have some problems...")
+            print("MAG Plotting have some problems...")
+            pass
 
         """speeds"""
         if not(update):
