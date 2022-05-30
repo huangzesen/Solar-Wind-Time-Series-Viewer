@@ -81,6 +81,7 @@ class TimeSeriesViewer:
         self.rolling_rate = rolling_rate
         self.resample_rate = resample_rate
         self.mag_option = {'norm':0, 'sc':0}
+        self.spc_only = True
 
         if paths is None:
             self.paths = {
@@ -370,6 +371,15 @@ class TimeSeriesViewer:
         fig = self.fig
         lines = self.lines
 
+        if self.spc_only:
+            # for solar probe only
+            if self.sc == 0:
+                ind = dfts['INSTRUMENT_FLAG'] == 1
+                dfts = self.dfts.copy()
+                dfts.loc[~ind, 
+                ['np','Vth','Vr','Vt','Vn','V','sigma_c','sigma_r','vbangle','di','rho_ci','beta','vsw','tadv']
+                ] = np.nan
+
         """make title"""
         fig.suptitle(
             "%s to %s" %(str(self.start_time), str(self.end_time))
@@ -514,7 +524,8 @@ class TimeSeriesViewer:
                 # speeds
                 dfts[['V','Vth']].plot(ax = ax, legend=False, style=['C1','C2'], lw = 0.8)
                 ax.legend(['Vsw[km/s]','Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_yscale('log')
+                if dfts['V'].apply(np.isnan).sum() != len(dfts):
+                    ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -534,7 +545,8 @@ class TimeSeriesViewer:
                 ls[0].set_data(dfts['V'].index, dfts['V'].values)
                 ls[1].set_data(dfts['Vth'].index, dfts['Vth'].values)
                 ax.legend(['Vsw[km/s]','Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_yscale('log')
+                if dfts['V'].apply(np.isnan).sum() != len(dfts):
+                    ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -586,7 +598,8 @@ class TimeSeriesViewer:
                 ax = axes['scale']
                 dfts[['di','rho_ci']].plot(ax = ax, legend=False, style=['C3--','C4--'], lw = 0.8)
                 ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_yscale('log')
+                if dfts['di'].apply(np.isnan).sum() != len(dfts):
+                    ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -605,7 +618,8 @@ class TimeSeriesViewer:
                 ls[0].set_data(dfts['di'].index, dfts['di'].values)
                 ls[1].set_data(dfts['rho_ci'].index, dfts['rho_ci'].values)
                 ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_yscale('log')
+                if dfts['di'].apply(np.isnan).sum() != len(dfts):
+                    ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -695,7 +709,8 @@ class TimeSeriesViewer:
                 ax = axes['ang'].twinx()
                 dfts['beta'].plot(ax = ax, style = ['k-'], legend='False', lw = 1.0)
                 ax.legend([r'$\beta$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
-                ax.set_yscale('log')
+                if dfts['beta'].apply(np.isnan).sum() != len(dfts):
+                    ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -716,7 +731,8 @@ class TimeSeriesViewer:
                 ls = lines['beta']
                 ls[0].set_data(dfts['beta'].index, dfts['beta'].values)
                 ax.legend([r'$\beta$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
-                ax.set_yscale('log')
+                if dfts['beta'].apply(np.isnan).sum() != len(dfts):
+                    ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -863,10 +879,10 @@ class TimeSeriesViewer:
         vr = dfts['Vr']; vt = dfts['Vt']; vn = dfts['Vn']; 
         vr0 = dfts['Vr0']; vt0 = dfts['Vt0']; vn0 = dfts['Vn0']; 
 
-        # Estimate fluctuations of fields #
-        va_r = Va_r - np.nanmean(Va_r);   v_r = vr - np.nanmean(vr)
-        va_t = Va_t - np.nanmean(Va_t);   v_t = vt - np.nanmean(vt)
-        va_n = Va_n - np.nanmean(Va_n);   v_n = vn - np.nanmean(vn)
+        # # Estimate fluctuations of fields #
+        # va_r = Va_r - np.nanmean(Va_r);   v_r = vr - np.nanmean(vr)
+        # va_t = Va_t - np.nanmean(Va_t);   v_t = vt - np.nanmean(vt)
+        # va_n = Va_n - np.nanmean(Va_n);   v_n = vn - np.nanmean(vn)
 
         # Use moving mean to estimate fluctuation of fields
         va_r = Va_r - Va_r0;   v_r = vr - vr0
@@ -1230,6 +1246,15 @@ class TimeSeriesViewer:
             elif self.mag_option['norm'] == 1:
                 self.mag_option['norm'] = 0
             else: raise ValueError("mag_option['norm']==%d not supported!" %(self.mag_option['norm']))
+            self.PlotTimeSeries(update=True)
+            pass
+        # ------ i(nstrument) for changing spc only ------ # 
+        elif (event.key == 'i'):
+            # default self.spc_only = True
+            if self.spc_only == True:
+                self.spc_only = False
+            else:
+                self.spc_only = True
             self.PlotTimeSeries(update=True)
             pass
         # ------ left right for navigate ------ #

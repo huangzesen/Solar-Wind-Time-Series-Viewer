@@ -17,6 +17,7 @@ from glob import glob
 from gc import collect
 
 import datetime
+from numba import jit,njit,prange
 
 # SPDF API
 from cdasws import CdasWs
@@ -36,7 +37,35 @@ au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
 
-def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
+# -----------  Load Data ----------- #
+
+def LoadTimeSeriesSPDF(sc=None, start_time=None, keys = None, end_time=None, verbose=True, get_keys = False):
+    """ Wrapper for loading time series from SPDF """
+
+    # Just return keys
+    if (sc is not None) & ((start_time is None) | (end_time is None)) & (get_keys == True):
+        t0 = pd.Timestamp("2020-01-01").to_pydatetime()
+        t1 = pd.Timestamp("2020-01-01").to_pydatetime()
+        if sc == 0:
+            return LoadPSPTimeSeriesSPDF(t0, t1, get_keys = True)
+        elif sc == 1:
+            return LoadSOlOTimeSeriesSPDF(t0, t1, get_keys = True)
+        else:
+            raise ValueError("sc = %d not supported!" %(sc))
+    # load data from spdf
+    elif (sc is not None) & (start_time is not None) & (end_time is not None):
+        # load data
+        if sc == 0:
+            return LoadPSPTimeSeriesSPDF(start_time, end_time, get_keys = False, verbose = verbose, keys = keys)
+        elif sc == 1:
+            return LoadSOlOTimeSeriesSPDF(start_time, end_time, get_keys = False, verbose = verbose, keys = keys)
+        else:
+            raise ValueError("sc = %d not supported!" %(sc))
+    else:
+        raise ValueError("Input Error!")
+
+
+def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, get_keys = False):
     """
     Load Parker Solar Probe Time Series, this is a wrapper for SPDF API
     All Time Series will be stored with dataframe, NOT resampled
@@ -49,14 +78,16 @@ def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
     mag_1min_sc         PSP_FLD_L2_MAG_SC_1MIN          1min SC magnetic field                      ['Bx','By','Bz']
     mag_scm             PSP_FLD_L3_MERGED_SCAM_WF       Merged FIELDS and SCAM data                 *Keep as dict
     spc                 PSP_SWP_SPC_L3I                 SPC Moments                                 ['Vx','Vy','Vz','np','Vth','Vr','Vt','Vn']   
-    span                PSP_SWP_SPI_SF00_L3_MOM_INST    SPAN Moments                                ['Vx','Vy','Vz','np','Vth']
+    span                PSP_SWP_SPI_SF00_L3_MOM_INST    SPAN Moments                                ['Vx','Vy','Vz','np','Vth','TEMP']
 
     Input:
         start_time  [datetime.datetime]   :   start of the interval
         end_time    [datetime.datetime]   :   end of the interval
 
     Keywords:
-        keys = None                             can be a list containing all the desired keys
+        keys = None             [List]                  can be a list containing all the desired keys
+        verbose = True          [Boolean]               more blabla?
+        get_keys = False        [Boolean]               just return the spdf_infos dict                    
 
     Output:
         spdf_data   [dict]                :     a dictionary of everything
@@ -86,7 +117,8 @@ def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
             )
 
     # set keys
-    keys0 = ['ephem', 'mag_rtn', 'mag_sc', 'mag_1min_rtn', 'mag_1min_sc', 'mag_scm', 'spc', 'span']
+    # keys0 = ['ephem', 'mag_rtn', 'mag_sc', 'mag_1min_rtn', 'mag_1min_sc', 'mag_scm', 'spc', 'span']
+    keys0 = ['ephem', 'mag_rtn', 'mag_sc', 'mag_1min_rtn', 'mag_1min_sc', 'spc', 'span']
     if keys is None:
         keys = keys0
     else:
@@ -157,6 +189,9 @@ def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
             'dataframe': None
         }
     }
+
+    if get_keys:
+        return spdf_infos
 
     # ------ initialize dictionary ------ #
     spdf_data = {
@@ -335,7 +370,7 @@ def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
     return spdf_data
 
 
-def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
+def LoadSOlOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, get_keys = False):
     """
     Load Solar Orbiter Time Series, this is a wrapper for SPDF API
     All Time Series will be stored with dataframe, NOT resampled
@@ -347,14 +382,16 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
     mag_burst_rtn       SOLO_L2_MAG-RTN-BURST               Burst RTN magnetic field            ['Br','Bt','Bn']
     mag_srf             SOLO_L2_MAG-SRF-NORMAL              Normal SRF magnetic field           ['Bx','By','Bz']
     mag_burst_srf       SOLO_L2_MAG-SRF-BURST               Burst SRF magnetic field            ['Bx','By','Bz']
-    swa                 SOLO_L2_SWA-PAS-GRND-MOM            SWA Moments                         ['Vx','Vy','Vz','np','Vth','Vr','Vt','Vn']   
+    swa                 SOLO_L2_SWA-PAS-GRND-MOM            SWA Moments                         ['Vx','Vy','Vz','np','Vth','TEMP','Vr','Vt','Vn']   
     
     Input:
         start_time  [datetime.datetime]   :   start of the interval
         end_time    [datetime.datetime]   :   end of the interval
 
     Keywords:
-        keys = None                             can be a list containing all the desired keys
+        keys = None             [List]                  can be a list containing all the desired keys
+        verbose = True          [Boolean]               more blabla?
+        get_keys = False        [Boolean]               just return the spdf_infos dict     
 
     Output:
         spdf_data   [dict]                :     a dictionary of everything
@@ -449,10 +486,13 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
         }
     }
 
+    if get_keys:
+        return spdf_infos
+
     # ------ initialize dictionary ------ #
     spdf_data = {
         'spacecraft'    :   'SOLO',
-        'sc'            :   0,
+        'sc'            :   1,
         'start_time'    :   start_time,
         'end_time'      :   end_time,
         'spdf_infos'    :   {}
@@ -486,36 +526,36 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
         key = 'mag_rtn'
         if key in keys:
             df = pd.DataFrame(
-                    index = spdf_data['spdf_infos'][key]['data']['epoch_mag_RTN'],
-                    data = spdf_data['spdf_infos'][key]['data']['psp_fld_l2_mag_RTN'],
+                    index = spdf_data['spdf_infos'][key]['data']['EPOCH'],
+                    data = spdf_data['spdf_infos'][key]['data']['B_RTN'],
                     columns = ['Br','Bt','Bn']
             )
             df.index.name = 'datetime'
             spdf_data['spdf_infos'][key]['dataframe'] = df
     except:
         print("Processing %s (%s) failed!" %(key, spdf_infos[key]['key']))
-
-    # mag_sc
-    try:
-        key = 'mag_sc'
-        if key in keys:
-            df = pd.DataFrame(
-                    index = spdf_data['spdf_infos'][key]['data']['epoch_mag_SC'],
-                    data = spdf_data['spdf_infos'][key]['data']['psp_fld_l2_mag_SC'],
-                    columns = ['Bx','By','Bz']
-            )
-            df.index.name = 'datetime'
-            spdf_data['spdf_infos'][key]['dataframe'] = df
-    except:
-        print("Processing %s (%s) failed!" %(key, spdf_infos[key]['key']))    
 
     # mag_1min_rtn
     try:
         key = 'mag_1min_rtn'
         if key in keys:
             df = pd.DataFrame(
-                    index = spdf_data['spdf_infos'][key]['data']['epoch_mag_RTN_1min'],
-                    data = spdf_data['spdf_infos'][key]['data']['psp_fld_l2_mag_RTN_1min'],
+                    index = spdf_data['spdf_infos'][key]['data']['EPOCH'],
+                    data = spdf_data['spdf_infos'][key]['data']['B_RTN'],
+                    columns = ['Br','Bt','Bn']
+            )
+            df.index.name = 'datetime'
+            spdf_data['spdf_infos'][key]['dataframe'] = df
+    except:
+        print("Processing %s (%s) failed!" %(key, spdf_infos[key]['key']))    
+
+    # mag_burst_rtn
+    try:
+        key = 'mag_burst_rtn'
+        if key in keys:
+            df = pd.DataFrame(
+                    index = spdf_data['spdf_infos'][key]['data']['EPOCH'],
+                    data = spdf_data['spdf_infos'][key]['data']['B_RTN'],
                     columns = ['Br','Bt','Bn']
             )
             df.index.name = 'datetime'
@@ -523,13 +563,13 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
     except:
         print("Processing %s (%s) failed!" %(key, spdf_infos[key]['key']))
 
-    # mag_1min_sc
+    # mag_srf
     try:
-        key = 'mag_1min_sc'
+        key = 'mag_srf'
         if key in keys:
             df = pd.DataFrame(
-                    index = spdf_data['spdf_infos'][key]['data']['epoch_mag_SC_1min'],
-                    data = spdf_data['spdf_infos'][key]['data']['psp_fld_l2_mag_SC_1min'],
+                    index = spdf_data['spdf_infos'][key]['data']['EPOCH'],
+                    data = spdf_data['spdf_infos'][key]['data']['B_SRF'],
                     columns = ['Bx','By','Bz']
             )
             df.index.name = 'datetime'
@@ -537,44 +577,51 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
     except:
         print("Processing %s (%s) failed!" %(key, spdf_infos[key]['key']))
 
-    # mag_scm
-    pass
-
-    # spc
+    # mag_srf
     try:
-        key = 'spc'
+        key = 'mag_burst_srf'
         if key in keys:
-            df = pd.DataFrame(index = spdf_data['spdf_infos']['spc']['data']['Epoch'])
+            df = pd.DataFrame(
+                    index = spdf_data['spdf_infos'][key]['data']['EPOCH'],
+                    data = spdf_data['spdf_infos'][key]['data']['B_SRF'],
+                    columns = ['Bx','By','Bz']
+            )
+            df.index.name = 'datetime'
+            spdf_data['spdf_infos'][key]['dataframe'] = df
+    except:
+        print("Processing %s (%s) failed!" %(key, spdf_infos[key]['key']))
+
+    # swa
+    try:
+        key = 'swa'
+        if key in keys:
+            df = pd.DataFrame(index = spdf_data['spdf_infos']['swa']['data']['Epoch'])
             df = df.join(
                 pd.DataFrame(
-                    index = spdf_data['spdf_infos']['spc']['data']['Epoch'],
-                    data = spdf_data['spdf_infos']['spc']['data']['vp_moment_SC_gd'],
+                    index = spdf_data['spdf_infos']['swa']['data']['Epoch'],
+                    data = spdf_data['spdf_infos']['swa']['data']['V_SRF'],
                     columns = ['Vx','Vy','Vz']
                 )
             ).join(
                 pd.DataFrame(
-                    index = spdf_data['spdf_infos']['spc']['data']['Epoch'],
-                    data = spdf_data['spdf_infos']['spc']['data']['vp_moment_RTN_gd'],
+                    index = spdf_data['spdf_infos']['swa']['data']['Epoch'],
+                    data = spdf_data['spdf_infos']['swa']['data']['V_RTN'],
                     columns = ['Vr','Vt','Vn']
                 )
             ).join(
                 pd.DataFrame(
-                    index = spdf_data['spdf_infos']['spc']['data']['Epoch'],
-                    data = spdf_data['spdf_infos']['spc']['data']['np_moment_gd'],
+                    index = spdf_data['spdf_infos']['swa']['data']['Epoch'],
+                    data = spdf_data['spdf_infos']['swa']['data']['N'],
                     columns = ['np']
                 )
             ).join(
                 pd.DataFrame(
-                    index = spdf_data['spdf_infos']['spc']['data']['Epoch'],
-                    data = spdf_data['spdf_infos']['spc']['data']['wp_moment_gd'],
-                    columns = ['Vth']
+                    index = spdf_data['spdf_infos']['swa']['data']['Epoch'],
+                    data = spdf_data['spdf_infos']['swa']['data']['T'],
+                    columns = ['TEMP']
                 )
             )
-            # pre-clean the data
-            indnan = spdf_data['spdf_infos']['spc']['data']['general_flag']!=0
-            df.loc[indnan,:] = np.nan
-            # more cleaning
-            df[df.abs() > 1e20] = np.nan
+            df['Vth'] = 13.84112218 * df['TEMP'] # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
             df.index.name = 'datetime'
             spdf_data['spdf_infos'][key]['dataframe'] = df
     except:
@@ -623,6 +670,49 @@ def LoadSolOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True):
     
     return spdf_data
 
+
+def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None):
+
+    if spdf:
+        spdf_data = LoadTimeSeriesSPDF(sc = sc, 
+            start_time=start_time.to_pydatetime(), 
+            end_time = end_time.to_pydatetime(), 
+            verbose = verbose)
+
+        d = {
+            'sc': sc,
+            'start_time': start_time,
+            'end_time': end_time,
+            'spdf_data': spdf_data,
+            'Diagnostics': None
+        }
+        return d
+
+    if local:
+        try:
+            if sc == tsv.sc:
+                pass
+            else:
+                raise ValueError("sc = %d must equal tsv.sc = %d" %(sc, tsv.sc))
+        except:
+            raise ValueError("tsv must be a TimeSeriesViewer Object!!!")
+
+        dfts = tsv.ExportTimeSeries(start_time, end_time, verbose = verbose)
+
+        d = {
+            'sc': sc,
+            'start_time': start_time,
+            'end_time': end_time,
+            'local_data': {
+                'dfts_raw': tsv.dfts_raw
+            },
+            'dfts': dfts,
+            'Diagnostics': None
+        }
+        return d
+
+
+# -----------  Tools ----------- #
 
 
 def resample_timeseries_estimate_gaps(df, resolution = 100, large_gaps = 10):
@@ -746,4 +836,71 @@ def TracePSD(x,y,z,dt):
     return freqs[idx], B_pow[idx]
 
 
+@jit(nopython=True, parallel=True)
+def hampel_filter_forloop_numba(input_series, window_size, n_sigmas=3):
     
+    n = len(input_series)
+    new_series = input_series.copy()
+    k = 1.4826 # scale factor for Gaussian distribution
+    indices = []
+    
+    for i in range((window_size),(n - window_size)):
+        x0 = np.nanmedian(input_series[(i - window_size):(i + window_size)])
+        S0 = k * np.nanmedian(np.abs(input_series[(i - window_size):(i + window_size)] - x0))
+        if (np.abs(input_series[i] - x0) > n_sigmas * S0):
+            new_series[i] = x0
+            indices.append(i)
+    
+    return new_series, indices
+    
+
+@jit(nopython=True, parallel=True)      
+def smoothing_function(x,y, window=2, pad = 1):
+    xoutmid = np.zeros(len(x))*np.nan
+    xoutmean = np.zeros(len(x))*np.nan
+    yout = np.zeros(len(x))*np.nan
+    for i in prange(len(x)):
+        x0 = x[i]
+        xf = window*x[i]
+        
+        if xf < np.max(x):
+            e = np.where(x  == x.flat[np.abs(x - xf).argmin()])[0][0]
+            if e<len(x):
+                yout[i] = np.nanmean(y[i:e])
+                xoutmid[i] = x[i] + np.log10(0.5) * (x[i] - x[e])
+                xoutmean[i] = np.nanmean(x[i:e])
+    return xoutmid, xoutmean, yout 
+
+
+def curve_fit_log_wrap(x, y, x0, xf):  
+    # Apply fit on specified range #
+    if  len(np.where(x == x.flat[np.abs(x - x0).argmin()])[0])>0:
+        s = np.where(x == x.flat[np.abs(x - x0).argmin()])[0][0]
+        e = np.where(x  == x.flat[np.abs(x - xf).argmin()])[0][0]
+
+        if (len(y[s:e])>1): #& (np.median(y[s:e])>1e-1):  
+            fit = curve_fit_log(x[s:e],y[s:e])
+            #print(fit)
+
+            return fit, s, e, False
+        else:
+            return [np.nan, np.nan, np.nan],np.nan,np.nan, True
+
+def linlaw(x, a, b) : 
+    return a + x * b
+
+def curve_fit_log(xdata, ydata) : 
+    """Fit data to a power law with weights according to a log scale"""
+    # Weights according to a log scale
+    # Apply fscalex
+    xdata_log = np.log10(xdata)
+    # Apply fscaley
+    ydata_log = np.log10(ydata)
+    # Fit linear
+    popt_log, pcov_log = curve_fit(linlaw, xdata_log, ydata_log)
+    #print(popt_log, pcov_log)
+    # Apply fscaley^-1 to fitted data
+    ydatafit_log = np.power(10, linlaw(xdata_log, *popt_log))
+    # There is no need to apply fscalex^-1 as original data is already available
+    return (popt_log, pcov_log, ydatafit_log)
+
