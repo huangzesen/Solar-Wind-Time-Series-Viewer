@@ -349,8 +349,8 @@ def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, get
                     columns = ['TEMP']
                 ))
             # pre-clean the data
-            indnan = spdf_data['spdf_infos']['span']['data']['QUALITY_FLAG'] == int('0000000000000000', 2)
-            df.loc[indnan,:] = np.nan
+            # indnan = spdf_data['spdf_infos']['span']['data']['QUALITY_FLAG'] == int('0000000000000000', 2)
+            # df.loc[indnan,:] = np.nan
             # get rid of minus temperature
             df.loc[df['TEMP'] < 0, :] = np.nan
             # get rid of 0.0 in temperature
