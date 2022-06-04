@@ -117,13 +117,13 @@ def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, get
             )
 
     # set keys
-    # keys0 = ['ephem', 'mag_rtn', 'mag_sc', 'mag_1min_rtn', 'mag_1min_sc', 'mag_scm', 'spc', 'span']
+    allowed_keys0 = ['ephem', 'mag_rtn', 'mag_sc', 'mag_1min_rtn', 'mag_1min_sc', 'mag_scm', 'spc', 'span']
     keys0 = ['ephem', 'mag_rtn', 'mag_sc', 'mag_1min_rtn', 'mag_1min_sc', 'spc', 'span']
     if keys is None:
         keys = keys0
     else:
         for key in keys:
-            if key in keys0: pass
+            if key in allowed_keys0: pass
             else: raise ValueError(
                 "key: ''%s'' not supported! Supported keys: \n" %(key) 
                 + 
