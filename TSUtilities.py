@@ -671,13 +671,13 @@ def LoadSOlOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, ge
     return spdf_data
 
 
-def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None):
+def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None, keys = None):
 
     if spdf:
         spdf_data = LoadTimeSeriesSPDF(sc = sc, 
             start_time=start_time.to_pydatetime(), 
             end_time = end_time.to_pydatetime(), 
-            verbose = verbose)
+            verbose = verbose, keys = keys)
 
         d = {
             'sc': sc,
