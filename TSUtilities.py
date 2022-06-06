@@ -356,7 +356,7 @@ def LoadPSPTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, get
             # get rid of 0.0 in temperature
             df.loc[df['TEMP'].abs() < 1e-2, :] = np.nan
             # calculate Vth
-            df['Vth'] = 13.84112218 * df['TEMP'] # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
+            df['Vth'] = 13.84112218 * np.sqrt(df['TEMP']) # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
             df.index.name = 'datetime'
             spdf_data['spdf_infos'][key]['dataframe'] = df
     except:
