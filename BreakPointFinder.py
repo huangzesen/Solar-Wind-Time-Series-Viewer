@@ -99,27 +99,27 @@ class BreakPointFinder:
         self.arts['PSD']['line_PSD'] = l1
         self.arts['PSD']['line_sm_PSD'] = l2
         
-        try:
-            ax.set_title(
-                "(%d/%d) QF: %d" %(self.which_one+1, len(self.paths), self.PSD['PSD_diagnostics']['QualityFlag'])
-                +
-                "\n"
-                +
-                "missing = %.4f %%, resolution = %.4f" %(
-                    self.PSD['PSD']['resample_info']['Fraction_missing'],
-                    self.PSD['PSD']['resample_info']['resolution']
-                ),
-                fontsize = 'xx-large'
-            )
-        except:
-            ax.set_title(
-                "(%d/%d) QF: %d" %(self.which_one+1, len(self.paths), self.PSD['PSD_diagnostics']['QualityFlag'])
-                +
-                "\n"
-                +
-                "%s" %(Path(self.path).stem),
-                fontsize = 'xx-large'
-            )
+        # try:
+        ax.set_title(
+            "(%d/%d) QF: %d" %(self.which_one+1, len(self.paths), self.PSD['PSD_diagnostics']['QualityFlag'])
+            +
+            "\n"
+            +
+            "missing = %.4f %%, resolution = %.4f" %(
+                self.PSD['PSD']['resample_info']['Fraction_missing'],
+                self.PSD['PSD']['resample_info']['resolution']
+            ),
+            fontsize = 'xx-large'
+        )
+        # except:
+        #     ax.set_title(
+        #         "(%d/%d) QF: %d" %(self.which_one+1, len(self.paths), self.PSD['PSD_diagnostics']['QualityFlag'])
+        #         +
+        #         "\n"
+        #         +
+        #         "%s" %(Path(self.path).stem),
+        #         fontsize = 'xx-large'
+        #     )
 
         if view_fit:
             self.DrawFitLine()
