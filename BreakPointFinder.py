@@ -106,8 +106,8 @@ class BreakPointFinder:
             "\n"
             +
             "missing = %.4f %%, resolution = %.4f" %(
-                self.PSD['PSD']['resample_info']['Fraction_missing'],
-                self.PSD['PSD']['resample_info']['resolution']
+                self.PSD['resample_info']['Fraction_missing'],
+                self.PSD['resample_info']['resolution']
             ),
             fontsize = 'xx-large'
         )
