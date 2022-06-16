@@ -712,6 +712,9 @@ def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, lo
         return d
 
 
+def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time):
+    pass
+
 # -----------  Tools ----------- #
 
 

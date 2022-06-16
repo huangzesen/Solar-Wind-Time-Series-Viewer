@@ -35,7 +35,7 @@ au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
-from TSUtilities import SolarWindCorrelationLength, TracePSD
+from TSUtilities import SolarWindCorrelationLength, TracePSD, LoadTimeSeriesFromSPEDAS
 
 
 class TimeSeriesViewer:
@@ -987,60 +987,65 @@ class TimeSeriesViewer:
         self.dfts = dfts
 
 
-    def FindTimeSeries(self, start_time, end_time, verbose = False):
+    def FindTimeSeries(self, start_time, end_time, verbose = False, useSPEDAS = True):
         """ 
         Find time series in dataframe and create a dfts dataframe 
         start_time and end_time should be either datetime64[ns] or timestamp
         sc: 0-PSP, 1-SolO
         """
 
-        load_spdf = self.load_spdf
-
-        # if sc == 0:
-        #     dfmag = self.dfmag_psp
-        #     dfpar = self.dfpar_psp
-        #     dfdis = self.dfdis_psp
-        # elif sc == 1:
-        #     dfmag = self.dfmag_solo
-        #     dfpar = self.dfpar_solo
-        #     dfdis = self.dfdis_solo
-        # else:
-        #     raise ValueError("SC = %d not supported!" % (sc))
-
-        dfmag = self.dfmag
-        dfpar = self.dfpar
-        dfdis = self.dfdis
-
-        indmag = (dfmag.index > start_time) & (dfmag.index < end_time)
-        indpar = (dfpar.index > start_time) & (dfpar.index < end_time)
-        inddis = (dfdis.index > start_time) & (dfdis.index < end_time)
-
-        # create dfts (dataframe time series)
-        dfts = pd.DataFrame(index = dfmag.index[indmag])
-
-        if len(dfts) < 5:
-            raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
-
-        # join time series
-        dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
-
-        # load magnetic field and ephem from SPDF
-        if load_spdf:
-            # spdf system is buggy, has a constant 4H shift
-            t0 = start_time - pd.Timedelta('1d')
-            t1 = end_time + pd.Timedelta('1d')
-            if self.sc==0:
-                self.spdf_data = self.LoadSPDF(spacecraft = 'PSP', start_time = t0, end_time = t1, verbose = verbose)
-            elif self.sc==1:
-                self.spdf_data = self.LoadSPDF(spacecraft = 'SolO', start_time = t0, end_time = t1, verbose = verbose)
+        if useSPEDAS:
+            sc = self.sc
+            dfts = LoadTimeSeriesFromSPEDAS(sc, start_time, end_time)
+            self.dfts_raw = dfts
         else:
-            pass
+            load_spdf = self.load_spdf
 
-        # store the time series dataframe
-        self.dfts_raw = dfts
+            # if sc == 0:
+            #     dfmag = self.dfmag_psp
+            #     dfpar = self.dfpar_psp
+            #     dfdis = self.dfdis_psp
+            # elif sc == 1:
+            #     dfmag = self.dfmag_solo
+            #     dfpar = self.dfpar_solo
+            #     dfdis = self.dfdis_solo
+            # else:
+            #     raise ValueError("SC = %d not supported!" % (sc))
 
-        # collect garbage
-        collect()
+            dfmag = self.dfmag
+            dfpar = self.dfpar
+            dfdis = self.dfdis
+
+            indmag = (dfmag.index > start_time) & (dfmag.index < end_time)
+            indpar = (dfpar.index > start_time) & (dfpar.index < end_time)
+            inddis = (dfdis.index > start_time) & (dfdis.index < end_time)
+
+            # create dfts (dataframe time series)
+            dfts = pd.DataFrame(index = dfmag.index[indmag])
+
+            if len(dfts) < 5:
+                raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
+
+            # join time series
+            dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
+
+            # load magnetic field and ephem from SPDF
+            if load_spdf:
+                # spdf system is buggy, has a constant 4H shift
+                t0 = start_time - pd.Timedelta('1d')
+                t1 = end_time + pd.Timedelta('1d')
+                if self.sc==0:
+                    self.spdf_data = self.LoadSPDF(spacecraft = 'PSP', start_time = t0, end_time = t1, verbose = verbose)
+                elif self.sc==1:
+                    self.spdf_data = self.LoadSPDF(spacecraft = 'SolO', start_time = t0, end_time = t1, verbose = verbose)
+            else:
+                pass
+
+            # store the time series dataframe
+            self.dfts_raw = dfts
+
+            # collect garbage
+            collect()
 
 
     def LoadSPDF(self, 
