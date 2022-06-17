@@ -1220,6 +1220,10 @@ class TimeSeriesViewer:
                         ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
                         # save the time series to dataframe
                         self.selected_intervals[i1]['TimeSeries'] = dftemp
+                        self.selected_intervals[i1]['PSD'] = {
+                            'freq': freq,
+                            'PSD': B_pow
+                        }
             except:
                 pass
             collect()
