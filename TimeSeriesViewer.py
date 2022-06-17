@@ -1216,8 +1216,8 @@ class TimeSeriesViewer:
                         freq, B_pow = TracePSD(Br, Bt, Bn, 1)
                         fig1, ax1 = plt.subplots(1, figsize = [6,6])
                         ax1.loglog(freq, B_pow)
-                        ax1.xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
-                        ax1.ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
+                        ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
+                        ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
                         # save the time series to dataframe
                         self.selected_intervals[i1]['TimeSeries'] = dftemp
             except:
