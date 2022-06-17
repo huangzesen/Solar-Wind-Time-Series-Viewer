@@ -1210,9 +1210,9 @@ class TimeSeriesViewer:
                         t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
                         ind = (self.dfts_raw.index > t0) & (self.dfts_raw.index < t1)
                         dftemp = self.dfts_raw.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
-                        Br = dftemp['Br'].values
-                        Bt = dftemp['Bt'].values
-                        Bn = dftemp['Bn'].values
+                        Br = dftemp['Br'].interpolate().values
+                        Bt = dftemp['Bt'].interpolate().values
+                        Bn = dftemp['Bn'].interpolate().values
                         freq, B_pow = TracePSD(Br, Bt, Bn, 1)
                         fig1, ax1 = plt.subplots(1, figsize = [6,6])
                         ax1.loglog(freq, B_pow)
