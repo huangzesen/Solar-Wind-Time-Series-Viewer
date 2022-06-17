@@ -717,7 +717,7 @@ def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, lo
         return d
 
 
-def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, smoothing_rate = '1H'):
+def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_rate = '1H'):
     """ 
     Load Time Series with SPEDAS 
     going to find data in the local directory
@@ -859,6 +859,7 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, smoothing
         dfpar.index = time_string.time_datetime(time=dfpar.index)
         dfpar.index = dfpar.index.tz_localize(None)
         dfpar.index.name = 'datetime'
+        dfpar['INSTRUMENT_FLAG'] = 1
 
         dfts = dfmag.resample('1s').mean().join(
             dfpar.resample('1s').mean()
@@ -870,10 +871,10 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, smoothing
 
         dfts['Dist_au'] = (dfts[['sc_x','sc_y','sc_z']] ** 2).sum(axis=1, min_count=1).apply(np.sqrt)/au_to_km  
 
-        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(smoothing_rate).mean()
-        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(smoothing_rate).mean()
-        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(smoothing_rate).mean()
-        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(smoothing_rate).mean()
+        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
+        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
+        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
+        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
 
         return dfts
 

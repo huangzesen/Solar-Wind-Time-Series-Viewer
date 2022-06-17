@@ -39,11 +39,14 @@ from TSUtilities import SolarWindCorrelationLength, TracePSD, LoadTimeSeriesFrom
 
 
 class TimeSeriesViewer:
-    """ View Time Series and Select Intervals """
+    """ 
+    View Time Series and Select Intervals 
+    start_time_0/end_time_0 are pd.timestamp
+    """
 
     def __init__(
         self, paths = None, 
-        load_spdf = True, 
+        load_spdf = False, 
         start_time_0 = None, 
         end_time_0 = None, 
         sc = 0, 
@@ -107,7 +110,7 @@ class TimeSeriesViewer:
         print("Done.")
 
 
-    def PreLoadSCDataFrame(self, paths = None, rolling_rate = '1H'):
+    def PreLoadSCDataFrame(self, paths = None, rolling_rate = '1H', useSPEDAS = True):
         """ 
         Load Spacecraft dataframe 
         Keyword: 
@@ -121,68 +124,75 @@ class TimeSeriesViewer:
             pass
 
         # look for dataframe locally
-        try:
-            print("Looking for files in local folder: %s" %(str(Path(os.getcwd()).absolute().joinpath("data"))))
-            if self.sc == 0:
-                print("Loading PSP pickles...")
-                dfmag0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfmag_psp_merged.pkl"))
-                dfpar0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfpar_psp_merged.pkl"))
-                dfdis0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfdis_psp_merged.pkl"))
-            elif self.sc == 1:
-                print("Loading SolO pickles...")
-                dfmag0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfmag_solo_merged.pkl"))
-                dfpar0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfpar_solo_merged.pkl"))
-                dfdis0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfdis_solo_merged.pkl"))
-            else:
-                raise ValueError("SC=%d not supported!" %(self.sc))
-        except:
-            if self.sc == 0:
-                print("Loading PSP pickles...")
-                dfmag0 = pd.read_pickle(self.paths['psp_mag_sc'])
-                dfpar0 = pd.read_pickle(self.paths['psp_par_sc'])
-                dfdis0 = pd.read_pickle(self.paths['psp_dis'])
-            elif self.sc == 1:
-                print("Loading SolO pickles...")
-                dfmag0 = pd.read_pickle(self.paths['solo_mag_sc'])
-                dfpar0 = pd.read_pickle(self.paths['solo_par_sc'])
-                dfdis0 = pd.read_pickle(self.paths['solo_dis'])
-            else:
-                raise ValueError("SC=%d not supported!" %(self.sc))
-
-        if rolling_rate != '1H':
-            # redo the rolling average
-            print("rolling with window= %s ..." %(rolling_rate))
-            print("Magnetic Field...")
-            dfmag0['Br0'] = dfmag0['Br'].rolling(rolling_rate).mean()
-            dfmag0['Bt0'] = dfmag0['Bt'].rolling(rolling_rate).mean()
-            dfmag0['Bn0'] = dfmag0['Bn'].rolling(rolling_rate).mean()
-            print("Done. Solar Wind...")
-            dfpar0['Vr0'] = dfpar0['Vr'].rolling(rolling_rate).mean()
-            dfpar0['Vt0'] = dfpar0['Vt'].rolling(rolling_rate).mean()
-            dfpar0['Vn0'] = dfpar0['Vn'].rolling(rolling_rate).mean()
-
-        try: print("Initial Session Range: [%s - %s]" %(self.start_time_0, self.end_time_0))
-        except: print("No start_time_0 and end_time_0 defined!")
-
-        if (self.start_time_0 is None) & (self.end_time_0 is None):
-            self.start_time_0 = dfmag0.index[0]
-            self.end_time_0 = dfmag0.index[-1]
+        if not useSPEDAS:
+            try:
+                print("Looking for files in local folder: %s" %(str(Path(os.getcwd()).absolute().joinpath("data"))))
+                if self.sc == 0:
+                    print("Loading PSP pickles...")
+                    dfmag0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfmag_psp_merged.pkl"))
+                    dfpar0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfpar_psp_merged.pkl"))
+                    dfdis0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfdis_psp_merged.pkl"))
+                elif self.sc == 1:
+                    print("Loading SolO pickles...")
+                    dfmag0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfmag_solo_merged.pkl"))
+                    dfpar0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfpar_solo_merged.pkl"))
+                    dfdis0 = pd.read_pickle(Path(os.getcwd()).joinpath("data").joinpath("dfdis_solo_merged.pkl"))
+                else:
+                    raise ValueError("SC=%d not supported!" %(self.sc))
+            except:
+                if self.sc == 0:
+                    print("Loading PSP pickles...")
+                    dfmag0 = pd.read_pickle(self.paths['psp_mag_sc'])
+                    dfpar0 = pd.read_pickle(self.paths['psp_par_sc'])
+                    dfdis0 = pd.read_pickle(self.paths['psp_dis'])
+                elif self.sc == 1:
+                    print("Loading SolO pickles...")
+                    dfmag0 = pd.read_pickle(self.paths['solo_mag_sc'])
+                    dfpar0 = pd.read_pickle(self.paths['solo_par_sc'])
+                    dfdis0 = pd.read_pickle(self.paths['solo_dis'])
+                else:
+                    raise ValueError("SC=%d not supported!" %(self.sc))
         
-        if self.start_time_0 < dfmag0.index[0]:
-            self.start_time_0 = dfmag0.index[0]
 
-        if self.end_time_0 > dfmag0.index[-1]:
-            self.end_time_0 = dfmag0.index[-1]
+            if rolling_rate != '1H':
+                # redo the rolling average
+                print("rolling with window= %s ..." %(rolling_rate))
+                print("Magnetic Field...")
+                dfmag0['Br0'] = dfmag0['Br'].rolling(rolling_rate).mean()
+                dfmag0['Bt0'] = dfmag0['Bt'].rolling(rolling_rate).mean()
+                dfmag0['Bn0'] = dfmag0['Bn'].rolling(rolling_rate).mean()
+                print("Done. Solar Wind...")
+                dfpar0['Vr0'] = dfpar0['Vr'].rolling(rolling_rate).mean()
+                dfpar0['Vt0'] = dfpar0['Vt'].rolling(rolling_rate).mean()
+                dfpar0['Vn0'] = dfpar0['Vn'].rolling(rolling_rate).mean()
 
-        print("Final Session Range: [%s - %s]" %(self.start_time_0, self.end_time_0))
+            try: print("Initial Session Range: [%s - %s]" %(self.start_time_0, self.end_time_0))
+            except: print("No start_time_0 and end_time_0 defined!")
 
-        indmag0 = (dfmag0.index > self.start_time_0) & (dfmag0.index < self.end_time_0)
-        indpar0 = (dfpar0.index > self.start_time_0) & (dfpar0.index < self.end_time_0)
-        inddis0 = (dfdis0.index > self.start_time_0) & (dfdis0.index < self.end_time_0)
+            if (self.start_time_0 is None) & (self.end_time_0 is None):
+                self.start_time_0 = dfmag0.index[0]
+                self.end_time_0 = dfmag0.index[-1]
+            
+            if self.start_time_0 < dfmag0.index[0]:
+                self.start_time_0 = dfmag0.index[0]
 
-        self.dfmag = dfmag0[indmag0]
-        self.dfpar = dfpar0[indpar0]
-        self.dfdis = dfdis0[inddis0]
+            if self.end_time_0 > dfmag0.index[-1]:
+                self.end_time_0 = dfmag0.index[-1]
+
+            print("Final Session Range: [%s - %s]" %(self.start_time_0, self.end_time_0))
+
+            indmag0 = (dfmag0.index > self.start_time_0) & (dfmag0.index < self.end_time_0)
+            indpar0 = (dfpar0.index > self.start_time_0) & (dfpar0.index < self.end_time_0)
+            inddis0 = (dfdis0.index > self.start_time_0) & (dfdis0.index < self.end_time_0)
+
+            self.dfmag = dfmag0[indmag0]
+            self.dfpar = dfpar0[indpar0]
+            self.dfdis = dfdis0[inddis0]
+        else:
+            dftemp = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, rolling_rate = rolling_rate)
+            self.dfmag = dftemp[['Br','Bt','Bn','Bx','By','Bz','Br0','Bt0','Bn0','Bx0','By0','Bz0']]
+            self.dfpar = dftemp[['Vr','Vt','Vn','Vx','Vy','Vz','np','Vth','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0']]
+            self.dfdis = dftemp[['Dist_au','sc_x','sc_y','sc_z','sc_vel_x','sc_vel_y','sc_vel_z','carr_lat','carr_lon']]
 
 
     def AxesInit(self):
@@ -361,6 +371,160 @@ class TimeSeriesViewer:
         if verbose: print("Processing the Time Series...")
         self.ProcessTimeSeries(resample_rate = resample_rate, verbose = verbose)
 
+
+    def ProcessTimeSeries(self, verbose = False, resample_rate = '5min'):
+        """ Process time series to produce desired data product """
+
+        load_spdf = self.load_spdf
+        dfts = self.dfts_raw.copy()
+        # resample_rate = self.resample_rate
+
+        """resample the time series"""
+        dfts = dfts.resample(resample_rate).mean()
+
+        # """join the spdf data"""
+        # if load_spdf:
+        #     try:
+        #         dfspdf = self.spdf_data['dfspdf']
+        #         dfts = dfts.join(dfspdf.resample(resample_rate).mean())
+        #         dfts['B_RTN'] = (dfts[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis = 1).apply(np.sqrt)
+        #         # B R angle (need spdf)
+        #         dfts['brangle'] = (dfts['Br_RTN']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
+        #     except:
+        #         pass
+        dfts['brangle'] = (dfts['Br']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
+
+        """Modulus of vectors"""
+        dfts['B_RTN'] = (dfts['Br']**2+dfts['Bt']**2+dfts['Bn']**2).apply(np.sqrt)
+        dfts['V_RTN'] = (dfts['Vr']**2+dfts['Vt']**2+dfts['Vn']**2).apply(np.sqrt)
+        dfts['B_SC'] = (dfts['Bx']**2+dfts['By']**2+dfts['Bz']**2).apply(np.sqrt)
+        dfts['V_SC'] = (dfts['Vx']**2+dfts['Vy']**2+dfts['Vz']**2).apply(np.sqrt)
+        dfts['B'] = dfts['B_SC']
+        dfts['V'] = dfts['V_SC']
+
+        """Diagnostics"""
+
+        Bmod = (dfts['Br']**2 + dfts['Bt']**2 + dfts['Bn']**2).apply('sqrt')
+        Bmod0 = (dfts['Br0']**2 + dfts['Bt0']**2 + dfts['Bn0']**2).apply('sqrt')
+
+        Va_r = 1e-15* dfts['Br']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_t = 1e-15* dfts['Bt']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_n = 1e-15* dfts['Bn']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+
+        Va_r0 = 1e-15* dfts['Br0']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_t0 = 1e-15* dfts['Bt0']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_n0 = 1e-15* dfts['Bn0']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+
+        vr = dfts['Vr']; vt = dfts['Vt']; vn = dfts['Vn']; 
+        vr0 = dfts['Vr0']; vt0 = dfts['Vt0']; vn0 = dfts['Vn0']; 
+
+        # # Estimate fluctuations of fields #
+        # va_r = Va_r - np.nanmean(Va_r);   v_r = vr - np.nanmean(vr)
+        # va_t = Va_t - np.nanmean(Va_t);   v_t = vt - np.nanmean(vt)
+        # va_n = Va_n - np.nanmean(Va_n);   v_n = vn - np.nanmean(vn)
+
+        # Use moving mean to estimate fluctuation of fields
+        va_r = Va_r - Va_r0;   v_r = vr - vr0
+        va_t = Va_t - Va_t0;   v_t = vt - vt0
+        va_n = Va_n - Va_n0;   v_n = vn - vn0
+
+        Z_plus_squared  = (v_r + va_r)**2 +  (v_t + va_t)**2 + ( v_n + va_n)**2
+        Z_minus_squared = (v_r - va_r)**2 +  (v_t - va_t)**2 + ( v_n - va_n)**2
+        Z_amplitude     = np.sqrt( (Z_plus_squared + Z_minus_squared)/2 )    
+
+        # cross helicity
+        sigma_c         =  (Z_plus_squared - Z_minus_squared)/( Z_plus_squared + Z_minus_squared)
+        sigma_c[np.abs(sigma_c) > 1e5] = np.nan
+        dfts['sigma_c'] = sigma_c
+
+        # alfvenicity
+        dBvecmod = np.sqrt(dfts['Br'].diff()**2 + dfts['Bt'].diff()**2 + dfts['Bn'].diff()**2)
+        dBmod = np.sqrt(dfts['Br']**2+dfts['Bt']**2+dfts['Bn']**2).diff()
+        alfvenicity = dBmod/dBvecmod
+        dfts['alfvenicity'] = alfvenicity
+
+        # Residual energy
+        Ek = v_r**2 + v_t**2 + v_n**2
+        Eb = va_r**2 + va_t**2 + va_n**2
+        sigma_r = (Ek-Eb)/(Ek+Eb)
+        sigma_r[np.abs(sigma_r) > 1e5] = np.nan
+        dfts['sigma_r'] = sigma_r
+
+        # V B angle
+        vbang = np.arccos(
+            (Va_r * vr + Va_t * vt + Va_n * vn)
+            /
+            np.sqrt(
+                (Va_r**2+Va_t**2+Va_n**2)
+                *
+                (vr**2+vt**2+vn**2)
+            )
+        )
+        vbang = vbang/np.pi*180
+        # vbang[vbang>90] = 180 - vbang[vbang>90]
+        dfts['vbangle'] = vbang
+
+        # ion inertial length
+        di = 228/np.sqrt(dfts['np']) #in [km]
+        di[di < 0] = np.nan
+        di[np.log10(di) < -3] = np.nan
+        dfts['di'] = di
+
+        # ion gyro radius
+        rho_ci = 10.43968491 * dfts['Vth']/Bmod #in [km]
+        rho_ci[rho_ci < 0] = np.nan
+        rho_ci[np.log10(rho_ci) < -3] = np.nan
+        dfts['rho_ci'] = rho_ci
+
+        # Plasma Beta
+        km2m        = 1e3
+        nT2T        = 1e-9
+        cm2m        = 1e-2
+        B_mag       = dfts['B'] * nT2T                        # |B| units:      [T]
+        temp        = 1./2 * m_p * (dfts['Vth']*km2m)**2      # in [J] = [kg] * [m]^2 * [s]^-2
+        dens        = dfts['np']/(cm2m**3)                    # number density: [m^-3] 
+        beta        = (dens*temp)/((B_mag**2)/(2*mu_0))         # plasma beta
+        beta[beta < 0] = np.nan
+        beta[np.abs(np.log10(beta))>4] = np.nan # delete some weird data
+        dfts['beta'] = beta  
+
+        # SW speed
+        vsw = np.sqrt(vr**2+vt**2+vn**2)
+        vsw[vsw < 0] = np.nan
+        vsw[np.abs(vsw) > 1e5] = np.nan
+        dfts['vsw'] = vsw
+
+        # deal with weird values
+        vth = dfts['Vth'].to_numpy()
+        vth[vth < 0] = np.nan
+        dfts['Vth'] = vth
+
+        # # distance
+        # try:
+        #     dist = dfts['Dist_au'].to_numpy()
+        #     dist_spdf = dfts['RAD_AU'].to_numpy()
+        #     dist[np.isnan(dist)] = dist_spdf[np.isnan(dist)]
+        #     dfts['Dist_au'] = dist
+        # except:
+        #     pass
+
+        # advection time [Hr]
+        tadv = (dfts['Dist_au']/dfts['vsw']).to_numpy() * au_to_km /3600
+        tadv[tadv < 0] = np.nan
+        dfts['tadv'] = tadv
+        # try:
+        #     tadv_spdf = (dfts['RAD_AU']/dfts['vsw']).to_numpy() * au_to_km /3600
+        #     tadv_spdf[tadv_spdf < 0] = np.nan
+        #     dfts['tadv_spdf'] = tadv_spdf
+        #     tadv[np.isnan(tadv)] = tadv_spdf[np.isnan(tadv)]
+        #     dfts['tadv'] = tadv
+        # except:
+        #     pass
+
+        # update dfts
+        self.dfts = dfts
+
+
     
     def PlotTimeSeries(self, verbose = False, update=False):
         """ Plot Time Series """
@@ -399,33 +563,33 @@ class TimeSeriesViewer:
                 ax = axes['mag']
                 if self.mag_option['norm'] == 0:
                     if self.mag_option['sc'] == 0:
-                        dfts[['Br_RTN','Bt_RTN','Bn_RTN','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
-                        ax.legend(['Br [nT]','Bt','Bn','|B|'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_RTN'].max()
                     elif self.mag_option['sc'] == 1:
-                        dfts[['Br','Bt','Bn','B']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
-                        ax.legend(['Br_SC [nT]','Bt_SC','Bn_SC','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
                 elif self.mag_option['norm'] == 1:
                     if self.mag_option['sc'] == 0:
                         dftemp = pd.DataFrame(index = self.dfts.index)
-                        dftemp['Br_RTN'] = self.dfts['Br_RTN'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
-                        dftemp['Bt_RTN'] = self.dfts['Bt_RTN'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
-                        dftemp['Bn_RTN'] = self.dfts['Bn_RTN'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
-                        dftemp['B_RTN'] = (dftemp[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis=1).apply(np.sqrt)
-                        dftemp.plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
-                        ax.legend([r'$Br*a(R)^2\ [nT]$',r'$Bt*a(R)\ a(R)=R/0.1AU$',r'$Bn*a(R)$',r'$|B|$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                        lim = 1.1*dftemp['B_RTN'].max()
-                    elif self.mag_option['sc'] == 1:
-                        dftemp = pd.DataFrame(index = self.dfts.index)
                         dftemp['Br'] = self.dfts['Br'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
                         dftemp['Bt'] = self.dfts['Bt'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
                         dftemp['Bn'] = self.dfts['Bn'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
-                        dftemp['B'] = (dftemp[['Br','Bt','Bn']]**2).sum(axis=1).apply(np.sqrt)
-                        dfts[['Br','Bt','Bn','B']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
-                        ax.legend([r'$Br_{SC}*a(R)^2\ [nT]$',r'$Bt_{SC}*a(R)\ a(R)=R/0.1AU$',r'$Bn_{SC}*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        dftemp['B_RTN'] = (dftemp[['Br','Bt','Bn']]**2).sum(axis=1).apply(np.sqrt)
+                        dftemp[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        ax.legend([r'$Br*a(R)^2\ [nT]$',r'$Bt*a(R)\ a(R)=R/0.1AU$',r'$Bn*a(R)$',r'$|B|_{RTN}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dftemp['B_RTN'].max()
+                    elif self.mag_option['sc'] == 1:
+                        dftemp = pd.DataFrame(index = self.dfts.index)
+                        dftemp['Bx'] = self.dfts['Bx'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
+                        dftemp['By'] = self.dfts['By'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['Bz'] = self.dfts['Bz'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['B_SC'] = (dftemp[['Bx','By','Bz']]**2).sum(axis=1).apply(np.sqrt)
+                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        ax.legend([r'$Bx*a(R)^2\ [nT]$',r'$By*a(R)\ a(R)=R/0.1AU$',r'$Bz*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dftemp['B'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
@@ -445,66 +609,50 @@ class TimeSeriesViewer:
                 ls = lines['mag']
                 if self.mag_option['norm'] == 0:
                     if self.mag_option['sc'] == 0:
-                        ls[0].set_data(dfts['Br_RTN'].index, dfts['Br_RTN'].values)
-                        ls[1].set_data(dfts['Bt_RTN'].index, dfts['Bt_RTN'].values)
-                        ls[2].set_data(dfts['Bn_RTN'].index, dfts['Bn_RTN'].values)
-                        ls[3].set_data(dfts['B_RTN'].index, dfts['B_RTN'].values)
-                        ax.legend(['Br [nT]','Bt','Bn','|B|'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                        lim = 1.1*dfts['B_RTN'].max()
-                    elif self.mag_option['sc'] == 1:
                         ls[0].set_data(dfts['Br'].index, dfts['Br'].values)
                         ls[1].set_data(dfts['Bt'].index, dfts['Bt'].values)
                         ls[2].set_data(dfts['Bn'].index, dfts['Bn'].values)
-                        ls[3].set_data(dfts['B'].index, dfts['B'].values)
-                        ax.legend(['Br_SC [nT]','Bt_SC','Bn_SC','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        ls[3].set_data(dfts['B_RTN'].index, dfts['B_RTN'].values)
+                        ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dfts['B_RTN'].max()
+                    elif self.mag_option['sc'] == 1:
+                        ls[0].set_data(dfts['Bx'].index, dfts['Bx'].values)
+                        ls[1].set_data(dfts['By'].index, dfts['By'].values)
+                        ls[2].set_data(dfts['Bz'].index, dfts['Bz'].values)
+                        ls[3].set_data(dfts['B_SC'].index, dfts['B_SC'].values)
+                        ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
                 elif self.mag_option['norm'] == 1:
                     if self.mag_option['sc'] == 0:
                         dftemp = pd.DataFrame(index = self.dfts.index)
-                        dftemp['Br_RTN'] = self.dfts['Br_RTN'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
-                        dftemp['Bt_RTN'] = self.dfts['Bt_RTN'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
-                        dftemp['Bn_RTN'] = self.dfts['Bn_RTN'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
-                        dftemp['B_RTN'] = (dftemp[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis=1).apply(np.sqrt)
-                        ls[0].set_data(dftemp['Br_RTN'].index, dftemp['Br_RTN'].values)
-                        ls[1].set_data(dftemp['Bt_RTN'].index, dftemp['Bt_RTN'].values)
-                        ls[2].set_data(dftemp['Bn_RTN'].index, dftemp['Bn_RTN'].values)
-                        ls[3].set_data(dftemp['B_RTN'].index, dftemp['B_RTN'].values)
-                        ax.legend([r'$Br*a(R)^2\ [nT]$',r'$Bt*a(R)\ a(R)=R/0.1AU$',r'$Bn*a(R)$',r'$|B|$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                        lim = 1.1*dftemp['B_RTN'].max()
-                    elif self.mag_option['sc'] == 1:
-                        dftemp = pd.DataFrame(index = self.dfts.index)
                         dftemp['Br'] = self.dfts['Br'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
                         dftemp['Bt'] = self.dfts['Bt'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
                         dftemp['Bn'] = self.dfts['Bn'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
-                        dftemp['B'] = (dftemp[['Br','Bt','Bn']]**2).sum(axis=1).apply(np.sqrt)
+                        dftemp['B_RTN'] = (dftemp[['Br','Bt','Bn']]**2).sum(axis=1).apply(np.sqrt)
                         ls[0].set_data(dftemp['Br'].index, dftemp['Br'].values)
                         ls[1].set_data(dftemp['Bt'].index, dftemp['Bt'].values)
                         ls[2].set_data(dftemp['Bn'].index, dftemp['Bn'].values)
-                        ls[3].set_data(dftemp['B'].index, dftemp['B'].values)
-                        ax.legend([r'$Br_{SC}*a(R)^2\ [nT]$',r'$Bt_{SC}*a(R)\ a(R)=R/0.1AU$',r'$Bn_{SC}*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        ls[3].set_data(dftemp['B_RTN'].index, dftemp['B_RTN'].values)
+                        ax.legend([r'$Br*a(R)^2\ [nT]$',r'$Bt*a(R)\ a(R)=R/0.1AU$',r'$Bn*a(R)$',r'$|B|_{RTN}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        lim = 1.1*dftemp['B_RTN'].max()
+                    elif self.mag_option['sc'] == 1:
+                        dftemp = pd.DataFrame(index = self.dfts.index)
+                        dftemp['Bx'] = self.dfts['Bx'].multiply((self.dfts['Dist_au']/0.1)**2, axis = 'index')
+                        dftemp['By'] = self.dfts['By'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['Bz'] = self.dfts['Bz'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
+                        dftemp['B_SC'] = (dftemp[['Bx','By','Bz']]**2).sum(axis=1).apply(np.sqrt)
+                        ls[0].set_data(dftemp['Bx'].index, dftemp['Bx'].values)
+                        ls[1].set_data(dftemp['By'].index, dftemp['By'].values)
+                        ls[2].set_data(dftemp['Bz'].index, dftemp['Bz'].values)
+                        ls[3].set_data(dftemp['B_SC'].index, dftemp['B_SC'].values)
+                        ax.legend([r'$Bx*a(R)^2\ [nT]$',r'$By*a(R)\ a(R)=R/0.1AU$',r'$Bz*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dftemp['B'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
                 else:
                     raise ValueError("mag_option['norm']==%d not supported!" %(self.mag_option['norm']))
-                # try:
-                #     ax = axes['mag']
-                #     ls = lines['mag']
-                #     ls[0].set_data(dfts['Br_RTN'].index, dfts['Br_RTN'].values)
-                #     ls[1].set_data(dfts['Bt_RTN'].index, dfts['Bt_RTN'].values)
-                #     ls[2].set_data(dfts['Bn_RTN'].index, dfts['Bn_RTN'].values)
-                #     ls[3].set_data(dfts['B_RTN'].index, dfts['B_RTN'].values)
-                #     ax.legend(['Br','Bt','Bn','|B|'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                # except:
-                #     ax = axes['mag']
-                #     ls = lines['mag']
-                    # ls[0].set_data(dfts['Br'].index, dfts['Br'].values)
-                    # ls[1].set_data(dfts['Bt'].index, dfts['Bt'].values)
-                    # ls[2].set_data(dfts['Bn'].index, dfts['Bn'].values)
-                    # ls[3].set_data(dfts['B'].index, dfts['B'].values)
-                #     ax.legend(['Br_SC','Bt_SC','Bn_SC','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 # aesthetic
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
@@ -839,213 +987,49 @@ class TimeSeriesViewer:
         collect()
 
 
-    def ProcessTimeSeries(self, verbose = False, resample_rate = '5min'):
-        """ Process time series to produce desired data product """
-
-        load_spdf = self.load_spdf
-        dfts = self.dfts_raw.copy()
-        # resample_rate = self.resample_rate
-
-        """resample the time series"""
-        dfts = dfts.resample(resample_rate).mean()
-
-        """join the spdf data"""
-        if load_spdf:
-            try:
-                dfspdf = self.spdf_data['dfspdf']
-                dfts = dfts.join(dfspdf.resample(resample_rate).mean())
-                dfts['B_RTN'] = (dfts[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis = 1).apply(np.sqrt)
-                # B R angle (need spdf)
-                dfts['brangle'] = (dfts['Br_RTN']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
-            except:
-                pass
-
-        """Modulus of vectors"""
-        dfts['B'] = (dfts['Br']**2+dfts['Bt']**2+dfts['Bn']**2).apply(np.sqrt)
-        dfts['V'] = (dfts['Vr']**2+dfts['Vt']**2+dfts['Vn']**2).apply(np.sqrt)
-
-        """Diagnostics"""
-
-        Bmod = (dfts['Br']**2 + dfts['Bt']**2 + dfts['Bn']**2).apply('sqrt')
-        Bmod0 = (dfts['Br0']**2 + dfts['Bt0']**2 + dfts['Bn0']**2).apply('sqrt')
-
-        Va_r = 1e-15* dfts['Br']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-        Va_t = 1e-15* dfts['Bt']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-        Va_n = 1e-15* dfts['Bn']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-
-        Va_r0 = 1e-15* dfts['Br0']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-        Va_t0 = 1e-15* dfts['Bt0']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-        Va_n0 = 1e-15* dfts['Bn0']/np.sqrt(mu0*dfts['np']*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-
-        vr = dfts['Vr']; vt = dfts['Vt']; vn = dfts['Vn']; 
-        vr0 = dfts['Vr0']; vt0 = dfts['Vt0']; vn0 = dfts['Vn0']; 
-
-        # # Estimate fluctuations of fields #
-        # va_r = Va_r - np.nanmean(Va_r);   v_r = vr - np.nanmean(vr)
-        # va_t = Va_t - np.nanmean(Va_t);   v_t = vt - np.nanmean(vt)
-        # va_n = Va_n - np.nanmean(Va_n);   v_n = vn - np.nanmean(vn)
-
-        # Use moving mean to estimate fluctuation of fields
-        va_r = Va_r - Va_r0;   v_r = vr - vr0
-        va_t = Va_t - Va_t0;   v_t = vt - vt0
-        va_n = Va_n - Va_n0;   v_n = vn - vn0
-
-        Z_plus_squared  = (v_r + va_r)**2 +  (v_t + va_t)**2 + ( v_n + va_n)**2
-        Z_minus_squared = (v_r - va_r)**2 +  (v_t - va_t)**2 + ( v_n - va_n)**2
-        Z_amplitude     = np.sqrt( (Z_plus_squared + Z_minus_squared)/2 )    
-
-        # cross helicity
-        sigma_c         =  (Z_plus_squared - Z_minus_squared)/( Z_plus_squared + Z_minus_squared)
-        sigma_c[np.abs(sigma_c) > 1e5] = np.nan
-        dfts['sigma_c'] = sigma_c
-
-        # alfvenicity
-        dBvecmod = np.sqrt(dfts['Br'].diff()**2 + dfts['Bt'].diff()**2 + dfts['Bn'].diff()**2)
-        dBmod = np.sqrt(dfts['Br']**2+dfts['Bt']**2+dfts['Bn']**2).diff()
-        alfvenicity = dBmod/dBvecmod
-        dfts['alfvenicity'] = alfvenicity
-
-        # Residual energy
-        Ek = v_r**2 + v_t**2 + v_n**2
-        Eb = va_r**2 + va_t**2 + va_n**2
-        sigma_r = (Ek-Eb)/(Ek+Eb)
-        sigma_r[np.abs(sigma_r) > 1e5] = np.nan
-        dfts['sigma_r'] = sigma_r
-
-        # V B angle
-        vbang = np.arccos(
-            (Va_r * vr + Va_t * vt + Va_n * vn)
-            /
-            np.sqrt(
-                (Va_r**2+Va_t**2+Va_n**2)
-                *
-                (vr**2+vt**2+vn**2)
-            )
-        )
-        vbang = vbang/np.pi*180
-        # vbang[vbang>90] = 180 - vbang[vbang>90]
-        dfts['vbangle'] = vbang
-
-        # ion inertial length
-        di = 228/np.sqrt(dfts['np']) #in [km]
-        di[di < 0] = np.nan
-        di[np.log10(di) < -3] = np.nan
-        dfts['di'] = di
-
-        # ion gyro radius
-        rho_ci = 10.43968491 * dfts['Vth']/Bmod #in [km]
-        rho_ci[rho_ci < 0] = np.nan
-        rho_ci[np.log10(rho_ci) < -3] = np.nan
-        dfts['rho_ci'] = rho_ci
-
-        # Plasma Beta
-        km2m        = 1e3
-        nT2T        = 1e-9
-        cm2m        = 1e-2
-        B_mag       = dfts['B'] * nT2T                        # |B| units:      [T]
-        temp        = 1./2 * m_p * (dfts['Vth']*km2m)**2      # in [J] = [kg] * [m]^2 * [s]^-2
-        dens        = dfts['np']/(cm2m**3)                    # number density: [m^-3] 
-        beta        = (dens*temp)/((B_mag**2)/(2*mu_0))         # plasma beta
-        beta[beta < 0] = np.nan
-        beta[np.abs(np.log10(beta))>4] = np.nan # delete some weird data
-        dfts['beta'] = beta  
-
-        # SW speed
-        vsw = np.sqrt(vr**2+vt**2+vn**2)
-        vsw[vsw < 0] = np.nan
-        vsw[np.abs(vsw) > 1e5] = np.nan
-        dfts['vsw'] = vsw
-
-        # deal with weird values
-        vth = dfts['Vth'].to_numpy()
-        vth[vth < 0] = np.nan
-        dfts['Vth'] = vth
-
-        # distance
-        try:
-            dist = dfts['Dist_au'].to_numpy()
-            dist_spdf = dfts['RAD_AU'].to_numpy()
-            dist[np.isnan(dist)] = dist_spdf[np.isnan(dist)]
-            dfts['Dist_au'] = dist
-        except:
-            pass
-
-        # advection time [Hr]
-        tadv = (dfts['Dist_au']/dfts['vsw']).to_numpy() * au_to_km /3600
-        tadv[tadv < 0] = np.nan
-        dfts['tadv'] = tadv
-        try:
-            tadv_spdf = (dfts['RAD_AU']/dfts['vsw']).to_numpy() * au_to_km /3600
-            tadv_spdf[tadv_spdf < 0] = np.nan
-            dfts['tadv_spdf'] = tadv_spdf
-            tadv[np.isnan(tadv)] = tadv_spdf[np.isnan(tadv)]
-            dfts['tadv'] = tadv
-        except:
-            pass
-
-        # update dfts
-        self.dfts = dfts
-
-
-    def FindTimeSeries(self, start_time, end_time, verbose = False, useSPEDAS = True):
+    def FindTimeSeries(self, start_time, end_time, verbose = False):
         """ 
         Find time series in dataframe and create a dfts dataframe 
         start_time and end_time should be either datetime64[ns] or timestamp
         sc: 0-PSP, 1-SolO
         """
 
-        if useSPEDAS:
-            sc = self.sc
-            dfts = LoadTimeSeriesFromSPEDAS(sc, start_time, end_time)
-            self.dfts_raw = dfts
+        load_spdf = self.load_spdf
+
+        dfmag = self.dfmag
+        dfpar = self.dfpar
+        dfdis = self.dfdis
+
+        indmag = (dfmag.index > start_time) & (dfmag.index < end_time)
+        indpar = (dfpar.index > start_time) & (dfpar.index < end_time)
+        inddis = (dfdis.index > start_time) & (dfdis.index < end_time)
+
+        # create dfts (dataframe time series)
+        dfts = pd.DataFrame(index = dfmag.index[indmag])
+
+        if len(dfts) < 5:
+            raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
+
+        # join time series
+        dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
+
+        # load magnetic field and ephem from SPDF
+        if load_spdf:
+            # spdf system is buggy, has a constant 4H shift
+            t0 = start_time - pd.Timedelta('1d')
+            t1 = end_time + pd.Timedelta('1d')
+            if self.sc==0:
+                self.spdf_data = self.LoadSPDF(spacecraft = 'PSP', start_time = t0, end_time = t1, verbose = verbose)
+            elif self.sc==1:
+                self.spdf_data = self.LoadSPDF(spacecraft = 'SolO', start_time = t0, end_time = t1, verbose = verbose)
         else:
-            load_spdf = self.load_spdf
+            pass
 
-            # if sc == 0:
-            #     dfmag = self.dfmag_psp
-            #     dfpar = self.dfpar_psp
-            #     dfdis = self.dfdis_psp
-            # elif sc == 1:
-            #     dfmag = self.dfmag_solo
-            #     dfpar = self.dfpar_solo
-            #     dfdis = self.dfdis_solo
-            # else:
-            #     raise ValueError("SC = %d not supported!" % (sc))
+        # store the time series dataframe
+        self.dfts_raw = dfts
 
-            dfmag = self.dfmag
-            dfpar = self.dfpar
-            dfdis = self.dfdis
-
-            indmag = (dfmag.index > start_time) & (dfmag.index < end_time)
-            indpar = (dfpar.index > start_time) & (dfpar.index < end_time)
-            inddis = (dfdis.index > start_time) & (dfdis.index < end_time)
-
-            # create dfts (dataframe time series)
-            dfts = pd.DataFrame(index = dfmag.index[indmag])
-
-            if len(dfts) < 5:
-                raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
-
-            # join time series
-            dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
-
-            # load magnetic field and ephem from SPDF
-            if load_spdf:
-                # spdf system is buggy, has a constant 4H shift
-                t0 = start_time - pd.Timedelta('1d')
-                t1 = end_time + pd.Timedelta('1d')
-                if self.sc==0:
-                    self.spdf_data = self.LoadSPDF(spacecraft = 'PSP', start_time = t0, end_time = t1, verbose = verbose)
-                elif self.sc==1:
-                    self.spdf_data = self.LoadSPDF(spacecraft = 'SolO', start_time = t0, end_time = t1, verbose = verbose)
-            else:
-                pass
-
-            # store the time series dataframe
-            self.dfts_raw = dfts
-
-            # collect garbage
-            collect()
+        # collect garbage
+        collect()
 
 
     def LoadSPDF(self, 
