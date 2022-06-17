@@ -593,7 +593,7 @@ class TimeSeriesViewer:
                         dftemp['By'] = self.dfts['By'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
                         dftemp['Bz'] = self.dfts['Bz'].multiply((self.dfts['Dist_au']/0.1), axis = 'index')
                         dftemp['B_SC'] = (dftemp[['Bx','By','Bz']]**2).sum(axis=1).apply(np.sqrt)
-                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        dftemp[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
                         ax.legend([r'$Bx*a(R)^2\ [nT]$',r'$By*a(R)\ a(R)=R/0.1AU$',r'$Bz*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dftemp['B_SC'].max()
                     else:
