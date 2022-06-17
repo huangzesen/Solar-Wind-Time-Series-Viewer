@@ -539,12 +539,15 @@ class TimeSeriesViewer:
 
         if self.spc_only:
             # for solar probe only
-            if self.sc == 0:
-                ind = dfts['INSTRUMENT_FLAG'] == 1
-                dfts = self.dfts.copy()
-                dfts.loc[~ind, 
-                ['np','Vth','Vr','Vt','Vn','V','sigma_c','sigma_r','vbangle','di','rho_ci','beta','vsw','tadv']
-                ] = np.nan
+            try:
+                if self.sc == 0:
+                    ind = dfts['INSTRUMENT_FLAG'] == 1
+                    dfts = self.dfts.copy()
+                    dfts.loc[~ind, 
+                    ['np','Vth','Vr','Vt','Vn','V','sigma_c','sigma_r','vbangle','di','rho_ci','beta','vsw','tadv']
+                    ] = np.nan
+            except:
+                pass
 
         """make title"""
         fig.suptitle(
