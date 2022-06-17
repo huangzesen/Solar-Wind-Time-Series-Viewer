@@ -23,6 +23,11 @@ from numba import jit,njit,prange
 from cdasws import CdasWs
 cdas = CdasWs()
 
+# SPEDAS API
+import pyspedas
+from pyspedas.utilities import time_string
+from pytplot import get_data
+
 au_to_km = 1.496e8  # Conversion factor
 rsun     = 696340   # Sun radius in units of  [km]
 
@@ -712,8 +717,160 @@ def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, lo
         return d
 
 
-def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time):
-    pass
+def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, smoothing_rate = '1H'):
+    """ 
+    Load Time Series with SPEDAS 
+    going to find data in the local directory
+    Input:
+        sc                          int (0: PSP, 1: SOLO)
+        start_time,end_time         pd.Timestamp
+    """
+
+    # change to root dir
+    if rootdir is None:
+        pass
+    else:
+        os.chdir(rootdir)
+
+    # Parker Solar Probe
+    if sc == 0:
+        t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+        t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+        names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag1 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag1.columns = ['Br','Bt','Bn']
+
+        names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag2 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag2.columns = ['Bx','By','Bz']
+
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
+
+        spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='l3', 
+                                varnames = [
+                                    'np_moment',
+                                    'wp_moment',
+                                    'vp_moment_RTN',
+                                    'vp_moment_SC',
+                                    'sc_pos_HCI',
+                                    'sc_vel_HCI',
+                                    'carr_latitude',
+                                    'carr_longitude'
+                                ], 
+                                time_clip=True)
+
+        data = get_data(spcdata[0])
+
+        dfpar = pd.DataFrame(
+            # index = time_string.time_datetime(time=data.times, tz=None)
+            index = data.times
+        )
+
+        temp = get_data('np_moment')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                # index = time_string.time_datetime(time=np.times, tz=None),
+                index = temp.times,
+                data = temp.y,
+                columns = ['np']
+            )
+        )
+
+        temp = get_data('wp_moment')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vth']
+            )
+        )
+
+        temp = get_data('vp_moment_RTN')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vr','Vt','Vn']
+            )
+        )
+
+        temp = get_data('vp_moment_SC')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vx','Vy','Vz']
+            )
+        )
+
+        temp = get_data('sc_pos_HCI')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['sc_x','sc_y','sc_z']
+            )
+        )
+
+        temp = get_data('sc_vel_HCI')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['sc_vel_x','sc_vel_y','sc_vel_z']
+            )
+        )
+
+        temp = get_data('carr_latitude')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['carr_lat']
+            )
+        )
+
+        temp = get_data('carr_longitude')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['carr_lon']
+            )
+        )
+
+        dfpar.index = time_string.time_datetime(time=dfpar.index)
+        dfpar.index = dfpar.index.tz_localize(None)
+        dfpar.index.name = 'datetime'
+
+        dfts = dfmag.resample('1s').mean().join(
+            dfpar.resample('1s').mean()
+        )
+
+        dfts[['sc_x','sc_y','sc_z']].interpolate('1s').mean()
+
+        dfts[['sc_x','sc_y','sc_z','sc_vel_x','sc_vel_y','sc_vel_z','carr_lat','carr_lon']] = dfts[['sc_x','sc_y','sc_z','sc_vel_x','sc_vel_y','sc_vel_z','carr_lat','carr_lon']].interpolate()
+
+        dfts['Dist_au'] = (dfts[['sc_x','sc_y','sc_z']] ** 2).sum(axis=1, min_count=1).apply(np.sqrt)/au_to_km  
+
+        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(smoothing_rate).mean()
+        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(smoothing_rate).mean()
+        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(smoothing_rate).mean()
+        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(smoothing_rate).mean()
+
+        return dfts
+
 
 # -----------  Tools ----------- #
 
