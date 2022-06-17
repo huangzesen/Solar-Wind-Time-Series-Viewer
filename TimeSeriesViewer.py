@@ -574,7 +574,7 @@ class TimeSeriesViewer:
                     elif self.mag_option['sc'] == 1:
                         dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
                         ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                        lim = 1.1*dfts['B'].max()
+                        lim = 1.1*dfts['B_SC'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
                 elif self.mag_option['norm'] == 1:
@@ -595,7 +595,7 @@ class TimeSeriesViewer:
                         dftemp['B_SC'] = (dftemp[['Bx','By','Bz']]**2).sum(axis=1).apply(np.sqrt)
                         dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
                         ax.legend([r'$Bx*a(R)^2\ [nT]$',r'$By*a(R)\ a(R)=R/0.1AU$',r'$Bz*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                        lim = 1.1*dftemp['B'].max()
+                        lim = 1.1*dftemp['B_SC'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
                 else:
@@ -626,7 +626,7 @@ class TimeSeriesViewer:
                         ls[2].set_data(dfts['Bz'].index, dfts['Bz'].values)
                         ls[3].set_data(dfts['B_SC'].index, dfts['B_SC'].values)
                         ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                        lim = 1.1*dfts['B'].max()
+                        lim = 1.1*dfts['B_SC'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
                 elif self.mag_option['norm'] == 1:
@@ -653,7 +653,7 @@ class TimeSeriesViewer:
                         ls[2].set_data(dftemp['Bz'].index, dftemp['Bz'].values)
                         ls[3].set_data(dftemp['B_SC'].index, dftemp['B_SC'].values)
                         ax.legend([r'$Bx*a(R)^2\ [nT]$',r'$By*a(R)\ a(R)=R/0.1AU$',r'$Bz*a(R)$',r'$|B|_{SC}$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                        lim = 1.1*dftemp['B'].max()
+                        lim = 1.1*dftemp['B_SC'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
                 else:
