@@ -734,6 +734,12 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, smoothing
 
     # Parker Solar Probe
     if sc == 0:
+        # check local directory
+        if os.path.exists("./psp_data"):
+            pass
+        else:
+            raise ValueError("No local data folder is present!")
+
         t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
         t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
@@ -870,6 +876,9 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, smoothing
         dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(smoothing_rate).mean()
 
         return dfts
+
+    else:
+        raise ValueError("sc=%d not supported!" %(sc))
 
 
 # -----------  Tools ----------- #
