@@ -864,7 +864,7 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, smoothing
             dfpar.resample('1s').mean()
         )
 
-        dfts[['sc_x','sc_y','sc_z']].interpolate('1s').mean()
+        dfts[['sc_x','sc_y','sc_z']].interpolate()
 
         dfts[['sc_x','sc_y','sc_z','sc_vel_x','sc_vel_y','sc_vel_z','carr_lat','carr_lon']] = dfts[['sc_x','sc_y','sc_z','sc_vel_x','sc_vel_y','sc_vel_z','carr_lat','carr_lon']].interpolate()
 
