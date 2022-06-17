@@ -392,7 +392,6 @@ class TimeSeriesViewer:
         #         dfts['brangle'] = (dfts['Br_RTN']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
         #     except:
         #         pass
-        dfts['brangle'] = (dfts['Br']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
 
         """Modulus of vectors"""
         dfts['B_RTN'] = (dfts['Br']**2+dfts['Bt']**2+dfts['Bn']**2).apply(np.sqrt)
@@ -401,6 +400,9 @@ class TimeSeriesViewer:
         dfts['V_SC'] = (dfts['Vx']**2+dfts['Vy']**2+dfts['Vz']**2).apply(np.sqrt)
         dfts['B'] = dfts['B_SC']
         dfts['V'] = dfts['V_SC']
+
+        """br angle"""
+        dfts['brangle'] = (dfts['Br']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
 
         """Diagnostics"""
 
