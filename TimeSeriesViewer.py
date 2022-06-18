@@ -313,14 +313,15 @@ class TimeSeriesViewer:
             if "QualityFlag" in interval.keys():
                 if interval['QualityFlag'] == 0:
                     color = 'yellow'
+                    interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
                 elif interval['QualityFlag'] == 1:
                     color = 'red'
+                    interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
                 elif interval['QualityFlag'] == 4:
                     color = 'purple'
+                    interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
                 else:
-                    color = 'red'
-
-            interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
+                    pass
 
             if 'TimeSeries' not in interval.keys():
                 interval['TimeSeries'] = None
