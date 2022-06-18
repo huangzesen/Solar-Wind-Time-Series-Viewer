@@ -796,10 +796,13 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                min1 = np.nanmin(dfts['di']); max1 = np.nanmax(dfts['di'])
-                min2 = np.nanmin(dfts['rho_ci']); max2 = np.nanmax(dfts['rho_ci'])
-                min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
-                ax.set_ylim([0.95*min0, 1.05*max0])
+                try:
+                    min1 = np.nanmin(dfts['di']); max1 = np.nanmax(dfts['di'])
+                    min2 = np.nanmin(dfts['rho_ci']); max2 = np.nanmax(dfts['rho_ci'])
+                    min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
+                    ax.set_ylim([0.95*min0, 1.05*max0])
+                except:
+                    if verbose: print("Setting scale limit failed... omitting...")
                 lines['scale'] = ax.get_lines()
             except:
                 raise ValueError("Initializing scale failed!")
@@ -816,10 +819,13 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                min1 = np.nanmin(dfts['di']); max1 = np.nanmax(dfts['di'])
-                min2 = np.nanmin(dfts['rho_ci']); max2 = np.nanmax(dfts['rho_ci'])
-                min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
-                ax.set_ylim([0.95*min0, 1.05*max0])
+                try:
+                    min1 = np.nanmin(dfts['di']); max1 = np.nanmax(dfts['di'])
+                    min2 = np.nanmin(dfts['rho_ci']); max2 = np.nanmax(dfts['rho_ci'])
+                    min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
+                    ax.set_ylim([0.95*min0, 1.05*max0])
+                except:
+                    if verbose: print("Setting scale limit failed... omitting...")
                 lines['scale'] = ax.get_lines()
             except:
                 raise ValueError("Updating scale failed!...")
