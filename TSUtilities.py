@@ -1113,6 +1113,8 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
     
     interval['lines2'] = red_vline['lines']
 
+    if 'rects' not in interval.keys():
+        interval['rects'] = {}
     for k, ax in axes.items():
         interval['rects'][k] = ax.axvspan(interval['start_time'], interval['end_time'], alpha = alpha, color = color)
 
