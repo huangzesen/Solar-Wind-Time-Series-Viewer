@@ -1159,6 +1159,11 @@ def smoothing_function_obsolete(x,y, window=2, pad = 1):
 
 @jit(nopython=True, parallel=True)      
 def smoothing_function(x,y, window=2, pad = 1):
+    """
+    smoothing function
+    input: x, y   numpy array
+    output: xmid, xmean, smoothed y
+    """
     def bisection(array,value):
         '''Given an ``array`` , and given a ``value`` , returns an index j such that ``value`` is between array[j]
         and array[j+1]. ``array`` must be monotonic increasing. j=-1 or j=len(array) is returned

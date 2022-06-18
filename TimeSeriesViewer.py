@@ -35,7 +35,7 @@ au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
-from TSUtilities import SolarWindCorrelationLength, TracePSD, LoadTimeSeriesFromSPEDAS, DrawShadedEventInTimeSeries
+from TSUtilities import SolarWindCorrelationLength, TracePSD, LoadTimeSeriesFromSPEDAS, DrawShadedEventInTimeSeries, smoothing_function
 
 
 class TimeSeriesViewer:
@@ -85,6 +85,7 @@ class TimeSeriesViewer:
         self.resample_rate = resample_rate
         self.mag_option = {'norm':1, 'sc':1}
         self.spc_only = True
+        self.calc_smoothed_spec = True
 
         if paths is None:
             self.paths = {
@@ -1285,9 +1286,15 @@ class TimeSeriesViewer:
                         # save the time series to dataframe
                         self.selected_intervals[i1]['TimeSeries'] = dftemp
                         self.selected_intervals[i1]['PSD'] = {
-                            'freq': freq,
+                            'freqs': freq,
                             'PSD': B_pow
                         }
+                        # smooth the spectrum
+                        if self.calc_smoothed_spec:
+                            _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
+                            ax1.loglog(sm_freqs, sm_PSD)
+                            self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
+                            self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
             except:
                 pass
             collect()
