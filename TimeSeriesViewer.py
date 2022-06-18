@@ -262,6 +262,7 @@ class TimeSeriesViewer:
 
         # clean info
         self.green_vlines = []
+        self.selected_intervals = []
 
         # Show cross hair
         for k, ax in self.axes.items():
