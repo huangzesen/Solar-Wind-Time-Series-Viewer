@@ -260,6 +260,9 @@ class TimeSeriesViewer:
         # self.horizontal_lines = {}
         self.vertical_lines = {}
 
+        # clean info
+        self.green_vlines = []
+
         # Show cross hair
         for k, ax in self.axes.items():
             # self.horizontal_lines[k] = ax.axhline(color='k', lw=0.8, ls='--')
