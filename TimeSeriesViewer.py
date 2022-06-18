@@ -722,10 +722,13 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                min1 = np.nanmin(dfts['V']); max1 = np.nanmax(dfts['V'])
-                min2 = np.nanmin(dfts['Vth']); max2 = np.nanmax(dfts['Vth'])
-                min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
-                ax.set_ylim([0.95*min0, 1.05*max0])
+                try:
+                    min1 = np.nanmin(dfts['V']); max1 = np.nanmax(dfts['V'])
+                    min2 = np.nanmin(dfts['Vth']); max2 = np.nanmax(dfts['Vth'])
+                    min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
+                    ax.set_ylim([0.95*min0, 1.05*max0])
+                except:
+                    if verbose: print("Setting limit for speed failed! omitting...")
                 lines['speed'] = ax.get_lines()
             except:
                 pass
@@ -743,10 +746,13 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                min1 = np.nanmin(dfts['V']); max1 = np.nanmax(dfts['V'])
-                min2 = np.nanmin(dfts['Vth']); max2 = np.nanmax(dfts['Vth'])
-                min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
-                ax.set_ylim([0.95*min0, 1.05*max0])
+                try:
+                    min1 = np.nanmin(dfts['V']); max1 = np.nanmax(dfts['V'])
+                    min2 = np.nanmin(dfts['Vth']); max2 = np.nanmax(dfts['Vth'])
+                    min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
+                    ax.set_ylim([0.95*min0, 1.05*max0])
+                except:
+                    if verbose: print("Setting limit for speed failed! omitting...")
                 lines['speed'] = ax.get_lines()
             except:
                 pass
@@ -1442,30 +1448,33 @@ class TimeSeriesViewer:
             self.green_vlines.append(green_vline)
 
             # zoom in if we have two green line
-            if (len(self.green_vlines)==2):
-                l1 = self.green_vlines[0]
-                l2 = self.green_vlines[1]
-                tstart = np.min([l1['timestamp'], l2['timestamp']])
-                tend = np.max([l1['timestamp'], l2['timestamp']])
+            try:
+                if (len(self.green_vlines)==2):
+                    l1 = self.green_vlines[0]
+                    l2 = self.green_vlines[1]
+                    tstart = np.min([l1['timestamp'], l2['timestamp']])
+                    tend = np.max([l1['timestamp'], l2['timestamp']])
 
-                # store the window size history
-                self.window_size_histories.append(
-                {'sc':self.sc, 'start_time': self.start_time, 'end_time': self.end_time, 'resample_rate': self.resample_rate}
-                )
+                    # store the window size history
+                    self.window_size_histories.append(
+                    {'sc':self.sc, 'start_time': self.start_time, 'end_time': self.end_time, 'resample_rate': self.resample_rate}
+                    )
 
-                # set current window start_time and end_time
-                self.start_time = tstart
-                self.end_time = tend
-                self.UpdateFigure(
-                self.start_time, self.end_time, verbose=self.verbose
-                )
-                for k, ax in self.axes.items():
-                    l1['lines'][k].remove()
-                    l2['lines'][k].remove()
-                    ax.figure.canvas.draw()
-                
-                # empty the stack
-                self.green_vlines = []
+                    # set current window start_time and end_time
+                    self.start_time = tstart
+                    self.end_time = tend
+                    self.UpdateFigure(
+                    self.start_time, self.end_time, verbose=self.verbose
+                    )
+                    for k, ax in self.axes.items():
+                        l1['lines'][k].remove()
+                        l2['lines'][k].remove()
+                        ax.figure.canvas.draw()
+                    
+                    # empty the stack
+                    self.green_vlines = []
+            except:
+                raise ValueError("Zooming failed!")
 
                 collect()
 
