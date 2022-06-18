@@ -192,7 +192,7 @@ class TimeSeriesViewer:
             dftemp = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, rolling_rate = rolling_rate)
             self.dfmag = dftemp[['Br','Bt','Bn','Bx','By','Bz','Br0','Bt0','Bn0','Bx0','By0','Bz0']]
             self.dfpar = dftemp[['Vr','Vt','Vn','Vx','Vy','Vz','np','Vth','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0']]
-            self.dfdis = dftemp[['Dist_au','sc_x','sc_y','sc_z','sc_vel_x','sc_vel_y','sc_vel_z','carr_lat','carr_lon']]
+            self.dfdis = dftemp[['Dist_au']]
 
 
     def AxesInit(self):
