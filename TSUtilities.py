@@ -626,7 +626,7 @@ def LoadSOlOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, ge
                     columns = ['TEMP']
                 )
             )
-            df['Vth'] = 13.84112218 * df['TEMP'] # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
+            df['Vth'] = 13.84112218 * df['TEMP'].apply(np.sqrt) # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
             df.index.name = 'datetime'
             spdf_data['spdf_infos'][key]['dataframe'] = df
     except:
@@ -877,6 +877,121 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
         dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
 
         return dfts
+
+    # Solar Orbiter
+    elif sc == 1:
+
+        # check local directory
+        if os.path.exists("./psp_data"):
+            pass
+        else:
+            raise ValueError("No local data folder is present!")
+
+        t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+        t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag1 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag1.columns = ['Br','Bt','Bn']
+
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='srf-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag2 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag2.columns = ['Bx','By','Bz']
+
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
+
+        swadata = pyspedas.solo.swa(trange=[t0, t1], datatype='pas-grnd-mom')
+        data = get_data(swadata[0])
+
+        dfpar = pd.DataFrame(
+            # index = time_string.time_datetime(time=data.times, tz=None)
+            index = data.times
+        )
+        temp = get_data('N')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                # index = time_string.time_datetime(time=np.times, tz=None),
+                index = temp.times,
+                data = temp.y,
+                columns = ['np']
+            )
+        )
+        temp = get_data('T')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['T']
+            )
+        )
+        dfpar['Vth'] = 13.84112218 * np.sqrt(dfpar['T']) # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
+
+        temp = get_data('V_RTN')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vr','Vt','Vn']
+            )
+        )
+
+        temp = get_data('V_SRF')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vx','Vy','Vz']
+            )
+        )
+
+        temp = get_data('V_SOLO_RTN')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['sc_vel_r','sc_vel_t','sc_vel_n']
+            )
+        )
+
+        dfpar.index = time_string.time_datetime(time=dfpar.index)
+        dfpar.index = dfpar.index.tz_localize(None)
+        dfpar.index.name = 'datetime'
+
+
+        time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime(), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime()]
+        status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON'], time[0], time[1])
+
+        dfdis = pd.DataFrame(
+            index = data['Epoch'],
+            data = data[['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']]
+        )
+        dfdis.index.name = 'datetime'
+
+        dfts = dfmag.resample('1s').mean().join(
+            dfpar.resample('1s').mean().join(
+                dfdis.resample('1s').mean().interpolate()
+            )
+        )
+
+        dfts['Dist_au'] = dfts['RAD_AU'].interpolate()
+
+        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
+        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
+        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
+        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
+
+        return dfts
+
 
     else:
         raise ValueError("sc=%d not supported!" %(sc))
