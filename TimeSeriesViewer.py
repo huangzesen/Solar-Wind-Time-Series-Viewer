@@ -822,7 +822,7 @@ class TimeSeriesViewer:
                 ax.set_ylim([0.95*min0, 1.05*max0])
                 lines['scale'] = ax.get_lines()
             except:
-                pass
+                raise ValueError("Updating scale failed!...")
 
         # """spectrogram"""
         # try:
