@@ -1060,6 +1060,7 @@ def linlaw(x, a, b) :
     return a + x * b
 
 def curve_fit_log(xdata, ydata) : 
+    
     """Fit data to a power law with weights according to a log scale"""
     # Weights according to a log scale
     # Apply fscalex
@@ -1074,3 +1075,45 @@ def curve_fit_log(xdata, ydata) :
     # There is no need to apply fscalex^-1 as original data is already available
     return (popt_log, pcov_log, ydatafit_log)
 
+
+
+# -----------  Drawing ----------- #
+
+def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw = 2):
+    """
+    Draw shaded event area in time series
+    Input:
+        interval: dict, must have keys: start_time, end_time, spacecraft
+        axes: axes to plot on
+    Keyword:
+        color: default red
+    """
+
+    # start time
+    x = interval['start_time']
+    red_vline = {
+        'timestamp': interval['start_time'],
+        'x_period': None,
+        'lines': {}
+        }
+    for k, ax in axes.items():
+        red_vline['lines'][k] = ax.axvline(x, color = color, ls = '--', lw = lw)
+    
+    interval['lines1'] = red_vline['lines']
+
+    # end time
+    x = interval['end_time']
+    red_vline = {
+        'timestamp': interval['end_time'],
+        'x_period': None,
+        'lines': {}
+        }
+    for k, ax in axes.items():
+        red_vline['lines'][k] = ax.axvline(x, color = color, ls = '--', lw = lw)
+    
+    interval['lines2'] = red_vline['lines']
+
+    for k, ax in axes.items():
+        interval['rects'][k] = ax.axvspan(interval['start_time'], interval['end_time'], alpha = alpha, color = color)
+
+    return interval

@@ -35,7 +35,7 @@ au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
-from TSUtilities import SolarWindCorrelationLength, TracePSD, LoadTimeSeriesFromSPEDAS
+from TSUtilities import SolarWindCorrelationLength, TracePSD, LoadTimeSeriesFromSPEDAS, DrawShadedEventInTimeSeries
 
 
 class TimeSeriesViewer:
@@ -280,7 +280,7 @@ class TimeSeriesViewer:
             keys        :   list of keys for dict
         """
         intervals = []
-        keys = ['spacecraft', 'start_time', 'end_time', 'TimeSeries']
+        keys = ['spacecraft', 'start_time', 'end_time', 'TimeSeries','PSD']
         print("Current Keys:")
         for k in keys: print(k)
         try:
@@ -293,6 +293,44 @@ class TimeSeriesViewer:
             print("Not enough intervals... len(self.selected_intervals) = %d" %(len(self.selected_intervals)))
 
         return intervals, keys
+
+
+    def ImportSelectedIntervals(self, intervals):
+        """ 
+        Import selected Intervals 
+        Return:
+            intervals   :   list of dictionaries
+                should have at least the following keys:
+                spacecraft, start_time, end_time,
+                preferably with QualityFlag key
+            keys        :   list of keys for dict
+        """
+
+        # print red vlines
+        for i1 in range(len(intervals)):
+            interval = intervals[i1]
+
+            if "QualityFlag" in interval.keys():
+                if interval['QualityFlag'] == 0:
+                    color = 'yellow'
+                elif interval['QualityFlag'] == 1:
+                    color = 'red'
+                elif interval['QualityFlag'] == 4:
+                    color = 'purple'
+                else:
+                    color = 'red'
+
+            interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
+
+            if 'TimeSeries' not in interval.keys():
+                interval['TimeSeries'] = None
+            
+            if 'PSD' not in interval.keys():
+                interval['PSD'] = None
+
+            self.selected_intervals.append(interval)
+
+        return self.selected_intervals
 
 
     def ExportTimeSeries(self, start_time, end_time, 
@@ -525,7 +563,6 @@ class TimeSeriesViewer:
 
         # update dfts
         self.dfts = dfts
-
 
     
     def PlotTimeSeries(self, verbose = False, update=False):
@@ -1178,6 +1215,16 @@ class TimeSeriesViewer:
                 for i1 in range(len(self.selected_intervals)):
                     selected_interval = self.selected_intervals[i1]
                     if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
+                        # check quality flag
+                        if 'QualityFlag' in selected_interval.keys():
+                            flag = selected_interval['QualityFlag']
+                            if flag == 0:
+                                continue
+                            elif flag == 4:
+                                continue
+                            else:
+                                pass
+
                         # remove the red vline and shaded area
                         for k, ax in self.axes.items():
                             selected_interval['rects'][k].remove()
@@ -1363,6 +1410,7 @@ class TimeSeriesViewer:
                     'start_time': tstart,
                     'end_time': tend,
                     'TimeSeries': None,
+                    'PSD': None,
                     'rects': {},
                     'lines1': l1['lines'],
                     'lines2': l2['lines']
