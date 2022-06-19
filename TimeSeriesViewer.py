@@ -1277,9 +1277,9 @@ class TimeSeriesViewer:
                         if 'PSD' not in self.selected_intervals[i1].keys():
                             ind = (self.dfts_raw.index > t0) & (self.dfts_raw.index < t1)
                             dftemp = self.dfts_raw.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
-                            Br = dftemp['Br'].interpolate().values
-                            Bt = dftemp['Bt'].interpolate().values
-                            Bn = dftemp['Bn'].interpolate().values
+                            Br = dftemp['Br'].interpolate().dropna().values
+                            Bt = dftemp['Bt'].interpolate().dropna().values
+                            Bn = dftemp['Bn'].interpolate().dropna().values
                             freq, B_pow = TracePSD(Br, Bt, Bn, 1)
                             # save the time series to dataframe
                             self.selected_intervals[i1]['TimeSeries'] = dftemp
