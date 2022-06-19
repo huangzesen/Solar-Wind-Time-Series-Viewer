@@ -1274,25 +1274,28 @@ class TimeSeriesViewer:
                     selected_interval = self.selected_intervals[i1]
                     if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
                         t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
-                        ind = (self.dfts_raw.index > t0) & (self.dfts_raw.index < t1)
-                        dftemp = self.dfts_raw.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
-                        Br = dftemp['Br'].interpolate().values
-                        Bt = dftemp['Bt'].interpolate().values
-                        Bn = dftemp['Bn'].interpolate().values
-                        freq, B_pow = TracePSD(Br, Bt, Bn, 1)
-                        # save the time series to dataframe
-                        self.selected_intervals[i1]['TimeSeries'] = dftemp
-                        self.selected_intervals[i1]['PSD'] = {
-                            'start_time': t0,
-                            'end_time': t1,
-                            'sc': self.sc,
-                            'freqs': freq,
-                            'PSD': B_pow,
-                            'resample_info':{
-                                'Fraction_missing': dftemp['Br'].apply(np.isnan).sum()/len(dftemp['Br'])*100,
-                                'resolution': 1000
+                        if 'PSD' not in self.selected_intervals[i1].keys():
+                            ind = (self.dfts_raw.index > t0) & (self.dfts_raw.index < t1)
+                            dftemp = self.dfts_raw.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
+                            Br = dftemp['Br'].interpolate().values
+                            Bt = dftemp['Bt'].interpolate().values
+                            Bn = dftemp['Bn'].interpolate().values
+                            freq, B_pow = TracePSD(Br, Bt, Bn, 1)
+                            # save the time series to dataframe
+                            self.selected_intervals[i1]['TimeSeries'] = dftemp
+                            self.selected_intervals[i1]['PSD'] = {
+                                'start_time': t0,
+                                'end_time': t1,
+                                'sc': self.sc,
+                                'freqs': freq,
+                                'PSD': B_pow,
+                                'resample_info':{
+                                    'Fraction_missing': dftemp['Br'].apply(np.isnan).sum()/len(dftemp['Br'])*100,
+                                    'resolution': 1000
+                                }
                             }
-                        }
+                        else:
+                            pass
                         # smooth the spectrum
                         if self.calc_smoothed_spec:
                             _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
@@ -1501,7 +1504,7 @@ class TimeSeriesViewer:
             except:
                 raise ValueError("Zooming failed!")
 
-                collect()
+            collect()
 
 
     def set_cross_hair_visible(self, visible):
