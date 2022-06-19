@@ -890,26 +890,6 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
         t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
         t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
-        names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal', level='l2', time_clip=True)
-        data = get_data(names[0])
-        dfmag1 = pd.DataFrame(
-            index = data[0],
-            data = data[1]
-        )
-        dfmag1.columns = ['Br','Bt','Bn']
-
-        names = pyspedas.solo.mag(trange=[t0,t1], datatype='srf-normal', level='l2', time_clip=True)
-        data = get_data(names[0])
-        dfmag2 = pd.DataFrame(
-            index = data[0],
-            data = data[1]
-        )
-        dfmag2.columns = ['Bx','By','Bz']
-
-        dfmag = dfmag1.join(dfmag2)
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
-        dfmag.index = dfmag.index.tz_localize(None)
-
         swadata = pyspedas.solo.swa(trange=[t0, t1], datatype='pas-grnd-mom')
         data = get_data(swadata[0])
 
@@ -970,6 +950,26 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
 
         time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime(), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime()]
         status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON'], time[0], time[1])
+
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag1 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag1.columns = ['Br','Bt','Bn']
+
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='srf-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag2 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag2.columns = ['Bx','By','Bz']
+
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
 
         dfdis = pd.DataFrame(
             index = data['Epoch'],
