@@ -36,7 +36,7 @@ au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
 from TSUtilities import SolarWindCorrelationLength, TracePSD, LoadTimeSeriesFromSPEDAS, DrawShadedEventInTimeSeries, smoothing_function
-
+from BreakPointFinderFromDict import BreakPointFinder
 
 class TimeSeriesViewer:
     """ 
@@ -86,6 +86,7 @@ class TimeSeriesViewer:
         self.mag_option = {'norm':1, 'sc':1}
         self.spc_only = True
         self.calc_smoothed_spec = True
+        self.useBPF = True
 
         if paths is None:
             self.paths = {
@@ -1279,22 +1280,31 @@ class TimeSeriesViewer:
                         Bt = dftemp['Bt'].interpolate().values
                         Bn = dftemp['Bn'].interpolate().values
                         freq, B_pow = TracePSD(Br, Bt, Bn, 1)
-                        fig1, ax1 = plt.subplots(1, figsize = [6,6])
-                        ax1.loglog(freq, B_pow)
-                        ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
-                        ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
                         # save the time series to dataframe
                         self.selected_intervals[i1]['TimeSeries'] = dftemp
                         self.selected_intervals[i1]['PSD'] = {
                             'freqs': freq,
-                            'PSD': B_pow
+                            'PSD': B_pow,
+                            'resample_info':{
+                                'Fraction_missing': dftemp['Br'].apply(np.isnan).sum()/len(dftemp['Br'])*100,
+                                'resolution': 1000
+                            }
                         }
                         # smooth the spectrum
                         if self.calc_smoothed_spec:
                             _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
-                            ax1.loglog(sm_freqs, sm_PSD)
                             self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
                             self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
+
+                        if self.useBPF:
+                            bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
+                        else:
+                            fig1, ax1 = plt.subplots(1, figsize = [6,6])
+                            ax1.loglog(freq, B_pow)
+                            if self.calc_smoothed_spec:
+                                ax1.loglog(sm_freqs, sm_PSD)
+                            ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
+                            ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
             except:
                 pass
             collect()
