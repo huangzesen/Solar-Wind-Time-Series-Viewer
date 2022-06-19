@@ -268,7 +268,7 @@ class BreakPointFinder:
     def on_key_event(self, event):
         """ On Key Event """
         
-        if event.key == 'escape':
+        if event.key == 'q':
             """ Exit """
             # self.SaveProgress()
             self.disconnect()
