@@ -1089,12 +1089,15 @@ def SolarWindCorrelationLength(R, Vsw0 = 348.48, Vsw = None, correction = False)
         pass
 
     # calculate the recommend interval length
-    if R < 0.3:
-        T = (R/0.3) * 24
-    elif ((R >= 0.3) & (R < 1.0)):
-        T = (R/0.3)**0.3 * 24
-    else:
-        T = (1.0/0.3)**0.3 * (R/1.0)**0.27 * 24
+    # if R < 0.3:
+    #     T = (R/0.3) * 24
+    # elif ((R >= 0.3) & (R < 1.0)):
+    #     T = (R/0.3)**0.3 * 24
+    # else:
+    #     T = (1.0/0.3)**0.3 * (R/1.0)**0.27 * 24
+
+    # simple geometric growth
+    T = (R/0.3)*24
 
     return T
 
