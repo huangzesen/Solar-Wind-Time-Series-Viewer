@@ -1451,7 +1451,6 @@ class TimeSeriesViewer:
                     'start_time': tstart,
                     'end_time': tend,
                     'TimeSeries': None,
-                    'PSD': None,
                     'rects': {},
                     'lines1': l1['lines'],
                     'lines2': l2['lines']
