@@ -43,6 +43,7 @@ class BreakPointFinder:
         data: {'xdata':, 'ydata':}
         Input: PSD_raw dictionary, must have keys:
         freqs, PSD, sm_freqs, sm_PSD, resample_info (dict, with key Fraction_missing and resolution)
+        start_time, end_time, sc
         """
 
         # find breakpoint
@@ -97,7 +98,11 @@ class BreakPointFinder:
         
         try:
             ax.set_title(
-                "QF: %d" %(self.PSD['PSD_diagnostics']['QualityFlag'])
+                "%s - %s" %(str(self.PSD['start_time']), str(self.PSD['end_time']))
+                +
+                "\n"
+                +
+                "SC: %d, QF: %d" %(self.PSD['sc'], self.PSD['PSD_diagnostics']['QualityFlag'])
                 +
                 "\n"
                 +

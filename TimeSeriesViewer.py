@@ -1283,6 +1283,9 @@ class TimeSeriesViewer:
                         # save the time series to dataframe
                         self.selected_intervals[i1]['TimeSeries'] = dftemp
                         self.selected_intervals[i1]['PSD'] = {
+                            'start_time': t0,
+                            'end_time': t1,
+                            'sc': self.sc,
                             'freqs': freq,
                             'PSD': B_pow,
                             'resample_info':{
