@@ -398,11 +398,6 @@ class BreakPointFinder:
         # plot PSD
         self.PlotPSD()
 
-        # plot time series
-        if self.view_ts:
-            pass
-            #self.plot_time_series()
-
         # plot fit
         if self.view_fit:
             self.DrawFitLine()
