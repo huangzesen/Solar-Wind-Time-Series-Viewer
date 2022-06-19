@@ -1294,13 +1294,13 @@ class TimeSeriesViewer:
                                     'resolution': 1000
                                 }
                             }
+                            # smooth the spectrum
+                            if self.calc_smoothed_spec:
+                                _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
+                                self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
+                                self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
                         else:
-                            pass
-                        # smooth the spectrum
-                        if self.calc_smoothed_spec:
-                            _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
-                            self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
-                            self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
+                            print("PSD is already here!")
 
                         if self.useBPF:
                             self.bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
