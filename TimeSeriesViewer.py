@@ -1300,7 +1300,8 @@ class TimeSeriesViewer:
                             self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
 
                         if self.useBPF:
-                            bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
+                            self.bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
+                            self.bpf.connect()
                         else:
                             fig1, ax1 = plt.subplots(1, figsize = [6,6])
                             ax1.loglog(freq, B_pow)
