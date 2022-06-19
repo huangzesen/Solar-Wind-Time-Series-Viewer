@@ -52,7 +52,7 @@ class BreakPointFinder:
         self.PSD = PSD
 
         self.PSD_diagnostics_template = {
-            "QualityFlag": 9,
+            "QualityFlag": 0,
             'fit1': None,
             'fit2': None,
             'Intersect': np.nan,
