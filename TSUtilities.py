@@ -951,6 +951,12 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
         time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime(), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime()]
         status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON'], time[0], time[1])
 
+        dfdis = pd.DataFrame(
+            index = data['Epoch'],
+            data = data[['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']]
+        )
+        dfdis.index.name = 'datetime'
+
         names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal', level='l2', time_clip=True)
         data = get_data(names[0])
         dfmag1 = pd.DataFrame(
@@ -970,12 +976,6 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
         dfmag = dfmag1.join(dfmag2)
         dfmag.index = time_string.time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
-
-        dfdis = pd.DataFrame(
-            index = data['Epoch'],
-            data = data[['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']]
-        )
-        dfdis.index.name = 'datetime'
 
         dfts = dfmag.resample('1s').mean().join(
             dfpar.resample('1s').mean().join(
