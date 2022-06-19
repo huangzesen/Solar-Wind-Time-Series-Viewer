@@ -97,7 +97,7 @@ class BreakPointFinder:
         
         try:
             ax.set_title(
-                "(%d/%d) QF: %d" %(self.which_one+1, len(self.paths), self.PSD['PSD_diagnostics']['QualityFlag'])
+                "QF: %d" %(self.PSD['PSD_diagnostics']['QualityFlag'])
                 +
                 "\n"
                 +
@@ -109,7 +109,7 @@ class BreakPointFinder:
             )
         except:
             ax.set_title(
-                "(%d/%d) QF: %d" %(self.which_one+1, len(self.paths), self.PSD['PSD_diagnostics']['QualityFlag'])
+                "QF: %d" %(self.PSD['PSD_diagnostics']['QualityFlag'])
                 +
                 "\n"
                 +
@@ -270,22 +270,6 @@ class BreakPointFinder:
             self.fig.clf()
             plt.close('all')
             return 
-        
-        # elif (event.key == 'right') | (event.key == 'down'):
-        #     """ Go to next one """
-        #     self.SaveProgress()
-        #     self.which_one += 1
-        #     if self.which_one >= len(self.paths):
-        #         self.which_one -= len(self.path)
-        #     self.ResetFigure(loadPSD = True)
-
-        # elif (event.key == 'left') | (event.key == 'up'):
-        #     """ Go to previous one """
-        #     self.SaveProgress()
-        #     self.which_one -= 1
-        #     if self.which_one < 0:
-        #         self.which_one += len(self.paths)
-        #     self.ResetFigure(loadPSD = True)
             
         elif event.key == 'c':
             """ Clear All existing Information """
