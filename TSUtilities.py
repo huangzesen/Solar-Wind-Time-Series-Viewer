@@ -1117,11 +1117,11 @@ def TracePSD(x,y,z,dt):
           + np.abs(np.fft.rfft(y, norm='ortho'))**2 \
           + np.abs(np.fft.rfft(z, norm='ortho'))**2
 
-    freqs = np.fft.fftfreq(len(x), dt)
-    freqs = freqs[freqs>0]
-    idx   = np.argsort(freqs)
+    freqs = np.fft.rfftfreq(len(x), dt)
+    # freqs = freqs[freqs>0]
+    # idx   = np.argsort(freqs)
     
-    return freqs[idx], B_pow[idx]
+    return freqs, B_pow
 
 
 @jit(nopython=True, parallel=True)
