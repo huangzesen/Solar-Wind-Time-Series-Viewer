@@ -328,6 +328,8 @@ class TimeSeriesViewer:
                     interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
                 else:
                     pass
+            else:
+                interval = DrawShadedEventInTimeSeries(interval, self.axes, color = 'red')
 
             if 'TimeSeries' not in interval.keys():
                 interval['TimeSeries'] = None
