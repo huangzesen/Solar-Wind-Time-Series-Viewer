@@ -676,48 +676,7 @@ def LoadSOlOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, ge
     return spdf_data
 
 
-def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None, keys = None):
-
-    if spdf:
-        spdf_data = LoadTimeSeriesSPDF(sc = sc, 
-            start_time=start_time.to_pydatetime(), 
-            end_time = end_time.to_pydatetime(), 
-            verbose = verbose, keys = keys)
-
-        d = {
-            'sc': sc,
-            'start_time': start_time,
-            'end_time': end_time,
-            'spdf_data': spdf_data,
-            'Diagnostics': None
-        }
-        return d
-
-    if local:
-        try:
-            if sc == tsv.sc:
-                pass
-            else:
-                raise ValueError("sc = %d must equal tsv.sc = %d" %(sc, tsv.sc))
-        except:
-            raise ValueError("tsv must be a TimeSeriesViewer Object!!!")
-
-        dfts = tsv.ExportTimeSeries(start_time, end_time, verbose = verbose)
-
-        d = {
-            'sc': sc,
-            'start_time': start_time,
-            'end_time': end_time,
-            'local_data': {
-                'dfts_raw': tsv.dfts_raw
-            },
-            'dfts': dfts,
-            'Diagnostics': None
-        }
-        return d
-
-
-def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_rate = '1H'):
+def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', settings = None):
     """ 
     Load Time Series with SPEDAS 
     going to find data in the local directory
@@ -726,163 +685,37 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
         start_time,end_time         pd.Timestamp
     """
 
+    if sc == 0:
+        dfts = LoadTimeSeriesFromSPEDAS_PSP(
+            sc, start_time, end_time, 
+            rootdir = rootdir, 
+            rolling_rate = rolling_rate)
+    elif sc == 1:
+        dfts = LoadTimeSeriesFromSPEDAS_SOLO(
+            sc, start_time, end_time, 
+            rootdir = rootdir, 
+            rolling_rate = rolling_rate)
+    else:
+        raise ValueError("sc = %d not supported!" %(sc))
+
+    return dfts
+
+
+
+def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', settings = None):
+    """ Load Time Series from SPEDAS with Solar Orbiter """
+
     # change to root dir
     if rootdir is None:
         pass
     else:
         os.chdir(rootdir)
 
-    # Parker Solar Probe
-    if sc == 0:
-        # check local directory
-        if os.path.exists("./psp_data"):
-            pass
-        else:
-            raise ValueError("No local data folder is present!")
-
-        t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
-        t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
-
-        names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
-        data = get_data(names[0])
-        dfmag1 = pd.DataFrame(
-            index = data[0],
-            data = data[1]
-        )
-        dfmag1.columns = ['Br','Bt','Bn']
-
-        names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
-        data = get_data(names[0])
-        dfmag2 = pd.DataFrame(
-            index = data[0],
-            data = data[1]
-        )
-        dfmag2.columns = ['Bx','By','Bz']
-
-        dfmag = dfmag1.join(dfmag2)
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
-        dfmag.index = dfmag.index.tz_localize(None)
-
-        spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='l3', 
-                                varnames = [
-                                    'np_moment',
-                                    'wp_moment',
-                                    'vp_moment_RTN',
-                                    'vp_moment_SC',
-                                    'sc_pos_HCI',
-                                    'sc_vel_HCI',
-                                    'carr_latitude',
-                                    'carr_longitude'
-                                ], 
-                                time_clip=True)
-
-        data = get_data(spcdata[0])
-
-        dfpar = pd.DataFrame(
-            # index = time_string.time_datetime(time=data.times, tz=None)
-            index = data.times
-        )
-
-        temp = get_data('np_moment')
-        dfpar = dfpar.join(
-            pd.DataFrame(
-                # index = time_string.time_datetime(time=np.times, tz=None),
-                index = temp.times,
-                data = temp.y,
-                columns = ['np']
-            )
-        )
-
-        temp = get_data('wp_moment')
-        dfpar = dfpar.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Vth']
-            )
-        )
-
-        temp = get_data('vp_moment_RTN')
-        dfpar = dfpar.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Vr','Vt','Vn']
-            )
-        )
-
-        temp = get_data('vp_moment_SC')
-        dfpar = dfpar.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Vx','Vy','Vz']
-            )
-        )
-
-        temp = get_data('sc_pos_HCI')
-        dfpar = dfpar.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['sc_x','sc_y','sc_z']
-            )
-        )
-
-        temp = get_data('sc_vel_HCI')
-        dfpar = dfpar.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['sc_vel_x','sc_vel_y','sc_vel_z']
-            )
-        )
-
-        temp = get_data('carr_latitude')
-        dfpar = dfpar.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['carr_lat']
-            )
-        )
-
-        temp = get_data('carr_longitude')
-        dfpar = dfpar.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['carr_lon']
-            )
-        )
-
-        dfpar.index = time_string.time_datetime(time=dfpar.index)
-        dfpar.index = dfpar.index.tz_localize(None)
-        dfpar.index.name = 'datetime'
-        dfpar['INSTRUMENT_FLAG'] = 1
-
-        dfts = dfmag.resample('1s').mean().join(
-            dfpar.resample('1s').mean()
-        )
-
-        dfts[['sc_x','sc_y','sc_z']].interpolate()
-
-        dfts[['sc_x','sc_y','sc_z','sc_vel_x','sc_vel_y','sc_vel_z','carr_lat','carr_lon']] = dfts[['sc_x','sc_y','sc_z','sc_vel_x','sc_vel_y','sc_vel_z','carr_lat','carr_lon']].interpolate()
-
-        dfts['Dist_au'] = (dfts[['sc_x','sc_y','sc_z']] ** 2).sum(axis=1, min_count=1).apply(np.sqrt)/au_to_km  
-
-        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
-        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
-        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
-        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
-
-        return dfts
-
     # Solar Orbiter
-    elif sc == 1:
+    if sc == 1:
 
         # check local directory
-        if os.path.exists("./psp_data"):
+        if os.path.exists("./solar_orbiter_data"):
             pass
         else:
             raise ValueError("No local data folder is present!")
@@ -997,7 +830,385 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
         raise ValueError("sc=%d not supported!" %(sc))
 
 
+def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', settings = None):
+    """" 
+    Load Time Serie From SPEDAS, PSP 
+    settings if not None, should be a dictionary, necessary settings:
+
+    spc_only: boolean
+    span_only: boolean
+    mix_spc_span: dict:
+        {'priority': 'spc' or 'span'}
+    keep_spc_and_span: boolean
+
+    keep_keys: ['np','Vth','Vx','Vy','Vz','Vr','Vt','Vn']
+    
+    Note that the priority is using SPAN
+    """
+
+
+    # change to root dir
+    if rootdir is None:
+        pass
+    else:
+        os.chdir(rootdir)
+
+    # default settings
+    if settings is None:
+        settings = {
+            'particle_mode': 'empirical',
+            'final_freq': '5s'
+        }
+
+    # Parker Solar Probe
+    if sc == 0:
+        # check local directory
+        if os.path.exists("./psp_data"):
+            pass
+        else:
+            raise ValueError("No local data folder is present!")
+
+        t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+        t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+        names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag1 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag1.columns = ['Br','Bt','Bn']
+
+        names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag2 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag2.columns = ['Bx','By','Bz']
+
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
+
+        
+        # SPC
+
+        spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='l3', 
+                                varnames = [
+                                    'np_moment',
+                                    'wp_moment',
+                                    'vp_moment_RTN',
+                                    'vp_moment_SC',
+                                    'sc_pos_HCI',
+                                    'sc_vel_HCI',
+                                    'carr_latitude',
+                                    'carr_longitude'
+                                ], 
+                                time_clip=True)
+
+        data = get_data(spcdata[0])
+
+        dfspc = pd.DataFrame(
+            # index = time_string.time_datetime(time=data.times, tz=None)
+            index = data.times
+        )
+
+        temp = get_data('np_moment')
+        dfspc = dfspc.join(
+            pd.DataFrame(
+                # index = time_string.time_datetime(time=np.times, tz=None),
+                index = temp.times,
+                data = temp.y,
+                columns = ['np_SPC']
+            )
+        )
+
+        temp = get_data('wp_moment')
+        dfspc = dfspc.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vth']
+            )
+        )
+
+        temp = get_data('vp_moment_RTN')
+        dfspc = dfspc.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vr','Vt','Vn']
+            )
+        )
+
+        temp = get_data('vp_moment_SC')
+        dfspc = dfspc.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vx','Vy','Vz']
+            )
+        )
+
+        temp = get_data('sc_pos_HCI')
+        dfspc = dfspc.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['sc_x','sc_y','sc_z']
+            )
+        )
+
+        temp = get_data('sc_vel_HCI')
+        dfspc = dfspc.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['sc_vel_x','sc_vel_y','sc_vel_z']
+            )
+        )
+
+        temp = get_data('carr_latitude')
+        dfspc = dfspc.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['carr_lat']
+            )
+        )
+
+        temp = get_data('carr_longitude')
+        dfspc = dfspc.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['carr_lon']
+            )
+        )
+
+        # calculate Dist_au
+        dfspc['Dist_au'] = (dfspc[['sc_x','sc_y','sc_z']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
+
+        dfspc.index = time_string.time_datetime(time=dfspc.index)
+        dfspc.index = dfspc.index.tz_localize(None)
+        dfspc.index.name = 'datetime'
+        # dfspc['INSTRUMENT_FLAG'] = 1
+
+        # SPAN
+
+        spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00_l3_mom', level='l3', 
+                varnames = [
+                    'DENS',
+                    'VEL_SC',
+                    'VEL_RTN_SUN',
+                    'TEMP',
+                    'SUN_DIST',
+                    'SC_VEL_RTN_SUN'
+                ], 
+                time_clip=True)
+
+        temp = get_data(spandata[0])
+        dfspan = pd.DataFrame(
+            index = temp.times,
+            data = temp.y,
+            columns = ['np']
+        )
+
+        temp = get_data(spandata[1])
+        dfspan = dfspan.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vx', 'Vy', 'Vz']
+            )
+        )
+
+        temp = get_data(spandata[2])
+        dfspan = dfspan.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vr', 'Vt', 'Vn']
+            )
+        )
+
+        temp = get_data(spandata[3])
+        dfspan = dfspan.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['TEMP']
+            )
+        )
+
+        temp = get_data(spandata[4])
+        dfspan = dfspan.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Dist_au']
+            )
+        )
+        dfspan['Dist_au'] = dfspan['Dist_au']/au_to_km
+
+        temp = get_data(spandata[5])
+        dfspan = dfspan.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['sc_vel_r','sc_vel_t','sc_vel_n']
+            )
+        )
+
+        # calculate Vth from TEMP
+        # k T (eV) = 1/2 mp Vth^2 => Vth = 13.84112218*sqrt(TEMP)
+        dfspan['Vth'] = 13.84112218 * np.sqrt(dfspan['TEMP'])
+
+        dfspan.index = time_string.time_datetime(time=dfspan.index)
+        dfspan.index = dfspan.index.tz_localize(None)
+        dfspan.index.name = 'datetime'
+
+        # Quasi-Thermal Noise for electron density
+        # not working now... awaiting pull request approval (2022-06-22)
+        qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_v1v2', level='l3', 
+                        varnames = [
+                            'electron_density',
+                            'electron_core_temperature'
+                        ], 
+                        time_clip=True)
+        temp = get_data(qtndata[0])
+
+        dfqtn = pd.DataFrame(
+            index = temp.times,
+            data = temp.y,
+            columns = ['ne_qtn']
+        )
+        dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
+        dfqtn.index = time_string.time_datetime(time=dfqtn.index)
+        dfqtn.index = dfqtn.index.tz_localize(None)
+        dfqtn.index.name = 'datetime'
+
+        # merge particle data
+
+        if 'particle_mode' in settings.keys():
+            parmode = settings['particle_mode']
+        else:
+            parmode = 'empirical'
+
+        # create empty dataframe with index
+        freq = settings['final_freq']
+        index = pd.date_range(
+            start = start_time, 
+            end = end_time, 
+            freq = freq
+        )
+        dfpar = pd.DataFrame(
+            index = index
+        )
+
+        if parmode == 'spc_only':
+            dfpar = dfpar.join(dfspc.resample(freq).mean())
+        elif parmode == 'span_only':
+            dfpar = dfpar.join(dfspan.resample(freq).mean())
+        elif parmode == 'empirical':
+            # empirical use of data
+            # encounter date: https://sppgway.jhuapl.edu/index.php/encounters
+            # before encounter 9 (Perihelion: 2021-08-09/19:11) use SPC for solar wind speed
+            # at and after encounter 8, mix SPC and SPAN for solar wind speed
+            # prioritize QTN for density, and fill with SPC, and with SPAN
+            
+            # proton density
+            keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
+            dfpar = dfpar.join(dfqtn.resample(freq).mean())
+            dfpar['np'] = dfpar['ne_qtn']/1.08
+
+            ind1 = dfpar.index < pd.Timestamp('2021-07-15')
+            ind2 = dfpar.index > pd.Timestamp('2021-07-15')
+
+            ind11 = dfspc.index < pd.Timestamp('2021-07-15')
+            ind12 = dfspc.index > pd.Timestamp('2021-07-15')
+
+            ind21 = dfspan.index < pd.Timestamp('2021-07-15')
+            ind22 = dfspan.index > pd.Timestamp('2021-07-15')
+
+            dfpar1 = dfpar[ind1].join(
+                dfspc.at[ind11,keep_keys]
+            )
+
+            # combine dfspan and dfspc after 2021-04-15
+            dfpar21 = dfpar[ind2].join(dfspc.loc[ind12,keep_keys].resample(freq).mean())
+            dfpar22 = dfpar[ind2].join(dfspan.loc[ind22,keep_keys].resample(freq).mean())
+            dfpar2 = dfpar21.copy()
+            dfpar2.loc[dfpar21['Vr'].apply(np.isnan)] = dfpar22.loc[dfpar21['Vr'].apply(np.isnan)]
+            
+            # merge qtn and particle data
+            dftemp = pd.concat([dfpar1,dfpar2])
+            dfpar = dfpar.join(dftemp)
+
+
+
+
+        dfts = dfmag.resample(freq).mean().join(
+            dfpar.resample(freq).mean()
+        )
+
+        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
+        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
+        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
+        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
+
+        return dfts, dfmag, dfpar
+    else:
+        raise ValueError("sc = %d, wrong function!!" %(sc))
+
+# Loading Procedures
+
+
+
 # -----------  Tools ----------- #
+
+def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None, keys = None):
+
+    if spdf:
+        spdf_data = LoadTimeSeriesSPDF(sc = sc, 
+            start_time=start_time.to_pydatetime(), 
+            end_time = end_time.to_pydatetime(), 
+            verbose = verbose, keys = keys)
+
+        d = {
+            'sc': sc,
+            'start_time': start_time,
+            'end_time': end_time,
+            'spdf_data': spdf_data,
+            'Diagnostics': None
+        }
+        return d
+
+    if local:
+        try:
+            if sc == tsv.sc:
+                pass
+            else:
+                raise ValueError("sc = %d must equal tsv.sc = %d" %(sc, tsv.sc))
+        except:
+            raise ValueError("tsv must be a TimeSeriesViewer Object!!!")
+
+        dfts = tsv.ExportTimeSeries(start_time, end_time, verbose = verbose)
+
+        d = {
+            'sc': sc,
+            'start_time': start_time,
+            'end_time': end_time,
+            'local_data': {
+                'dfts_raw': tsv.dfts_raw
+            },
+            'dfts': dfts,
+            'Diagnostics': None
+        }
+        return d
+
+
 
 
 def resample_timeseries_estimate_gaps(df, resolution = 100, large_gaps = 10):
