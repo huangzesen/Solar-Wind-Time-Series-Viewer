@@ -125,6 +125,8 @@ class TimeSeriesViewer:
         else:
             pass
 
+        self.useSPEDAS = useSPEDAS
+
         # look for dataframe locally
         if not useSPEDAS:
             try:
@@ -191,10 +193,17 @@ class TimeSeriesViewer:
             self.dfpar = dfpar0[indpar0]
             self.dfdis = dfdis0[inddis0]
         else:
+            # note that for SPEDAS
+            # dfpar/dfdis has freq=5s
+            # dfmag has freq=1s
             dftemp, dfmag, dfpar = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, rolling_rate = rolling_rate)
-            self.dfmag = dftemp[['Br','Bt','Bn','Bx','By','Bz','Br0','Bt0','Bn0','Bx0','By0','Bz0']]
-            self.dfpar = dftemp[['Vr','Vt','Vn','Vx','Vy','Vz','np','Vth','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0']]
-            self.dfdis = dftemp[['Dist_au']]
+            self.dfmag = dfmag
+            self.dfpar = dfpar
+            self.dfdis = dftemp['Dist_au']
+            
+            # self.dfmag = dftemp[['Br','Bt','Bn','Bx','By','Bz','Br0','Bt0','Bn0','Bx0','By0','Bz0']]
+            # self.dfpar = dftemp[['Vr','Vt','Vn','Vx','Vy','Vz','np','Vth','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0']]
+            # self.dfdis = dftemp[['Dist_au']]
 
 
     def AxesInit(self):
@@ -1057,39 +1066,64 @@ class TimeSeriesViewer:
         sc: 0-PSP, 1-SolO
         """
 
-        load_spdf = self.load_spdf
+        if not self.useSPEDAS:
 
-        dfmag = self.dfmag
-        dfpar = self.dfpar
-        dfdis = self.dfdis
+            load_spdf = self.load_spdf
 
-        indmag = (dfmag.index > start_time) & (dfmag.index < end_time)
-        indpar = (dfpar.index > start_time) & (dfpar.index < end_time)
-        inddis = (dfdis.index > start_time) & (dfdis.index < end_time)
+            dfmag = self.dfmag
+            dfpar = self.dfpar
+            dfdis = self.dfdis
 
-        # create dfts (dataframe time series)
-        dfts = pd.DataFrame(index = dfmag.index[indmag])
+            indmag = (dfmag.index > start_time) & (dfmag.index < end_time)
+            indpar = (dfpar.index > start_time) & (dfpar.index < end_time)
+            inddis = (dfdis.index > start_time) & (dfdis.index < end_time)
 
-        if len(dfts) < 5:
-            raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
+            # create dfts (dataframe time series)
+            dfts = pd.DataFrame(index = dfmag.index[indmag])
 
-        # join time series
-        dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
+            if len(dfts) < 5:
+                raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
 
-        # load magnetic field and ephem from SPDF
-        if load_spdf:
-            # spdf system is buggy, has a constant 4H shift
-            t0 = start_time - pd.Timedelta('1d')
-            t1 = end_time + pd.Timedelta('1d')
-            if self.sc==0:
-                self.spdf_data = self.LoadSPDF(spacecraft = 'PSP', start_time = t0, end_time = t1, verbose = verbose)
-            elif self.sc==1:
-                self.spdf_data = self.LoadSPDF(spacecraft = 'SolO', start_time = t0, end_time = t1, verbose = verbose)
+            # join time series
+            dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
+
+            # load magnetic field and ephem from SPDF
+            if load_spdf:
+                # spdf system is buggy, has a constant 4H shift
+                t0 = start_time - pd.Timedelta('1d')
+                t1 = end_time + pd.Timedelta('1d')
+                if self.sc==0:
+                    self.spdf_data = self.LoadSPDF(spacecraft = 'PSP', start_time = t0, end_time = t1, verbose = verbose)
+                elif self.sc==1:
+                    self.spdf_data = self.LoadSPDF(spacecraft = 'SolO', start_time = t0, end_time = t1, verbose = verbose)
+            else:
+                pass
+
+            # store the time series dataframe
+            self.dfts_raw = dfts
+
         else:
-            pass
+            # useSPEDAS
+            # note that for spedas, dfmag is in 1s, dfpar and dfdis is in 5s
+            dfmag = self.dfmag.resample('5s').mean()
+            dfpar = self.dfpar.resample('5s').mean()
+            dfdis = self.dfdis.resample('5s').mean()
 
-        # store the time series dataframe
-        self.dfts_raw = dfts
+            indmag = (dfmag.index > start_time) & (dfmag.index < end_time)
+            indpar = (dfpar.index > start_time) & (dfpar.index < end_time)
+            inddis = (dfdis.index > start_time) & (dfdis.index < end_time)
+
+            # create dfts (dataframe time series)
+            dfts = pd.DataFrame(index = dfmag.index[indmag])
+
+            if len(dfts) < 5:
+                raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
+
+            # join time series
+            dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
+
+            # store the time series dataframe
+            self.dfts_raw = dfts
 
         # collect garbage
         collect()
