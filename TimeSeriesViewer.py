@@ -191,7 +191,7 @@ class TimeSeriesViewer:
             self.dfpar = dfpar0[indpar0]
             self.dfdis = dfdis0[inddis0]
         else:
-            dftemp = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, rolling_rate = rolling_rate)
+            dftemp, dfmag, dfpar = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, rolling_rate = rolling_rate)
             self.dfmag = dftemp[['Br','Bt','Bn','Bx','By','Bz','Br0','Bt0','Bn0','Bx0','By0','Bz0']]
             self.dfpar = dftemp[['Vr','Vt','Vn','Vx','Vy','Vz','np','Vth','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0']]
             self.dfdis = dftemp[['Dist_au']]

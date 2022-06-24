@@ -686,19 +686,19 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
     """
 
     if sc == 0:
-        dfts = LoadTimeSeriesFromSPEDAS_PSP(
+        dfts, dfmag, dfpar = LoadTimeSeriesFromSPEDAS_PSP(
             sc, start_time, end_time, 
             rootdir = rootdir, 
             rolling_rate = rolling_rate)
     elif sc == 1:
-        dfts = LoadTimeSeriesFromSPEDAS_SOLO(
+        dfts, dfmag, dfpar = LoadTimeSeriesFromSPEDAS_SOLO(
             sc, start_time, end_time, 
             rootdir = rootdir, 
             rolling_rate = rolling_rate)
     else:
         raise ValueError("sc = %d not supported!" %(sc))
 
-    return dfts
+    return dfts, dfmag, dfpar
 
 
 
@@ -857,7 +857,8 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
     if settings is None:
         settings = {
             'particle_mode': 'empirical',
-            'final_freq': '5s'
+            'final_freq': '5s',
+            'use_hampel': False
         }
 
     # Parker Solar Probe
@@ -1119,18 +1120,18 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             # prioritize QTN for density, and fill with SPC, and with SPAN
             
             # proton density
-            keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
+            keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','np','Dist_au']
             dfpar = dfpar.join(dfqtn.resample(freq).mean())
             dfpar['np'] = dfpar['ne_qtn']/1.08
 
             ind1 = dfpar.index < pd.Timestamp('2021-07-15')
-            ind2 = dfpar.index > pd.Timestamp('2021-07-15')
+            ind2 = dfpar.index >= pd.Timestamp('2021-07-15')
 
             ind11 = dfspc.index < pd.Timestamp('2021-07-15')
-            ind12 = dfspc.index > pd.Timestamp('2021-07-15')
+            ind12 = dfspc.index >= pd.Timestamp('2021-07-15')
 
             ind21 = dfspan.index < pd.Timestamp('2021-07-15')
-            ind22 = dfspan.index > pd.Timestamp('2021-07-15')
+            ind22 = dfspan.index >= pd.Timestamp('2021-07-15')
 
             dfpar1 = dfpar[ind1].join(
                 dfspc.at[ind11,keep_keys]
@@ -1140,15 +1141,44 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             dfpar21 = dfpar[ind2].join(dfspc.loc[ind12,keep_keys].resample(freq).mean())
             dfpar22 = dfpar[ind2].join(dfspan.loc[ind22,keep_keys].resample(freq).mean())
             dfpar2 = dfpar21.copy()
-            dfpar2.loc[dfpar21['Vr'].apply(np.isnan)] = dfpar22.loc[dfpar21['Vr'].apply(np.isnan)]
+            ind21t = dfpar21['Vr'].apply(np.isnan)
+            ind22t = dfpar22['Vr'].apply(np.isnan)
+            dfpar2.loc[~ind21t,['MOMENT_FLAG','DENSITY_FLAG']] = 1 # SPC
+            dfpar2.loc[~ind22t,['MOMENT_FLAG','DENSITY_FLAG']] = 2 # SPAN
+            # fill SPC empty with SPAN
+            dfpar2.loc[ind21t] = dfpar22.loc[ind21t]
+
+            # combine qtn
+            dfpar_qtn = pd.DataFrame(
+                index = index
+            ).join(dfqtn.resample(freq).mean())
             
             # merge qtn and particle data
             dftemp = pd.concat([dfpar1,dfpar2])
+
+            indqtn = dfpar_qtn['np'].apply(np.isnan)
+
+            dftemp.loc[~indqtn,'np'] = dfpar_qtn['np'] 
+            dftemp.loc[~indqtn,'DENSITY_FLAG'] = 3
+
             dfpar = dfpar.join(dftemp)
 
+        elif parmode == 'keep_all':
+            raise ValueError("particle mode: %s under construction!" %(parmode))
+        
+        else:
+            raise ValueError("particle mode: %s not supported!" %(parmode))
+
+
+        if settings['use_hampel'] == True:
+            for k in dfpar.columns:
+                ns, _ = hampel_filter_forloop_numba(dfpar[k].values, 100)
+                dfpar[k] = ns
 
 
 
+
+        # create dfts
         dfts = dfmag.resample(freq).mean().join(
             dfpar.resample(freq).mean()
         )
@@ -1157,6 +1187,10 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
         dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
         dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
         dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
+
+        # resample dfmag to create B?0
+        dfmag = dfmag.resample(freq).mean()
+        dfmag[['Br0','Bt0','Bn0','Bx0','By0','Bz0']] = dfmag[['Br','Bt','Bn','Bx','By','Bz']].rolling(rolling_rate).mean()
 
         return dfts, dfmag, dfpar
     else:
