@@ -200,10 +200,6 @@ class TimeSeriesViewer:
             self.dfmag = dfmag
             self.dfpar = dfpar
             self.dfdis = dftemp['Dist_au']
-            
-            # self.dfmag = dftemp[['Br','Bt','Bn','Bx','By','Bz','Br0','Bt0','Bn0','Bx0','By0','Bz0']]
-            # self.dfpar = dftemp[['Vr','Vt','Vn','Vx','Vy','Vz','np','Vth','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0']]
-            # self.dfdis = dftemp[['Dist_au']]
 
 
     def AxesInit(self):
