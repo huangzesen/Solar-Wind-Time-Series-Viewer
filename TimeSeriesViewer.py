@@ -36,7 +36,7 @@ au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
 from TSUtilities import SolarWindCorrelationLength, TracePSD, LoadTimeSeriesFromSPEDAS, DrawShadedEventInTimeSeries, smoothing_function
-from BreakPointFinderFromDict import BreakPointFinder
+from BreakPointFinderLite import BreakPointFinder
 
 class TimeSeriesViewer:
     """ 
