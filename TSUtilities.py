@@ -1165,8 +1165,8 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             dftemp.loc[~indqtn,'DENSITY_FLAG'] = 3
 
             # keep only qtn density
-            dftemp.loc['np',dftemp['DENSITY_FLAG'] == 1] = np.nan
-            dftemp.loc['np',dftemp['DENSITY_FLAG'] == 2] = np.nan
+            dftemp.loc[dftemp['DENSITY_FLAG'] == 1, 'np'] = np.nan
+            dftemp.loc[dftemp['DENSITY_FLAG'] == 2, 'np'] = np.nan
 
             dfpar = dfpar.join(dftemp)
 
