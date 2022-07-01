@@ -1202,7 +1202,13 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
         dfmag[['Br0','Bt0','Bn0','Bx0','By0','Bz0']] = dfmag[['Br','Bt','Bn','Bx','By','Bz']].rolling(rolling_rate).mean()
         dfpar = dfts[['Vr','Vt','Vn','Vx','Vy','Vz','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0','np','Vth']]
 
-        return dfts, dfmag, dfpar
+        misc = {
+            'dfqtn': dfqtn,
+            'dfspc': dfspc,
+            'dfspan': dfspan
+        }
+
+        return dfts, dfmag, dfpar, misc
     else:
         raise ValueError("sc = %d, wrong function!!" %(sc))
 
