@@ -230,7 +230,7 @@ class TimeSeriesViewer:
 
 
     def InitFigure(self, start_time, end_time, 
-        verbose = True, resample_rate = '5min', no_plot = False, rolling_rate = '1H'
+        verbose = True, resample_rate = '5min', no_plot = False, rolling_rate = '1H', clean_intervals = False
         ):
         """ make figure """
 
@@ -270,7 +270,8 @@ class TimeSeriesViewer:
 
         # clean info
         self.green_vlines = []
-        self.selected_intervals = []
+        if clean_intervals:
+            self.selected_intervals = []
 
         # Show cross hair
         for k, ax in self.axes.items():
