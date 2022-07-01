@@ -1137,7 +1137,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             ind22 = dfspan.index >= pd.Timestamp('2021-07-15')
 
             dfpar1 = dfpar[ind1].join(
-                dfspc.at[ind11,keep_keys]
+                dfspc.loc[ind11,keep_keys]
             )
 
             # combine dfspan and dfspc after 2021-07-15
