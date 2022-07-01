@@ -1116,6 +1116,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             index = index
         )
 
+        print("Parmode: %s" %(parmode))
         # fill dfpar with values
         if parmode == 'spc_only':
             dfpar = dfpar.join(dfspc.resample(freq).mean())
