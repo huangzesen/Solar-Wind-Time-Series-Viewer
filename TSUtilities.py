@@ -24,6 +24,8 @@ from cdasws import CdasWs
 cdas = CdasWs()
 
 # SPEDAS API
+# make sure to use the local spedas
+os.path.insert(0,"../pyspedas")
 import pyspedas
 from pyspedas.utilities import time_string
 from pytplot import get_data
@@ -1137,7 +1139,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
                 dfspc.at[ind11,keep_keys]
             )
 
-            # combine dfspan and dfspc after 2021-04-15
+            # combine dfspan and dfspc after 2021-07-15
             dfpar21 = dfpar[ind2].join(dfspc.loc[ind12,keep_keys].resample(freq).mean())
             dfpar22 = dfpar[ind2].join(dfspan.loc[ind22,keep_keys].resample(freq).mean())
             dfpar2 = dfpar21.copy()
