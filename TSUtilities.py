@@ -1159,9 +1159,9 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             # merge qtn and particle data
             dftemp = pd.concat([dfpar1,dfpar2])
 
-            indqtn = dfpar_qtn['np'].apply(np.isnan)
+            indqtn = dfpar_qtn['np_qtn'].apply(np.isnan)
 
-            dftemp.loc[~indqtn,'np'] = dfpar_qtn['np'] 
+            dftemp.loc[~indqtn,'np'] = dfpar_qtn['np_qtn'] 
             dftemp.loc[~indqtn,'DENSITY_FLAG'] = 3
 
             # keep only qtn density
