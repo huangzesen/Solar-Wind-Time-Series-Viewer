@@ -1168,7 +1168,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             # dftemp.loc[dftemp['DENSITY_FLAG'] == 1, 'np'] = np.nan
             # dftemp.loc[dftemp['DENSITY_FLAG'] == 2, 'np'] = np.nan
 
-            dfpar = dfpar.join(dftemp)
+            dfpar = dfpar.join(dftemp[keep_keys])
 
         elif parmode == 'keep_all':
             raise ValueError("particle mode: %s under construction!" %(parmode))
