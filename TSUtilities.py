@@ -875,6 +875,28 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
         t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
         t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
+        # Quasi-Thermal Noise for electron density
+        # not working now... awaiting pull request approval (2022-06-22)
+        qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_v1v2', level='l3', 
+                        varnames = [
+                            'electron_density',
+                            'electron_core_temperature'
+                        ], 
+                        time_clip=True)
+        temp = get_data(qtndata[0])
+
+        dfqtn = pd.DataFrame(
+            index = temp.times,
+            data = temp.y,
+            columns = ['ne_qtn']
+        )
+        dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
+        dfqtn.index = time_string.time_datetime(time=dfqtn.index)
+        dfqtn.index = dfqtn.index.tz_localize(None)
+        dfqtn.index.name = 'datetime'
+
+        # Magnetic field
+
         names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
         data = get_data(names[0])
         dfmag1 = pd.DataFrame(
@@ -1072,26 +1094,6 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
         dfspan.index = time_string.time_datetime(time=dfspan.index)
         dfspan.index = dfspan.index.tz_localize(None)
         dfspan.index.name = 'datetime'
-
-        # Quasi-Thermal Noise for electron density
-        # not working now... awaiting pull request approval (2022-06-22)
-        qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_v1v2', level='l3', 
-                        varnames = [
-                            'electron_density',
-                            'electron_core_temperature'
-                        ], 
-                        time_clip=True)
-        temp = get_data(qtndata[0])
-
-        dfqtn = pd.DataFrame(
-            index = temp.times,
-            data = temp.y,
-            columns = ['ne_qtn']
-        )
-        dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
-        dfqtn.index = time_string.time_datetime(time=dfqtn.index)
-        dfqtn.index = dfqtn.index.tz_localize(None)
-        dfqtn.index.name = 'datetime'
 
         # merge particle data
 
