@@ -25,7 +25,7 @@ cdas = CdasWs()
 
 # SPEDAS API
 # make sure to use the local spedas
-os.path.insert(0,"../pyspedas")
+sys.path.insert(0,"../pyspedas")
 import pyspedas
 from pyspedas.utilities import time_string
 from pytplot import get_data
