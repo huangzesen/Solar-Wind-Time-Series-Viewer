@@ -272,6 +272,10 @@ class TimeSeriesViewer:
         self.green_vlines = []
         if clean_intervals:
             self.selected_intervals = []
+        else:
+            # plot the intervals
+            for interval in self.selected_intervals:
+                _ = DrawShadedEventInTimeSeries(interval, self.axes, color = 'red')
 
         # Show cross hair
         for k, ax in self.axes.items():
