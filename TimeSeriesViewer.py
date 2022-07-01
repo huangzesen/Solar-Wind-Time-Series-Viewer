@@ -1116,7 +1116,16 @@ class TimeSeriesViewer:
                 raise ValueError("Not Enough Data Points! %s - %s" %(start_time, end_time))
 
             # join time series
-            dfts = dfts.join(dfmag[indmag]).join(dfpar[indpar]).join(dfdis[inddis])
+            magkeys = ['Br','Bt','Bn','Bx','By','Bz','Br0','Bt0','Bn0','Bx0','By0','Bz0']
+            parkeys = ['Vr','Vt','Vn','Vx','Vy','Vz','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0','np','Vth']
+            distkeys = ['Dist_au']
+            dfts = dfts.join(
+                    dfmag.loc[indmag, magkeys]
+                ).join(
+                    dfpar.loc[indpar, parkeys]
+                ).join(
+                    dfdis.loc[inddis, distkeys]
+                )
 
             # store the time series dataframe
             self.dfts_raw = dfts
