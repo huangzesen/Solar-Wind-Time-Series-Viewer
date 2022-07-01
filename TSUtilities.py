@@ -1123,7 +1123,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             # prioritize QTN for density, and fill with SPC, and with SPAN
             
             # proton density
-            keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','np','Dist_au']
+            keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
             dfpar = dfpar.join(dfqtn.resample(freq).mean())
             dfpar['np'] = dfpar['ne_qtn']/1.08
 
