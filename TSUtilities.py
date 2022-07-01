@@ -918,7 +918,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             index = data.times
         )
 
-        temp = get_data('np_moment')
+        temp = get_data(spcdata[0])
         dfspc = dfspc.join(
             pd.DataFrame(
                 # index = time_string.time_datetime(time=np.times, tz=None),
@@ -928,7 +928,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             )
         )
 
-        temp = get_data('wp_moment')
+        temp = get_data(spcdata[1])
         dfspc = dfspc.join(
             pd.DataFrame(
                 index = temp.times,
@@ -937,7 +937,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             )
         )
 
-        temp = get_data('vp_moment_RTN')
+        temp = get_data(spcdata[2])
         dfspc = dfspc.join(
             pd.DataFrame(
                 index = temp.times,
@@ -946,7 +946,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             )
         )
 
-        temp = get_data('vp_moment_SC')
+        temp = get_data(spcdata[3])
         dfspc = dfspc.join(
             pd.DataFrame(
                 index = temp.times,
@@ -955,7 +955,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             )
         )
 
-        temp = get_data('sc_pos_HCI')
+        temp = get_data(spcdata[4])
         dfspc = dfspc.join(
             pd.DataFrame(
                 index = temp.times,
@@ -964,7 +964,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             )
         )
 
-        temp = get_data('sc_vel_HCI')
+        temp = get_data(spcdata[5])
         dfspc = dfspc.join(
             pd.DataFrame(
                 index = temp.times,
@@ -973,7 +973,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             )
         )
 
-        temp = get_data('carr_latitude')
+        temp = get_data(spcdata[6])
         dfspc = dfspc.join(
             pd.DataFrame(
                 index = temp.times,
@@ -982,7 +982,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             )
         )
 
-        temp = get_data('carr_longitude')
+        temp = get_data(spcdata[7])
         dfspc = dfspc.join(
             pd.DataFrame(
                 index = temp.times,
