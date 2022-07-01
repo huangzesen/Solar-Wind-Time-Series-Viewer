@@ -199,7 +199,7 @@ class TimeSeriesViewer:
             dftemp, dfmag, dfpar = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, rolling_rate = rolling_rate)
             self.dfmag = dfmag
             self.dfpar = dfpar
-            self.dfdis = dftemp['Dist_au']
+            self.dfdis = pd.DataFrame(dftemp['Dist_au'])
 
 
     def AxesInit(self):
