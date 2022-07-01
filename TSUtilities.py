@@ -689,19 +689,19 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
     """
 
     if sc == 0:
-        dfts, dfmag, dfpar = LoadTimeSeriesFromSPEDAS_PSP(
+        dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_PSP(
             sc, start_time, end_time, 
             rootdir = rootdir, 
             rolling_rate = rolling_rate)
     elif sc == 1:
-        dfts, dfmag, dfpar = LoadTimeSeriesFromSPEDAS_SOLO(
+        dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_SOLO(
             sc, start_time, end_time, 
             rootdir = rootdir, 
             rolling_rate = rolling_rate)
     else:
         raise ValueError("sc = %d not supported!" %(sc))
 
-    return dfts, dfmag, dfpar
+    return dfts, dfmag, dfpar, misc
 
 
 

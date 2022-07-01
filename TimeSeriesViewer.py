@@ -1580,7 +1580,10 @@ class TimeSeriesViewer:
             vsw = self.dfts['vsw'][tind]
             rau = self.dfts['Dist_au'][tind]
             if np.isnan(rau):
-                rau = self.dfts['RAD_AU'][tind]
+                try:
+                    rau = self.dfts['RAD_AU'][tind]
+                except:
+                    pass
 
             t_len1 = SolarWindCorrelationLength(rau)
             
