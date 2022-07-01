@@ -1091,6 +1091,9 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
         # k T (eV) = 1/2 mp Vth^2 => Vth = 13.84112218*sqrt(TEMP)
         dfspan['Vth'] = 13.84112218 * np.sqrt(dfspan['TEMP'])
 
+        # for span the thermal speed is defined as the trace, hence have a sqrt(3) different from spc
+        dfspan['Vth'] = dfspan['Vth']/np.sqrt(3)
+
         dfspan.index = time_string.time_datetime(time=dfspan.index)
         dfspan.index = dfspan.index.tz_localize(None)
         dfspan.index.name = 'datetime'
@@ -1102,7 +1105,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
         else:
             parmode = 'empirical'
 
-        # create empty dataframe with index
+        # create empty dfpar with index
         freq = settings['final_freq']
         index = pd.date_range(
             start = start_time, 
@@ -1113,6 +1116,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             index = index
         )
 
+        # fill dfpar with values
         if parmode == 'spc_only':
             dfpar = dfpar.join(dfspc.resample(freq).mean())
         elif parmode == 'span_only':
@@ -1124,11 +1128,14 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             # at and after encounter 8, mix SPC and SPAN for solar wind speed
             # prioritize QTN for density, and fill with SPC, and with SPAN
             
-            # proton density
-            keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
+            # proton density with QTN
             dfpar = dfpar.join(dfqtn.resample(freq).mean())
             dfpar['np'] = dfpar['ne_qtn']/1.08
 
+            keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
+
+
+            # Perihelion cut
             ind1 = dfpar.index < pd.Timestamp('2021-07-15')
             ind2 = dfpar.index >= pd.Timestamp('2021-07-15')
 
@@ -1138,38 +1145,26 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
             ind21 = dfspan.index < pd.Timestamp('2021-07-15')
             ind22 = dfspan.index >= pd.Timestamp('2021-07-15')
 
-            dfpar1 = dfpar[ind1].join(
-                dfspc.loc[ind11,keep_keys]
-            )
+            # before encounter 9 use spc
+            dfpar1 = dfspc.loc[ind11,keep_keys].resample(freq).mean()
 
-            # combine dfspan and dfspc after 2021-07-15
-            dfpar21 = dfpar[ind2].join(dfspc.loc[ind12,keep_keys].resample(freq).mean())
-            dfpar22 = dfpar[ind2].join(dfspan.loc[ind22,keep_keys].resample(freq).mean())
-            dfpar2 = dfpar21.copy()
-            ind21t = dfpar21['Vr'].apply(np.isnan)
-            ind22t = dfpar22['Vr'].apply(np.isnan)
-            dfpar2.loc[~ind21t,['MOMENT_FLAG','DENSITY_FLAG']] = 1 # SPC
-            dfpar2.loc[~ind22t,['MOMENT_FLAG','DENSITY_FLAG']] = 2 # SPAN
-            # fill SPC empty with SPAN
-            dfpar2.loc[ind21t] = dfpar22.loc[ind21t]
+            # use span after 2021-07-15
+            dfpar2 = dfspan.loc[ind22,keep_keys].resample(freq).mean()
+            # dfpar2 = dfpar21.copy()
+            # ind21t = dfpar21['Vr'].apply(np.isnan)
+            # ind22t = dfpar22['Vr'].apply(np.isnan)
+            # dfpar2.loc[~ind21t,['MOMENT_FLAG','DENSITY_FLAG']] = 1 # SPC
+            # dfpar2.loc[~ind22t,['MOMENT_FLAG','DENSITY_FLAG']] = 2 # SPAN
+            # fill SPAN empty with SPC
+            # dfpar2.loc[ind21t] = dfpar22.loc[ind21t]
 
-            # combine qtn
-            dfpar_qtn = pd.DataFrame(
-                index = index
-            ).join(dfqtn.resample(freq).mean())
+            # # combine qtn
+            # dfpar_qtn = pd.DataFrame(
+            #     index = index
+            # ).join(dfqtn.resample(freq).mean())
             
             # merge qtn and particle data
             dftemp = pd.concat([dfpar1,dfpar2])
-
-            # indqtn = dfpar_qtn['np_qtn'].apply(np.isnan)
-
-            # dftemp.loc[~indqtn,'np'] = dfpar_qtn['np_qtn'] 
-            # dftemp.loc[~indqtn,'DENSITY_FLAG'] = 3
-
-            # # keep only qtn density
-            # dftemp.loc[dftemp['DENSITY_FLAG'] == 1, 'np'] = np.nan
-            # dftemp.loc[dftemp['DENSITY_FLAG'] == 2, 'np'] = np.nan
-
             dfpar = dfpar.join(dftemp[keep_keys])
 
         elif parmode == 'keep_all':
