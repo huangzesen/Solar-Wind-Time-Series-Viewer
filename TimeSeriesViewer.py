@@ -53,7 +53,8 @@ class TimeSeriesViewer:
         preload = True, 
         verbose = True,
         rolling_rate = '1H',
-        resample_rate = '5min'
+        resample_rate = '5min',
+        credentials = None
     ):
         """ Initialize the class """
 

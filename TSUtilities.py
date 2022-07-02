@@ -679,7 +679,8 @@ def LoadSOlOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, ge
     return spdf_data
 
 
-def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', settings = None):
+def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', 
+    settings = None, credentials = None):
     """ 
     Load Time Series with SPEDAS 
     going to find data in the local directory
@@ -688,11 +689,16 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
         start_time,end_time         pd.Timestamp
     """
 
+    # check pyspedas location:
+    print(pyspedas.__file__)
+
     if sc == 0:
         dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_PSP(
             sc, start_time, end_time, 
             rootdir = rootdir, 
-            rolling_rate = rolling_rate)
+            rolling_rate = rolling_rate,
+            credentials = credentials
+            )
     elif sc == 1:
         dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_SOLO(
             sc, start_time, end_time, 
@@ -833,7 +839,8 @@ def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, roll
         raise ValueError("sc=%d not supported!" %(sc))
 
 
-def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', settings = None):
+def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, 
+    rootdir = None, rolling_rate = '1H', settings = None, credentials = None):
     """" 
     Load Time Serie From SPEDAS, PSP 
     settings if not None, should be a dictionary, necessary settings:
@@ -870,20 +877,37 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
         if os.path.exists("./psp_data"):
             pass
         else:
-            raise ValueError("No local data folder is present!")
+            raise ValueError("No local data folder ./psp_data is present!")
 
         t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
         t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
         # Quasi-Thermal Noise for electron density
-        # not working now... awaiting pull request approval (2022-06-22)
-        qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_v1v2', level='l3', 
+        try:    
+            qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_v1v2', level='l3', 
                         varnames = [
                             'electron_density',
                             'electron_core_temperature'
                         ], 
                         time_clip=True)
-        temp = get_data(qtndata[0])
+            temp = get_data(qtndata[0])
+        except:
+            print("No QTN data is presented in the public repository!")
+            print("Trying unpublished data... please provide credentials...")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
+
+            username = credentials['psp']['fields']['username']
+            password = credentials['psp']['fields']['password']
+
+            qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_V1V2', level='l3', 
+            varnames = [
+                'electron_density',
+                'electron_core_temperature'
+            ], 
+            time_clip=True, username=username, password=password)
+            temp = get_data(qtndata[0])
+
 
         dfqtn = pd.DataFrame(
             index = temp.times,
@@ -896,22 +920,53 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
         dfqtn.index.name = 'datetime'
 
         # Magnetic field
+        try:
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
+            data = get_data(names[0])
+            dfmag1 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag1.columns = ['Br','Bt','Bn']
 
-        names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
-        data = get_data(names[0])
-        dfmag1 = pd.DataFrame(
-            index = data[0],
-            data = data[1]
-        )
-        dfmag1.columns = ['Br','Bt','Bn']
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+        except:
+            print("No MAG data is presented in the public repository!")
+            print("Trying unpublished data... please provide credentials...")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
 
-        names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
-        data = get_data(names[0])
-        dfmag2 = pd.DataFrame(
-            index = data[0],
-            data = data[1]
-        )
-        dfmag2.columns = ['Bx','By','Bz']
+            username = credentials['psp']['fields']['username']
+            password = credentials['psp']['fields']['password']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_RTN_4_Sa_per_Cyc', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag1 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag1.columns = ['Br','Bt','Bn']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+
 
         dfmag = dfmag1.join(dfmag2)
         dfmag.index = time_string.time_datetime(time=dfmag.index)
@@ -919,21 +974,44 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
 
         
         # SPC
+        try:
+            spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='l3', 
+                                    varnames = [
+                                        'np_moment',
+                                        'wp_moment',
+                                        'vp_moment_RTN',
+                                        'vp_moment_SC',
+                                        'sc_pos_HCI',
+                                        'sc_vel_HCI',
+                                        'carr_latitude',
+                                        'carr_longitude'
+                                    ], 
+                                    time_clip=True)
 
-        spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='l3', 
-                                varnames = [
-                                    'np_moment',
-                                    'wp_moment',
-                                    'vp_moment_RTN',
-                                    'vp_moment_SC',
-                                    'sc_pos_HCI',
-                                    'sc_vel_HCI',
-                                    'carr_latitude',
-                                    'carr_longitude'
-                                ], 
-                                time_clip=True)
+            data = get_data(spcdata[0])
+        except:
+            print("No SPC data is presented in the public repository!")
+            print("Trying unpublished data... please provide credentials...")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
 
-        data = get_data(spcdata[0])
+            username = credentials['psp']['sweap']['username']
+            password = credentials['psp']['sweap']['password']
+
+            spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='L3', 
+                                    varnames = [
+                                        'np_moment',
+                                        'wp_moment',
+                                        'vp_moment_RTN',
+                                        'vp_moment_SC',
+                                        'sc_pos_HCI',
+                                        'sc_vel_HCI',
+                                        'carr_latitude',
+                                        'carr_longitude'
+                                    ], 
+                                    time_clip=True, username=username, password=password)
+
+            data = get_data(spcdata[0])
 
         dfspc = pd.DataFrame(
             # index = time_string.time_datetime(time=data.times, tz=None)
@@ -1023,18 +1101,40 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, rootdir = None, rolli
 
         # SPAN
 
-        spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00_l3_mom', level='l3', 
-                varnames = [
-                    'DENS',
-                    'VEL_SC',
-                    'VEL_RTN_SUN',
-                    'TEMP',
-                    'SUN_DIST',
-                    'SC_VEL_RTN_SUN'
-                ], 
-                time_clip=True)
+        try:
+            spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00_l3_mom', level='l3', 
+                    varnames = [
+                        'DENS',
+                        'VEL_SC',
+                        'VEL_RTN_SUN',
+                        'TEMP',
+                        'SUN_DIST',
+                        'SC_VEL_RTN_SUN'
+                    ], 
+                    time_clip=True)
+            temp = get_data(spandata[0])
+        except:
+            print("No SPAN data is presented in the public repository!")
+            print("Trying unpublished data... please provide credentials...")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
 
-        temp = get_data(spandata[0])
+            username = credentials['psp']['sweap']['username']
+            password = credentials['psp']['sweap']['password']
+
+            spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00', level='L3', 
+                    varnames = [
+                        'DENS',
+                        'VEL_SC',
+                        'VEL_RTN_SUN',
+                        'TEMP',
+                        'SUN_DIST',
+                        'SC_VEL_RTN_SUN'
+                    ], 
+                    time_clip=True, username=username, password=password)
+            temp = get_data(spandata[0])
+
+
         dfspan = pd.DataFrame(
             index = temp.times,
             data = temp.y,
