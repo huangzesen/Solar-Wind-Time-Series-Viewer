@@ -88,6 +88,7 @@ class TimeSeriesViewer:
         self.spc_only = True
         self.calc_smoothed_spec = True
         self.useBPF = True
+        self.credentials = credentials
 
         if paths is None:
             self.paths = {
@@ -197,7 +198,9 @@ class TimeSeriesViewer:
             # note that for SPEDAS
             # dfpar/dfdis has freq=5s
             # dfmag has freq=1s
-            dftemp, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, rolling_rate = rolling_rate)
+            dftemp, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, 
+                rolling_rate = rolling_rate, credentials = self.credentials
+            )
             self.dfmag = dfmag
             self.dfpar = dfpar
             self.dfdis = pd.DataFrame(dftemp['Dist_au'])
