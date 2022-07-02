@@ -1258,11 +1258,11 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
 
             # if no SPC or no SPAN data:
             if dfspc is None:
-                dfspc = dfpar
+                dfspc = pd.DataFrame(index = dfpar.index)
                 dfspc[keep_keys] = np.nan
 
             if dfspan is None:
-                dfspan = dfpar
+                dfspan = pd.DataFrame(index = dfpar.index)
                 dfspan[keep_keys] = np.nan
 
 
