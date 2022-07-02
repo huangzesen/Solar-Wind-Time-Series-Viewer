@@ -31,6 +31,9 @@ import pyspedas
 from pyspedas.utilities import time_string
 from pytplot import get_data
 
+# for loading time series
+from TimeSeriesViewer import TimeSeriesViewer
+
 au_to_km = 1.496e8  # Conversion factor
 rsun     = 696340   # Sun radius in units of  [km]
 
