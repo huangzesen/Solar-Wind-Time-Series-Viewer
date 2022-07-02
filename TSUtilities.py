@@ -980,228 +980,235 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
         
         # SPC
         try:
-            spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='l3', 
-                                    varnames = [
-                                        'np_moment',
-                                        'wp_moment',
-                                        'vp_moment_RTN',
-                                        'vp_moment_SC',
-                                        'sc_pos_HCI',
-                                        'sc_vel_HCI',
-                                        'carr_latitude',
-                                        'carr_longitude'
-                                    ], 
-                                    time_clip=True)
+            try:
+                spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='l3', 
+                                        varnames = [
+                                            'np_moment',
+                                            'wp_moment',
+                                            'vp_moment_RTN',
+                                            'vp_moment_SC',
+                                            'sc_pos_HCI',
+                                            'sc_vel_HCI',
+                                            'carr_latitude',
+                                            'carr_longitude'
+                                        ], 
+                                        time_clip=True)
 
-            data = get_data(spcdata[0])
+                data = get_data(spcdata[0])
+            except:
+                print("No SPC data is presented in the public repository!")
+                print("Trying unpublished data... please provide credentials...")
+                if credentials is None:
+                    raise ValueError("No credentials are provided!")
+
+                username = credentials['psp']['sweap']['username']
+                password = credentials['psp']['sweap']['password']
+
+                spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='L3', 
+                                        varnames = [
+                                            'np_moment',
+                                            'wp_moment',
+                                            'vp_moment_RTN',
+                                            'vp_moment_SC',
+                                            'sc_pos_HCI',
+                                            'sc_vel_HCI',
+                                            'carr_latitude',
+                                            'carr_longitude'
+                                        ], 
+                                        time_clip=True, username=username, password=password)
+
+                data = get_data(spcdata[0])
+
+            dfspc = pd.DataFrame(
+                # index = time_string.time_datetime(time=data.times, tz=None)
+                index = data.times
+            )
+
+            temp = get_data(spcdata[0])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    # index = time_string.time_datetime(time=np.times, tz=None),
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['np']
+                )
+            )
+
+            temp = get_data(spcdata[1])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vth']
+                )
+            )
+
+            temp = get_data(spcdata[2])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vr','Vt','Vn']
+                )
+            )
+
+            temp = get_data(spcdata[3])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vx','Vy','Vz']
+                )
+            )
+
+            temp = get_data(spcdata[4])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['sc_x','sc_y','sc_z']
+                )
+            )
+
+            temp = get_data(spcdata[5])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['sc_vel_x','sc_vel_y','sc_vel_z']
+                )
+            )
+
+            temp = get_data(spcdata[6])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['carr_lat']
+                )
+            )
+
+            temp = get_data(spcdata[7])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['carr_lon']
+                )
+            )
+
+            # calculate Dist_au
+            dfspc['Dist_au'] = (dfspc[['sc_x','sc_y','sc_z']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
+
+            dfspc.index = time_string.time_datetime(time=dfspc.index)
+            dfspc.index = dfspc.index.tz_localize(None)
+            dfspc.index.name = 'datetime'
+            # dfspc['INSTRUMENT_FLAG'] = 1
         except:
-            print("No SPC data is presented in the public repository!")
-            print("Trying unpublished data... please provide credentials...")
-            if credentials is None:
-                raise ValueError("No credentials are provided!")
+            print("No SPC Data!")
+            dfspc = None
 
-            username = credentials['psp']['sweap']['username']
-            password = credentials['psp']['sweap']['password']
+        # SPAN
+        try:
+            try:
+                spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00_l3_mom', level='l3', 
+                        varnames = [
+                            'DENS',
+                            'VEL_SC',
+                            'VEL_RTN_SUN',
+                            'TEMP',
+                            'SUN_DIST',
+                            'SC_VEL_RTN_SUN'
+                        ], 
+                        time_clip=True)
+                temp = get_data(spandata[0])
+            except:
+                print("No SPAN data is presented in the public repository!")
+                print("Trying unpublished data... please provide credentials...")
+                if credentials is None:
+                    raise ValueError("No credentials are provided!")
 
-            spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='L3', 
-                                    varnames = [
-                                        'np_moment',
-                                        'wp_moment',
-                                        'vp_moment_RTN',
-                                        'vp_moment_SC',
-                                        'sc_pos_HCI',
-                                        'sc_vel_HCI',
-                                        'carr_latitude',
-                                        'carr_longitude'
-                                    ], 
-                                    time_clip=True, username=username, password=password)
+                username = credentials['psp']['sweap']['username']
+                password = credentials['psp']['sweap']['password']
 
-            data = get_data(spcdata[0])
+                spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00', level='L3', 
+                        varnames = [
+                            'DENS',
+                            'VEL_SC',
+                            'VEL_RTN_SUN',
+                            'TEMP',
+                            'SUN_DIST',
+                            'SC_VEL_RTN_SUN'
+                        ], 
+                        time_clip=True, username=username, password=password)
+                temp = get_data(spandata[0])
 
-        dfspc = pd.DataFrame(
-            # index = time_string.time_datetime(time=data.times, tz=None)
-            index = data.times
-        )
 
-        temp = get_data(spcdata[0])
-        dfspc = dfspc.join(
-            pd.DataFrame(
-                # index = time_string.time_datetime(time=np.times, tz=None),
+            dfspan = pd.DataFrame(
                 index = temp.times,
                 data = temp.y,
                 columns = ['np']
             )
-        )
 
-        temp = get_data(spcdata[1])
-        dfspc = dfspc.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Vth']
+            temp = get_data(spandata[1])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vx', 'Vy', 'Vz']
+                )
             )
-        )
 
-        temp = get_data(spcdata[2])
-        dfspc = dfspc.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Vr','Vt','Vn']
+            temp = get_data(spandata[2])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vr', 'Vt', 'Vn']
+                )
             )
-        )
 
-        temp = get_data(spcdata[3])
-        dfspc = dfspc.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Vx','Vy','Vz']
+            temp = get_data(spandata[3])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['TEMP']
+                )
             )
-        )
 
-        temp = get_data(spcdata[4])
-        dfspc = dfspc.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['sc_x','sc_y','sc_z']
+            temp = get_data(spandata[4])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Dist_au']
+                )
             )
-        )
+            dfspan['Dist_au'] = dfspan['Dist_au']/au_to_km
 
-        temp = get_data(spcdata[5])
-        dfspc = dfspc.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['sc_vel_x','sc_vel_y','sc_vel_z']
+            temp = get_data(spandata[5])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['sc_vel_r','sc_vel_t','sc_vel_n']
+                )
             )
-        )
 
-        temp = get_data(spcdata[6])
-        dfspc = dfspc.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['carr_lat']
-            )
-        )
+            # calculate Vth from TEMP
+            # k T (eV) = 1/2 mp Vth^2 => Vth = 13.84112218*sqrt(TEMP)
+            dfspan['Vth'] = 13.84112218 * np.sqrt(dfspan['TEMP'])
 
-        temp = get_data(spcdata[7])
-        dfspc = dfspc.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['carr_lon']
-            )
-        )
+            # for span the thermal speed is defined as the trace, hence have a sqrt(3) different from spc
+            dfspan['Vth'] = dfspan['Vth']/np.sqrt(3)
 
-        # calculate Dist_au
-        dfspc['Dist_au'] = (dfspc[['sc_x','sc_y','sc_z']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
-
-        dfspc.index = time_string.time_datetime(time=dfspc.index)
-        dfspc.index = dfspc.index.tz_localize(None)
-        dfspc.index.name = 'datetime'
-        # dfspc['INSTRUMENT_FLAG'] = 1
-
-        # SPAN
-
-        try:
-            spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00_l3_mom', level='l3', 
-                    varnames = [
-                        'DENS',
-                        'VEL_SC',
-                        'VEL_RTN_SUN',
-                        'TEMP',
-                        'SUN_DIST',
-                        'SC_VEL_RTN_SUN'
-                    ], 
-                    time_clip=True)
-            temp = get_data(spandata[0])
+            dfspan.index = time_string.time_datetime(time=dfspan.index)
+            dfspan.index = dfspan.index.tz_localize(None)
+            dfspan.index.name = 'datetime'
         except:
-            print("No SPAN data is presented in the public repository!")
-            print("Trying unpublished data... please provide credentials...")
-            if credentials is None:
-                raise ValueError("No credentials are provided!")
-
-            username = credentials['psp']['sweap']['username']
-            password = credentials['psp']['sweap']['password']
-
-            spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00', level='L3', 
-                    varnames = [
-                        'DENS',
-                        'VEL_SC',
-                        'VEL_RTN_SUN',
-                        'TEMP',
-                        'SUN_DIST',
-                        'SC_VEL_RTN_SUN'
-                    ], 
-                    time_clip=True, username=username, password=password)
-            temp = get_data(spandata[0])
-
-
-        dfspan = pd.DataFrame(
-            index = temp.times,
-            data = temp.y,
-            columns = ['np']
-        )
-
-        temp = get_data(spandata[1])
-        dfspan = dfspan.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Vx', 'Vy', 'Vz']
-            )
-        )
-
-        temp = get_data(spandata[2])
-        dfspan = dfspan.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Vr', 'Vt', 'Vn']
-            )
-        )
-
-        temp = get_data(spandata[3])
-        dfspan = dfspan.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['TEMP']
-            )
-        )
-
-        temp = get_data(spandata[4])
-        dfspan = dfspan.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['Dist_au']
-            )
-        )
-        dfspan['Dist_au'] = dfspan['Dist_au']/au_to_km
-
-        temp = get_data(spandata[5])
-        dfspan = dfspan.join(
-            pd.DataFrame(
-                index = temp.times,
-                data = temp.y,
-                columns = ['sc_vel_r','sc_vel_t','sc_vel_n']
-            )
-        )
-
-        # calculate Vth from TEMP
-        # k T (eV) = 1/2 mp Vth^2 => Vth = 13.84112218*sqrt(TEMP)
-        dfspan['Vth'] = 13.84112218 * np.sqrt(dfspan['TEMP'])
-
-        # for span the thermal speed is defined as the trace, hence have a sqrt(3) different from spc
-        dfspan['Vth'] = dfspan['Vth']/np.sqrt(3)
-
-        dfspan.index = time_string.time_datetime(time=dfspan.index)
-        dfspan.index = dfspan.index.tz_localize(None)
-        dfspan.index.name = 'datetime'
+            print("No SPAN!")
+            dfspan = None
 
         # merge particle data
 
@@ -1248,6 +1255,15 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
             dfpar['np'] = dfpar['ne_qtn']/1.08
 
             keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
+
+            # if no SPC or no SPAN data:
+            if dfspc is None:
+                dfspc = dfpar
+                dfspc[keep_keys] = np.nan
+
+            if dfspan is None:
+                dfspan = dfpar
+                dfspan[keep_keys] = np.nan
 
 
             # Perihelion cut
@@ -1667,5 +1683,103 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
 
 # -----------  MISC ----------- #
 
-def UpdatePSDDict(path):
-    pass
+def UpdatePSDDict(path, credentials = None):
+    """
+    Update the PSD dictionary with high resolution magnetic field time series and spectrum, and the full time series, and fix some bugs....
+    """
+
+    # default keys of the dictionary
+    default_keys = ['spacecraft', 'start_time', 'end_time', 'TimeSeries', 'PSD']
+
+    # load the PSD from path
+    d = pd.read_pickle(Path(path).joinpath("bpf/bpf.pkl"))
+
+    # check keys
+    for k in default_keys:
+        if k in d.keys():
+            pass
+        else:
+            raise ValueError("The dictionary is not complete... Need at least the following keys:" + "%s, " * len(default_keys) %(tuple(default_keys)))
+
+    # load spacecraft and start/end time info
+    sc = d['spacecraft']
+    t0 = d['start_time']
+    t1 = d['end_time']
+
+    # load the time series with TimeSeriesViewer Module
+    start_time_0 = t0
+    end_time_0 = t1
+    tsv = TimeSeriesViewer(
+        sc = sc,
+        start_time_0 = start_time_0, 
+        end_time_0 = end_time_0,
+        credentials = credentials
+    )
+
+    # generate the time series
+    tsv.InitFigure(t0, t1, no_plot=True)
+
+    # store the new time series
+    d['TimeSeries'] = tsv.dfts
+
+    # Load magnetic field
+    if sc == 0:
+        # Magnetic field
+        try:
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn', level='l2', time_clip=True)
+            data = get_data(names[0])
+            dfmag1 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag1.columns = ['Br','Bt','Bn']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc', level='l2', time_clip=True)
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+        except:
+            print("No MAG data is presented in the public repository!")
+            print("Trying unpublished data... please provide credentials...")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
+
+            username = credentials['psp']['fields']['username']
+            password = credentials['psp']['fields']['password']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_RTN', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag1 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag1.columns = ['Br','Bt','Bn']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_SC', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
+
+    else:
+        raise ValueError("sc=%d not supported!" %(sc))
+
+
+    # determine resolution
+
+
