@@ -260,6 +260,9 @@ class TimeSeriesViewer:
             )
         if verbose: print("Done.")
 
+        if no_plot:
+            return
+
         # Initialize Axes
         self.AxesInit()
 

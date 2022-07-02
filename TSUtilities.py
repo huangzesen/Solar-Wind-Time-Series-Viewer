@@ -1659,3 +1659,10 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
         interval['rects'][k] = ax.axvspan(interval['start_time'], interval['end_time'], alpha = alpha, color = color)
 
     return interval
+
+
+
+# -----------  MISC ----------- #
+
+def UpdatePSDDict(path):
+    pass
