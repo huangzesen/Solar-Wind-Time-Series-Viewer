@@ -868,7 +868,8 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
         settings = {
             'particle_mode': 'empirical',
             'final_freq': '5s',
-            'use_hampel': False
+            'use_hampel': False,
+            'interpolate_qtn': True
         }
 
     # Parker Solar Probe
@@ -914,6 +915,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
             data = temp.y,
             columns = ['ne_qtn']
         )
+
         dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
         dfqtn.index = time_string.time_datetime(time=dfqtn.index)
         dfqtn.index = dfqtn.index.tz_localize(None)
@@ -1231,6 +1233,15 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
             
             # proton density with QTN
             dfpar = dfpar.join(dfqtn.resample(freq).mean())
+
+            # the density is not very fluctuating, hence interpolate
+            try:
+                if settings['interpolate_qtn']:
+                    print("QTN is interpolated!")
+                    dfpar['ne_qtn'] = dfpar['ne_qtn'].interpolate()
+            except:
+                pass
+
             dfpar['np'] = dfpar['ne_qtn']/1.08
 
             keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
