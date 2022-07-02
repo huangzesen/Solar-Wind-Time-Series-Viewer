@@ -1331,7 +1331,7 @@ class TimeSeriesViewer:
                             Br = dftemp['Br'].interpolate().dropna().values
                             Bt = dftemp['Bt'].interpolate().dropna().values
                             Bn = dftemp['Bn'].interpolate().dropna().values
-                            freq, B_pow = TracePSD(Br, Bt, Bn, 1)
+                            freq, B_pow = TracePSD(Br, Bt, Bn, 5)
                             # save the time series to dataframe
                             self.selected_intervals[i1]['TimeSeries'] = dftemp
                             self.selected_intervals[i1]['PSD'] = {
