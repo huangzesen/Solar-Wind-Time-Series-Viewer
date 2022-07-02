@@ -83,7 +83,7 @@ class TimeSeriesViewer:
         self.verbose = verbose
         self.rolling_rate = rolling_rate
         self.resample_rate = resample_rate
-        self.mag_option = {'norm':0, 'sc':1}
+        self.mag_option = {'norm':0, 'sc':0}
         self.spc_only = True
         self.calc_smoothed_spec = True
         self.useBPF = True
