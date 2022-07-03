@@ -1702,12 +1702,12 @@ def UpdatePSDDict(path, credentials = None):
 
     # load spacecraft and start/end time info
     sc = d['spacecraft']
-    t0 = d['start_time']
-    t1 = d['end_time']
+    tstart = d['start_time']
+    tend = d['end_time']
 
     # load the time series with TimeSeriesViewer Module
-    start_time_0 = t0
-    end_time_0 = t1
+    start_time_0 = tstart
+    end_time_0 = tend
     tsv = TimeSeriesViewer(
         sc = sc,
         start_time_0 = start_time_0, 
@@ -1716,12 +1716,14 @@ def UpdatePSDDict(path, credentials = None):
     )
 
     # generate the time series
-    tsv.InitFigure(t0, t1, no_plot=True)
+    tsv.InitFigure(tstart, tend, no_plot=True)
 
     # store the new time series
     d['TimeSeries'] = tsv.dfts
 
     # Load magnetic field
+    t0 = tstart.strftime("%Y-%m-%d/%H:%M:%S")
+    t1 = tend.strftime("%Y-%m-%d/%H:%M:%S")
     if sc == 0:
         # Magnetic field
         try:
@@ -1778,7 +1780,42 @@ def UpdatePSDDict(path, credentials = None):
     else:
         raise ValueError("sc=%d not supported!" %(sc))
 
+    # determine resample frequency
+    val, counts = np.unique(np.diff(dfmag.index), return_counts=True)
 
-    # determine resolution
+    # gaps are not counted as real cadence hence remove gap jumps
+    # val are in timedelta64[ns], cadance > 5s are regarded as gaps
+    val = val[val.astype(float) <= 5e9]
 
+    # find the maximum of the cadence, and resample to the corresponding freq
+    if (np.max(val).astype(float)/1e6) < 100:
+        # 10 ms
+        period = 1e-1
+        dfmag_r = dfmag.resample('100ms').mean()
+    elif (np.max(val).astype(float)/1e6) < 1000:
+        # 1000 ms
+        period = 1e0
+        dfmag_r = dfmag.resample('1000ms').mean()
+    else:
+        period = 5
+        dfmag_r = dfmag.resample('5s').mean()
 
+    Bx = dfmag_r['Bx'].interpolate().dropna().values
+    By = dfmag_r['By'].interpolate().dropna().values
+    Bz = dfmag_r['Bz'].interpolate().dropna().values
+    freq, B_pow = TracePSD(Bx, By, Bz, period)
+    _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
+
+    resample_info = {
+        'Fraction_missing': dfmag_r['Br'].apply(np.isnan).sum()/len(dfmag_r['Br'])*100,
+        'resolution': period*1000,
+        'resolution_dim': 'ms'
+    }
+
+    d['PSD']['freqs'] = freq
+    d['PSD']['PSD'] = B_pow
+    d['PSD']['sm_freqs'] = sm_freqs
+    d['PSD']['sm_PSD'] = sm_PSD
+    d['PSD']['resample_info'] = resample_info
+
+    return d
