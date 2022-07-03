@@ -31,9 +31,6 @@ import pyspedas
 from pyspedas.utilities import time_string
 from pytplot import get_data
 
-# for loading time series
-from TimeSeriesViewer import TimeSeriesViewer
-
 au_to_km = 1.496e8  # Conversion factor
 rsun     = 696340   # Sun radius in units of  [km]
 
@@ -1687,6 +1684,8 @@ def UpdatePSDDict(path, credentials = None):
     """
     Update the PSD dictionary with high resolution magnetic field time series and spectrum, and the full time series, and fix some bugs....
     """
+    # for loading time series
+    from TimeSeriesViewer import TimeSeriesViewer
 
     # default keys of the dictionary
     default_keys = ['spacecraft', 'start_time', 'end_time', 'TimeSeries', 'PSD']
