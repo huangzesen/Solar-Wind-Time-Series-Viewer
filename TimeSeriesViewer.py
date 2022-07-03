@@ -234,7 +234,7 @@ class TimeSeriesViewer:
 
 
     def InitFigure(self, start_time, end_time, 
-        verbose = True, resample_rate = '5min', no_plot = False, rolling_rate = '1H', clean_intervals = False
+        verbose = True, resample_rate = '5min', no_plot = False, rolling_rate = '1H', clean_intervals = False, auto_connect=False
         ):
         """ make figure """
 
@@ -293,7 +293,8 @@ class TimeSeriesViewer:
         self.fig.canvas.draw()
 
         # connect to mpl
-        self.connect()
+        if auto_connect:
+            self.connect()
 
 
     def ExportSelectedIntervals(self):
