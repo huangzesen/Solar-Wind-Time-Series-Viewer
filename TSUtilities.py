@@ -830,10 +830,7 @@ def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, roll
         dfmag.index = dfmag.index.tz_localize(None)
 
         dfts = dfmag.resample('5s').mean().join(
-            dfpar.resample('5s').mean().join(
-                dfdis.resample('5s').mean().interpolate()
-            )
-        )
+            dfpar.resample('5s').mean())
 
         dfts['Dist_au'] = dfts['RAD_AU'].interpolate()
 
