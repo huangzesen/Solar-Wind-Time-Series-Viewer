@@ -839,6 +839,11 @@ def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, roll
         dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
         dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
 
+        dfpar[['Vr0','Vt0','Vn0']] = dfpar[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
+        dfpar[['Vx0','Vy0','Vz0']] = dfpar[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
+        dfmag[['Br0','Bt0','Bn0']] = dfmag[['Br','Bt','Bn']].rolling(rolling_rate).mean()
+        dfmag[['Bx0','By0','Bz0']] = dfmag[['Bx','By','Bz']].rolling(rolling_rate).mean()
+
         # nothing to be stored for solar orbiter
         misc = {'dfdis': dfdis}
 
