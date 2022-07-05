@@ -684,9 +684,15 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
     """ 
     Load Time Series with SPEDAS 
     going to find data in the local directory
+    Default resample rate for dfmag is 1s, dfts and dfpar are 5s
     Input:
         sc                          int (0: PSP, 1: SOLO)
         start_time,end_time         pd.Timestamp
+    Return:
+        dfts                        combined dataframe
+        dfmag                       magnetic field dataframe
+        dfpar                       particle dataframe
+        misc                        miscellaneous 
     """
 
     # check pyspedas location:
@@ -796,8 +802,12 @@ def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, roll
         dfdis = pd.DataFrame(
             index = data['Epoch'],
             data = data[['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']]
-        )
+        ).resample('5s').interpolate()
         dfdis.index.name = 'datetime'
+
+        # join dfpar and dfdis
+        dfpar = dfpar.resample('5s').mean().join(dfdis)
+        dfpar['Dist_au'] = dfpar['RAD_AU']
 
         names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal', level='l2', time_clip=True)
         data = get_data(names[0])
@@ -819,9 +829,9 @@ def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, roll
         dfmag.index = time_string.time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
 
-        dfts = dfmag.resample('1s').mean().join(
-            dfpar.resample('1s').mean().join(
-                dfdis.resample('1s').mean().interpolate()
+        dfts = dfmag.resample('5s').mean().join(
+            dfpar.resample('5s').mean().join(
+                dfdis.resample('5s').mean().interpolate()
             )
         )
 
@@ -832,7 +842,10 @@ def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, roll
         dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
         dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
 
-        return dfts
+        # nothing to be stored for solar orbiter
+        misc = {'dfdis': dfdis}
+
+        return dfts, dfmag, dfpar, misc
 
 
     else:
