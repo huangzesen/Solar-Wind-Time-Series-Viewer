@@ -716,7 +716,6 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
     return dfts, dfmag, dfpar, misc
 
 
-
 def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', settings = None):
     """ Load Time Series from SPEDAS with Solar Orbiter """
 
@@ -1349,6 +1348,106 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
         return dfts, dfmag, dfpar, misc
     else:
         raise ValueError("sc = %d, wrong function!!" %(sc))
+
+
+def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):
+    """ 
+    load scam data from SPEDAS 
+    Input:
+        start_time, end_time                Timestamp
+        credentials                         credentials for unpublished PSP data
+    Output:
+        None if no data is present, otherwise a dataframe containing all the scam data
+    """
+
+    t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+    t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+    if credentials is None:
+        scam_vars = pyspedas.psp.fields(
+            trange=[t0, t1], datatype='merged_scam_wf', level='l3', time_clip=True, downloadonly = False
+        )
+
+        if scam_vars == []:
+            return None
+
+        data = get_data(scam_vars[0])
+        dfscam = pd.DataFrame(
+            index = data.times,
+            data = data.y,
+            columns = ['Bu','Bv','Bw']
+        )
+
+        data = get_data(scam_vars[1])
+        dfscam = dfscam.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['Bx','By','Bz']
+            )
+        )
+
+        data = get_data(scam_vars[2])
+        dfscam = dfscam.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['Br','Bt','Bn']
+            )
+        )
+
+        dfscam.index = time_string.time_datetime(time=dfscam.index)
+        dfscam.index = dfscam.index.tz_localize(None)
+        dfscam.index.name = 'datetime'
+
+        return dfscam
+
+    else:
+        # have credentials
+
+        try:
+            scam_vars = pyspedas.psp.fields(
+                trange=[t0, t1], datatype='merged_scam_wf', level='l3', time_clip=True, downloadonly = False,
+                username = credentials['username'], password = credentials['password']
+            )
+        except:
+            raise ValueError('Wrong Username or Password!')
+
+        if scam_vars == []:
+            return None
+
+        data = get_data(scam_vars[0])
+        dfscam = pd.DataFrame(
+            index = data.times,
+            data = data.y,
+            columns = ['Bu','Bv','Bw']
+        )
+
+        data = get_data(scam_vars[1])
+        dfscam = dfscam.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['Bx','By','Bz']
+            )
+        )
+
+        data = get_data(scam_vars[2])
+        dfscam = dfscam.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['Br','Bt','Bn']
+            )
+        )
+
+        dfscam.index = time_string.time_datetime(time=dfscam.index)
+        dfscam.index = dfscam.index.tz_localize(None)
+        dfscam.index.name = 'datetime'
+
+        return dfscam
+
+
 
 # Loading Procedures
 
