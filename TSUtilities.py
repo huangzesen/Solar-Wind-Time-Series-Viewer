@@ -904,6 +904,8 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
         for k, v in settings.items():
             print("{} : {}".format(k, v))
 
+        print("Rolling Rate: %s" %(rolling_rate))
+
     # Parker Solar Probe
     if sc == 0:
         # check local directory

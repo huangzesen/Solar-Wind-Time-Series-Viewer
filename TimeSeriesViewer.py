@@ -624,7 +624,7 @@ class TimeSeriesViewer:
 
         """make title"""
         fig.suptitle(
-            "%s to %s, parmode = %s" %(str(self.start_time), str(self.end_time), parmode)
+            "%s to %s, parmode = %s, rolling_rate = %s" %(str(self.start_time), str(self.end_time), parmode, self.rolling_rate)
             + "\n"
             + "SpaceCraft: %d, Resample Rate: %s, Window Option: %s (key=%d), MAG Frame: %d, Normed Mag : %d" %(self.sc, self.resample_rate, self.length_list[self.length_key], self.length_key, self.mag_option['sc'], self.mag_option['norm'])
             + "\n"
