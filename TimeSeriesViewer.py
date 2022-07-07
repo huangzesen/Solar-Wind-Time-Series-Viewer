@@ -54,7 +54,8 @@ class TimeSeriesViewer:
         verbose = True,
         rolling_rate = '1H',
         resample_rate = '5min',
-        credentials = None
+        credentials = None,
+        loadSPEDASsettings = None
     ):
         """ Initialize the class """
 
@@ -89,6 +90,7 @@ class TimeSeriesViewer:
         self.calc_smoothed_spec = True
         self.useBPF = True
         self.credentials = credentials
+        self.loadSPEDASsettings = loadSPEDASsettings
 
         if paths is None:
             self.paths = {
@@ -199,7 +201,7 @@ class TimeSeriesViewer:
             # dfpar/dfdis has freq=5s
             # dfmag has freq=1s
             dftemp, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, 
-                rolling_rate = rolling_rate, credentials = self.credentials
+                rolling_rate = rolling_rate, credentials = self.credentials, settings = self.loadSPEDASsettings
             )
             self.dfmag = dfmag
             self.dfpar = dfpar
