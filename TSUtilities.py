@@ -1834,7 +1834,7 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
 
 # -----------  MISC ----------- #
 
-def UpdatePSDDict(path, credentials = None):
+def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
     """
     Update the PSD dictionary with high resolution magnetic field time series and spectrum, and the full time series, and fix some bugs....
     """
@@ -1866,7 +1866,8 @@ def UpdatePSDDict(path, credentials = None):
         sc = sc,
         start_time_0 = start_time_0, 
         end_time_0 = end_time_0,
-        credentials = credentials
+        credentials = credentials,
+        loadSPEDASsettings = loadSPEDASsettings
     )
 
     # generate the time series
