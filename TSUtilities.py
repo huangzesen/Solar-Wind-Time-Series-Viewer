@@ -1338,10 +1338,10 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
             dfpar.resample(freq).mean()
         )
 
-        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).interpolate()
-        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).interpolate()
-        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).interpolate()
-        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).interpolate()
+        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean().interpolate()
+        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean().interpolate()
+        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean().interpolate()
+        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean().interpolate()
 
         # resample dfmag to create B?0
         dfmag = dfmag.resample(freq).mean()
