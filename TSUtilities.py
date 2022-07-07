@@ -857,7 +857,8 @@ def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, roll
 
 
 def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, 
-    rootdir = None, rolling_rate = '1H', settings = None, credentials = None):
+    rootdir = None, rolling_rate = '1H', settings = None, credentials = None
+    ):
     """" 
     Load Time Serie From SPEDAS, PSP 
     settings if not None, should be a dictionary, necessary settings:
@@ -886,7 +887,8 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
         'final_freq': '5s',
         'use_hampel': False,
         'interpolate_qtn': True,
-        'interpolate_rolling': True
+        'interpolate_rolling': True,
+        'verbose': True
     }
     if settings is None:
         settings = {}
@@ -897,6 +899,10 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
             if k not in settings.keys():
                 settings[k] = default_settings[k]
 
+    if settings['verbose']:
+        print("Current Settings...")
+        for k, v in settings.items():
+            print("{} : {}".format(k, v))
 
     # Parker Solar Probe
     if sc == 0:
