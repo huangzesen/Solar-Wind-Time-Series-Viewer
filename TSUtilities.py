@@ -1352,13 +1352,19 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
 
 def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):
     """ 
-    load scam data from SPEDAS 
+    load scam data with pyspedas and return a dataframe
     Input:
-        start_time, end_time                Timestamp
-        credentials                         credentials for unpublished PSP data
+        start_time, end_time                pd.Timestamp
+        (optional) credentials              dictionary, {'username':..., 'password':...}
     Output:
-        None if no data is present, otherwise a dataframe containing all the scam data
+        return None if no data is present, otherwise a dataframe containing all the scam data
     """
+
+    # check pyspedas
+    if os.path.exists(Path(".").absolute().parent.joinpath("pyspedas")):
+        pass
+    else:
+        raise ValueError("Please clone pyspedas to %s" %(str(Path(".").absolute().parent.joinpath("pyspedas"))))
 
     t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
     t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
