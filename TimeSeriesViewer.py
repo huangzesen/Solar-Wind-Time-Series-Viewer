@@ -164,13 +164,13 @@ class TimeSeriesViewer:
                 # redo the rolling average
                 print("rolling with window= %s ..." %(rolling_rate))
                 print("Magnetic Field...")
-                dfmag0['Br0'] = dfmag0['Br'].rolling(rolling_rate).mean()
-                dfmag0['Bt0'] = dfmag0['Bt'].rolling(rolling_rate).mean()
-                dfmag0['Bn0'] = dfmag0['Bn'].rolling(rolling_rate).mean()
+                dfmag0['Br0'] = dfmag0['Br'].rolling(rolling_rate).mean().interpolate()
+                dfmag0['Bt0'] = dfmag0['Bt'].rolling(rolling_rate).mean().interpolate()
+                dfmag0['Bn0'] = dfmag0['Bn'].rolling(rolling_rate).mean().interpolate()
                 print("Done. Solar Wind...")
-                dfpar0['Vr0'] = dfpar0['Vr'].rolling(rolling_rate).mean()
-                dfpar0['Vt0'] = dfpar0['Vt'].rolling(rolling_rate).mean()
-                dfpar0['Vn0'] = dfpar0['Vn'].rolling(rolling_rate).mean()
+                dfpar0['Vr0'] = dfpar0['Vr'].rolling(rolling_rate).mean().interpolate()
+                dfpar0['Vt0'] = dfpar0['Vt'].rolling(rolling_rate).mean().interpolate()
+                dfpar0['Vn0'] = dfpar0['Vn'].rolling(rolling_rate).mean().interpolate()
 
             try: print("Initial Session Range: [%s - %s]" %(self.start_time_0, self.end_time_0))
             except: print("No start_time_0 and end_time_0 defined!")
@@ -613,10 +613,16 @@ class TimeSeriesViewer:
                     ] = np.nan
             except:
                 pass
+        
+        # particle mode
+        try:
+            parmode = self.dfmisc['parmode']
+        except:
+            parmode = 'None'
 
         """make title"""
         fig.suptitle(
-            "%s to %s" %(str(self.start_time), str(self.end_time))
+            "%s to %s, parmode = %s" %(str(self.start_time), str(self.end_time), parmode)
             + "\n"
             + "SpaceCraft: %d, Resample Rate: %s, Window Option: %s (key=%d), MAG Frame: %d, Normed Mag : %d" %(self.sc, self.resample_rate, self.length_list[self.length_key], self.length_key, self.mag_option['sc'], self.mag_option['norm'])
             + "\n"

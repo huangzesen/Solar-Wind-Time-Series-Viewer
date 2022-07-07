@@ -897,98 +897,105 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
         t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
         t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
-        # Quasi-Thermal Noise for electron density
-        try:    
-            qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_v1v2', level='l3', 
-                        varnames = [
-                            'electron_density',
-                            'electron_core_temperature'
-                        ], 
-                        time_clip=True)
-            temp = get_data(qtndata[0])
+        # Quasi-Thermal-Noise
+        try:
+            # Quasi-Thermal Noise for electron density
+            try:    
+                qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_v1v2', level='l3', 
+                            varnames = [
+                                'electron_density',
+                                'electron_core_temperature'
+                            ], 
+                            time_clip=True)
+                temp = get_data(qtndata[0])
+            except:
+                print("No QTN data is presented in the public repository!")
+                print("Trying unpublished data... please provide credentials...")
+                if credentials is None:
+                    raise ValueError("No credentials are provided!")
+
+                username = credentials['psp']['fields']['username']
+                password = credentials['psp']['fields']['password']
+
+                qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_V1V2', level='l3', 
+                varnames = [
+                    'electron_density',
+                    'electron_core_temperature'
+                ], 
+                time_clip=True, username=username, password=password)
+                temp = get_data(qtndata[0])
+
+
+            dfqtn = pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['ne_qtn']
+            )
+
+            dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
+            dfqtn.index = time_string.time_datetime(time=dfqtn.index)
+            dfqtn.index = dfqtn.index.tz_localize(None)
+            dfqtn.index.name = 'datetime'
         except:
-            print("No QTN data is presented in the public repository!")
-            print("Trying unpublished data... please provide credentials...")
-            if credentials is None:
-                raise ValueError("No credentials are provided!")
-
-            username = credentials['psp']['fields']['username']
-            password = credentials['psp']['fields']['password']
-
-            qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_V1V2', level='l3', 
-            varnames = [
-                'electron_density',
-                'electron_core_temperature'
-            ], 
-            time_clip=True, username=username, password=password)
-            temp = get_data(qtndata[0])
-
-
-        dfqtn = pd.DataFrame(
-            index = temp.times,
-            data = temp.y,
-            columns = ['ne_qtn']
-        )
-
-        dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
-        dfqtn.index = time_string.time_datetime(time=dfqtn.index)
-        dfqtn.index = dfqtn.index.tz_localize(None)
-        dfqtn.index.name = 'datetime'
+            print("No QTN Data!")
+            dfqtn = None
 
         # Magnetic field
         try:
-            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
-            data = get_data(names[0])
-            dfmag1 = pd.DataFrame(
-                index = data[0],
-                data = data[1]
-            )
-            dfmag1.columns = ['Br','Bt','Bn']
+            try:
+                names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
+                data = get_data(names[0])
+                dfmag1 = pd.DataFrame(
+                    index = data[0],
+                    data = data[1]
+                )
+                dfmag1.columns = ['Br','Bt','Bn']
 
-            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
-            data = get_data(names[0])
-            dfmag2 = pd.DataFrame(
-                index = data[0],
-                data = data[1]
-            )
-            dfmag2.columns = ['Bx','By','Bz']
+                names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
+                data = get_data(names[0])
+                dfmag2 = pd.DataFrame(
+                    index = data[0],
+                    data = data[1]
+                )
+                dfmag2.columns = ['Bx','By','Bz']
+            except:
+                print("No MAG data is presented in the public repository!")
+                print("Trying unpublished data... please provide credentials...")
+                if credentials is None:
+                    raise ValueError("No credentials are provided!")
+
+                username = credentials['psp']['fields']['username']
+                password = credentials['psp']['fields']['password']
+
+                names = pyspedas.psp.fields(trange=[t0,t1], 
+                    datatype='mag_RTN_4_Sa_per_Cyc', level='l2', time_clip=True,
+                    username=username, password=password
+                )
+                data = get_data(names[0])
+                dfmag1 = pd.DataFrame(
+                    index = data[0],
+                    data = data[1]
+                )
+                dfmag1.columns = ['Br','Bt','Bn']
+
+                names = pyspedas.psp.fields(trange=[t0,t1], 
+                    datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
+                    username=username, password=password
+                )
+                data = get_data(names[0])
+                dfmag2 = pd.DataFrame(
+                    index = data[0],
+                    data = data[1]
+                )
+                dfmag2.columns = ['Bx','By','Bz']
+
+            dfmag = dfmag1.join(dfmag2)
+            dfmag.index = time_string.time_datetime(time=dfmag.index)
+            dfmag.index = dfmag.index.tz_localize(None)
         except:
-            print("No MAG data is presented in the public repository!")
-            print("Trying unpublished data... please provide credentials...")
-            if credentials is None:
-                raise ValueError("No credentials are provided!")
+            print("No MAG Data!")
+            dfmag = None
 
-            username = credentials['psp']['fields']['username']
-            password = credentials['psp']['fields']['password']
-
-            names = pyspedas.psp.fields(trange=[t0,t1], 
-                datatype='mag_RTN_4_Sa_per_Cyc', level='l2', time_clip=True,
-                username=username, password=password
-            )
-            data = get_data(names[0])
-            dfmag1 = pd.DataFrame(
-                index = data[0],
-                data = data[1]
-            )
-            dfmag1.columns = ['Br','Bt','Bn']
-
-            names = pyspedas.psp.fields(trange=[t0,t1], 
-                datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
-                username=username, password=password
-            )
-            data = get_data(names[0])
-            dfmag2 = pd.DataFrame(
-                index = data[0],
-                data = data[1]
-            )
-            dfmag2.columns = ['Bx','By','Bz']
-
-
-        dfmag = dfmag1.join(dfmag2)
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
-        dfmag.index = dfmag.index.tz_localize(None)
-
-        
         # SPC
         try:
             try:
@@ -1114,7 +1121,6 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
             dfspc.index = time_string.time_datetime(time=dfspc.index)
             dfspc.index = dfspc.index.tz_localize(None)
             dfspc.index.name = 'datetime'
-            # dfspc['INSTRUMENT_FLAG'] = 1
         except:
             print("No SPC Data!")
             dfspc = None
@@ -1329,10 +1335,10 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
             dfpar.resample(freq).mean()
         )
 
-        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
-        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
-        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
-        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
+        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).interpolate()
+        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).interpolate()
+        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).interpolate()
+        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).interpolate()
 
         # resample dfmag to create B?0
         dfmag = dfmag.resample(freq).mean()
@@ -1342,7 +1348,9 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
         misc = {
             'dfqtn': dfqtn,
             'dfspc': dfspc,
-            'dfspan': dfspan
+            'dfspan': dfspan,
+            'parmode': parmode,
+            'settings': settings
         }
 
         return dfts, dfmag, dfpar, misc
