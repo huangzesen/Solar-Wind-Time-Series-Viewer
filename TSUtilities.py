@@ -1362,7 +1362,7 @@ def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):
 
     # check pyspedas
     if os.path.exists(Path(".").absolute().parent.joinpath("pyspedas")):
-        pass
+        print("Using pyspedas at %s" %(str(Path(".").absolute().parent.joinpath("pyspedas"))))
     else:
         raise ValueError("Please clone pyspedas to %s" %(str(Path(".").absolute().parent.joinpath("pyspedas"))))
 
