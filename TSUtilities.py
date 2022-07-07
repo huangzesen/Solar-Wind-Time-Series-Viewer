@@ -23,6 +23,14 @@ from numba import jit,njit,prange
 from cdasws import CdasWs
 cdas = CdasWs()
 
+# SPEDAS API
+# make sure to use the local spedas
+import sys
+sys.path.insert(0,"../pyspedas")
+import pyspedas
+from pyspedas.utilities import time_string
+from pytplot import get_data
+
 au_to_km = 1.496e8  # Conversion factor
 rsun     = 696340   # Sun radius in units of  [km]
 
@@ -621,7 +629,7 @@ def LoadSOlOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, ge
                     columns = ['TEMP']
                 )
             )
-            df['Vth'] = 13.84112218 * df['TEMP'] # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
+            df['Vth'] = 13.84112218 * df['TEMP'].apply(np.sqrt) # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
             df.index.name = 'datetime'
             spdf_data['spdf_infos'][key]['dataframe'] = df
     except:
@@ -671,6 +679,788 @@ def LoadSOlOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, ge
     return spdf_data
 
 
+def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', 
+    settings = None, credentials = None):
+    """ 
+    Load Time Series with SPEDAS 
+    going to find data in the local directory
+    Default resample rate for dfmag is 1s, dfts and dfpar are 5s
+    Input:
+        sc                          int (0: PSP, 1: SOLO)
+        start_time,end_time         pd.Timestamp
+    Return:
+        dfts                        combined dataframe
+        dfmag                       magnetic field dataframe
+        dfpar                       particle dataframe
+        misc                        miscellaneous 
+    """
+
+    # check pyspedas location:
+    print(pyspedas.__file__)
+
+    if sc == 0:
+        dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_PSP(
+            sc, start_time, end_time, 
+            rootdir = rootdir, 
+            rolling_rate = rolling_rate,
+            credentials = credentials
+            )
+    elif sc == 1:
+        dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_SOLO(
+            sc, start_time, end_time, 
+            rootdir = rootdir, 
+            rolling_rate = rolling_rate)
+    else:
+        raise ValueError("sc = %d not supported!" %(sc))
+
+    return dfts, dfmag, dfpar, misc
+
+
+def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', settings = None):
+    """ Load Time Series from SPEDAS with Solar Orbiter """
+
+    # change to root dir
+    if rootdir is None:
+        pass
+    else:
+        os.chdir(rootdir)
+
+    # Solar Orbiter
+    if sc == 1:
+
+        # check local directory
+        if os.path.exists("./solar_orbiter_data"):
+            pass
+        else:
+            raise ValueError("No local data folder is present!")
+
+        t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+        t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+        swadata = pyspedas.solo.swa(trange=[t0, t1], datatype='pas-grnd-mom')
+        data = get_data(swadata[0])
+
+        dfpar = pd.DataFrame(
+            # index = time_string.time_datetime(time=data.times, tz=None)
+            index = data.times
+        )
+        temp = get_data('N')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                # index = time_string.time_datetime(time=np.times, tz=None),
+                index = temp.times,
+                data = temp.y,
+                columns = ['np']
+            )
+        )
+        temp = get_data('T')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['T']
+            )
+        )
+        dfpar['Vth'] = 13.84112218 * np.sqrt(dfpar['T']) # 1eV = 13.84112218 km/s (kB*T = 1/2*mp*Vth^2)
+
+        temp = get_data('V_RTN')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vr','Vt','Vn']
+            )
+        )
+
+        temp = get_data('V_SRF')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vx','Vy','Vz']
+            )
+        )
+
+        temp = get_data('V_SOLO_RTN')
+        dfpar = dfpar.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['sc_vel_r','sc_vel_t','sc_vel_n']
+            )
+        )
+
+        dfpar.index = time_string.time_datetime(time=dfpar.index)
+        dfpar.index = dfpar.index.tz_localize(None)
+        dfpar.index.name = 'datetime'
+
+
+        time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime(), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime()]
+        status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON'], time[0], time[1])
+
+        dfdis = pd.DataFrame(
+            index = data['Epoch'],
+            data = data[['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']]
+        ).resample('5s').interpolate()
+        dfdis.index.name = 'datetime'
+
+        # join dfpar and dfdis
+        dfpar = dfpar.resample('5s').mean().join(dfdis)
+        dfpar['Dist_au'] = dfpar['RAD_AU']
+
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag1 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag1.columns = ['Br','Bt','Bn']
+
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='srf-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag2 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag2.columns = ['Bx','By','Bz']
+
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
+
+        dfts = dfmag.resample('5s').mean().join(
+            dfpar.resample('5s').mean())
+
+        dfts['Dist_au'] = dfts['RAD_AU'].interpolate()
+
+        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
+        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
+        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
+        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
+
+        dfpar[['Vr0','Vt0','Vn0']] = dfpar[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
+        dfpar[['Vx0','Vy0','Vz0']] = dfpar[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
+        dfmag[['Br0','Bt0','Bn0']] = dfmag[['Br','Bt','Bn']].rolling(rolling_rate).mean()
+        dfmag[['Bx0','By0','Bz0']] = dfmag[['Bx','By','Bz']].rolling(rolling_rate).mean()
+
+        # nothing to be stored for solar orbiter
+        misc = {'dfdis': dfdis}
+
+        return dfts, dfmag, dfpar, misc
+
+
+    else:
+        raise ValueError("sc=%d not supported!" %(sc))
+
+
+def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, 
+    rootdir = None, rolling_rate = '1H', settings = None, credentials = None):
+    """" 
+    Load Time Serie From SPEDAS, PSP 
+    settings if not None, should be a dictionary, necessary settings:
+
+    spc_only: boolean
+    span_only: boolean
+    mix_spc_span: dict:
+        {'priority': 'spc' or 'span'}
+    keep_spc_and_span: boolean
+
+    keep_keys: ['np','Vth','Vx','Vy','Vz','Vr','Vt','Vn']
+    
+    Note that the priority is using SPAN
+    """
+
+
+    # change to root dir
+    if rootdir is None:
+        pass
+    else:
+        os.chdir(rootdir)
+
+    # default settings
+    if settings is None:
+        settings = {
+            'particle_mode': 'empirical',
+            'final_freq': '5s',
+            'use_hampel': False,
+            'interpolate_qtn': True
+        }
+
+    # Parker Solar Probe
+    if sc == 0:
+        # check local directory
+        if os.path.exists("./psp_data"):
+            pass
+        else:
+            raise ValueError("No local data folder ./psp_data is present!")
+
+        t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+        t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+        # Quasi-Thermal Noise for electron density
+        try:    
+            qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_v1v2', level='l3', 
+                        varnames = [
+                            'electron_density',
+                            'electron_core_temperature'
+                        ], 
+                        time_clip=True)
+            temp = get_data(qtndata[0])
+        except:
+            print("No QTN data is presented in the public repository!")
+            print("Trying unpublished data... please provide credentials...")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
+
+            username = credentials['psp']['fields']['username']
+            password = credentials['psp']['fields']['password']
+
+            qtndata = pyspedas.psp.fields(trange=[t0, t1], datatype='sqtn_rfs_V1V2', level='l3', 
+            varnames = [
+                'electron_density',
+                'electron_core_temperature'
+            ], 
+            time_clip=True, username=username, password=password)
+            temp = get_data(qtndata[0])
+
+
+        dfqtn = pd.DataFrame(
+            index = temp.times,
+            data = temp.y,
+            columns = ['ne_qtn']
+        )
+
+        dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
+        dfqtn.index = time_string.time_datetime(time=dfqtn.index)
+        dfqtn.index = dfqtn.index.tz_localize(None)
+        dfqtn.index.name = 'datetime'
+
+        # Magnetic field
+        try:
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
+            data = get_data(names[0])
+            dfmag1 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag1.columns = ['Br','Bt','Bn']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+        except:
+            print("No MAG data is presented in the public repository!")
+            print("Trying unpublished data... please provide credentials...")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
+
+            username = credentials['psp']['fields']['username']
+            password = credentials['psp']['fields']['password']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_RTN_4_Sa_per_Cyc', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag1 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag1.columns = ['Br','Bt','Bn']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+
+
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
+
+        
+        # SPC
+        try:
+            try:
+                spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='l3', 
+                                        varnames = [
+                                            'np_moment',
+                                            'wp_moment',
+                                            'vp_moment_RTN',
+                                            'vp_moment_SC',
+                                            'sc_pos_HCI',
+                                            'sc_vel_HCI',
+                                            'carr_latitude',
+                                            'carr_longitude'
+                                        ], 
+                                        time_clip=True)
+
+                data = get_data(spcdata[0])
+            except:
+                print("No SPC data is presented in the public repository!")
+                print("Trying unpublished data... please provide credentials...")
+                if credentials is None:
+                    raise ValueError("No credentials are provided!")
+
+                username = credentials['psp']['sweap']['username']
+                password = credentials['psp']['sweap']['password']
+
+                spcdata = pyspedas.psp.spc(trange=[t0, t1], datatype='l3i', level='L3', 
+                                        varnames = [
+                                            'np_moment',
+                                            'wp_moment',
+                                            'vp_moment_RTN',
+                                            'vp_moment_SC',
+                                            'sc_pos_HCI',
+                                            'sc_vel_HCI',
+                                            'carr_latitude',
+                                            'carr_longitude'
+                                        ], 
+                                        time_clip=True, username=username, password=password)
+
+                data = get_data(spcdata[0])
+
+            dfspc = pd.DataFrame(
+                # index = time_string.time_datetime(time=data.times, tz=None)
+                index = data.times
+            )
+
+            temp = get_data(spcdata[0])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    # index = time_string.time_datetime(time=np.times, tz=None),
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['np']
+                )
+            )
+
+            temp = get_data(spcdata[1])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vth']
+                )
+            )
+
+            temp = get_data(spcdata[2])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vr','Vt','Vn']
+                )
+            )
+
+            temp = get_data(spcdata[3])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vx','Vy','Vz']
+                )
+            )
+
+            temp = get_data(spcdata[4])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['sc_x','sc_y','sc_z']
+                )
+            )
+
+            temp = get_data(spcdata[5])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['sc_vel_x','sc_vel_y','sc_vel_z']
+                )
+            )
+
+            temp = get_data(spcdata[6])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['carr_lat']
+                )
+            )
+
+            temp = get_data(spcdata[7])
+            dfspc = dfspc.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['carr_lon']
+                )
+            )
+
+            # calculate Dist_au
+            dfspc['Dist_au'] = (dfspc[['sc_x','sc_y','sc_z']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
+
+            dfspc.index = time_string.time_datetime(time=dfspc.index)
+            dfspc.index = dfspc.index.tz_localize(None)
+            dfspc.index.name = 'datetime'
+            # dfspc['INSTRUMENT_FLAG'] = 1
+        except:
+            print("No SPC Data!")
+            dfspc = None
+
+        # SPAN
+        try:
+            try:
+                spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00_l3_mom', level='l3', 
+                        varnames = [
+                            'DENS',
+                            'VEL_SC',
+                            'VEL_RTN_SUN',
+                            'TEMP',
+                            'SUN_DIST',
+                            'SC_VEL_RTN_SUN'
+                        ], 
+                        time_clip=True)
+                temp = get_data(spandata[0])
+            except:
+                print("No SPAN data is presented in the public repository!")
+                print("Trying unpublished data... please provide credentials...")
+                if credentials is None:
+                    raise ValueError("No credentials are provided!")
+
+                username = credentials['psp']['sweap']['username']
+                password = credentials['psp']['sweap']['password']
+
+                spandata = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf00', level='L3', 
+                        varnames = [
+                            'DENS',
+                            'VEL_SC',
+                            'VEL_RTN_SUN',
+                            'TEMP',
+                            'SUN_DIST',
+                            'SC_VEL_RTN_SUN'
+                        ], 
+                        time_clip=True, username=username, password=password)
+                temp = get_data(spandata[0])
+
+
+            dfspan = pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['np']
+            )
+
+            temp = get_data(spandata[1])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vx', 'Vy', 'Vz']
+                )
+            )
+
+            temp = get_data(spandata[2])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Vr', 'Vt', 'Vn']
+                )
+            )
+
+            temp = get_data(spandata[3])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['TEMP']
+                )
+            )
+
+            temp = get_data(spandata[4])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['Dist_au']
+                )
+            )
+            dfspan['Dist_au'] = dfspan['Dist_au']/au_to_km
+
+            temp = get_data(spandata[5])
+            dfspan = dfspan.join(
+                pd.DataFrame(
+                    index = temp.times,
+                    data = temp.y,
+                    columns = ['sc_vel_r','sc_vel_t','sc_vel_n']
+                )
+            )
+
+            # calculate Vth from TEMP
+            # k T (eV) = 1/2 mp Vth^2 => Vth = 13.84112218*sqrt(TEMP)
+            dfspan['Vth'] = 13.84112218 * np.sqrt(dfspan['TEMP'])
+
+            # for span the thermal speed is defined as the trace, hence have a sqrt(3) different from spc
+            dfspan['Vth'] = dfspan['Vth']/np.sqrt(3)
+
+            dfspan.index = time_string.time_datetime(time=dfspan.index)
+            dfspan.index = dfspan.index.tz_localize(None)
+            dfspan.index.name = 'datetime'
+        except:
+            print("No SPAN!")
+            dfspan = None
+
+        # merge particle data
+
+        if 'particle_mode' in settings.keys():
+            parmode = settings['particle_mode']
+        else:
+            parmode = 'empirical'
+
+        # create empty dfpar with index
+        freq = settings['final_freq']
+        index = pd.date_range(
+            start = start_time, 
+            end = end_time, 
+            freq = freq
+        )
+        dfpar = pd.DataFrame(
+            index = index
+        )
+
+        print("Parmode: %s" %(parmode))
+        # fill dfpar with values
+        if parmode == 'spc_only':
+            dfpar = dfpar.join(dfspc.resample(freq).mean())
+        elif parmode == 'span_only':
+            dfpar = dfpar.join(dfspan.resample(freq).mean())
+        elif parmode == 'empirical':
+            # empirical use of data
+            # encounter date: https://sppgway.jhuapl.edu/index.php/encounters
+            # before encounter 9 (Perihelion: 2021-08-09/19:11) use SPC for solar wind speed
+            # at and after encounter 8, mix SPC and SPAN for solar wind speed
+            # prioritize QTN for density, and fill with SPC, and with SPAN
+            
+            # proton density with QTN
+            dfpar = dfpar.join(dfqtn.resample(freq).mean())
+
+            # the density is not very fluctuating, hence interpolate
+            try:
+                if settings['interpolate_qtn']:
+                    print("QTN is interpolated!")
+                    dfpar['ne_qtn'] = dfpar['ne_qtn'].interpolate()
+            except:
+                pass
+
+            dfpar['np'] = dfpar['ne_qtn']/1.08
+
+            keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
+
+            # if no SPC or no SPAN data:
+            if dfspc is None:
+                dfspc = pd.DataFrame(index = dfpar.index)
+                dfspc[keep_keys] = np.nan
+
+            if dfspan is None:
+                dfspan = pd.DataFrame(index = dfpar.index)
+                dfspan[keep_keys] = np.nan
+
+
+            # Perihelion cut
+            ind1 = dfpar.index < pd.Timestamp('2021-07-15')
+            ind2 = dfpar.index >= pd.Timestamp('2021-07-15')
+
+            ind11 = dfspc.index < pd.Timestamp('2021-07-15')
+            ind12 = dfspc.index >= pd.Timestamp('2021-07-15')
+
+            ind21 = dfspan.index < pd.Timestamp('2021-07-15')
+            ind22 = dfspan.index >= pd.Timestamp('2021-07-15')
+
+            # before encounter 9 use spc
+            dfpar1 = dfspc.loc[ind11,keep_keys].resample(freq).mean()
+
+            # use span after 2021-07-15
+            dfpar2 = dfspan.loc[ind22,keep_keys].resample(freq).mean()
+            # dfpar2 = dfpar21.copy()
+            # ind21t = dfpar21['Vr'].apply(np.isnan)
+            # ind22t = dfpar22['Vr'].apply(np.isnan)
+            # dfpar2.loc[~ind21t,['MOMENT_FLAG','DENSITY_FLAG']] = 1 # SPC
+            # dfpar2.loc[~ind22t,['MOMENT_FLAG','DENSITY_FLAG']] = 2 # SPAN
+            # fill SPAN empty with SPC
+            # dfpar2.loc[ind21t] = dfpar22.loc[ind21t]
+
+            # # combine qtn
+            # dfpar_qtn = pd.DataFrame(
+            #     index = index
+            # ).join(dfqtn.resample(freq).mean())
+            
+            # merge qtn and particle data
+            dftemp = pd.concat([dfpar1,dfpar2])
+            dfpar = dfpar.join(dftemp[keep_keys])
+
+        elif parmode == 'keep_all':
+            raise ValueError("particle mode: %s under construction!" %(parmode))
+        
+        else:
+            raise ValueError("particle mode: %s not supported!" %(parmode))
+
+
+        if settings['use_hampel'] == True:
+            for k in dfpar.columns:
+                ns, _ = hampel_filter_forloop_numba(dfpar[k].values, 100)
+                dfpar[k] = ns
+
+
+
+
+        # create dfts
+        dfts = dfmag.resample(freq).mean().join(
+            dfpar.resample(freq).mean()
+        )
+
+        dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
+        dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
+        dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
+        dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
+
+        # resample dfmag to create B?0
+        dfmag = dfmag.resample(freq).mean()
+        dfmag[['Br0','Bt0','Bn0','Bx0','By0','Bz0']] = dfmag[['Br','Bt','Bn','Bx','By','Bz']].rolling(rolling_rate).mean()
+        dfpar = dfts[['Vr','Vt','Vn','Vx','Vy','Vz','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0','np','Vth']]
+
+        misc = {
+            'dfqtn': dfqtn,
+            'dfspc': dfspc,
+            'dfspan': dfspan
+        }
+
+        return dfts, dfmag, dfpar, misc
+    else:
+        raise ValueError("sc = %d, wrong function!!" %(sc))
+
+
+def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):
+    """ 
+    load scam data with pyspedas and return a dataframe
+    Input:
+        start_time, end_time                pd.Timestamp
+        (optional) credentials              dictionary, {'username':..., 'password':...}
+    Output:
+        return None if no data is present, otherwise a dataframe containing all the scam data
+    """
+
+    # check pyspedas
+    if os.path.exists(Path(".").absolute().parent.joinpath("pyspedas")):
+        print("Using pyspedas at %s" %(str(Path(".").absolute().parent.joinpath("pyspedas"))))
+    else:
+        raise ValueError("Please clone pyspedas to %s" %(str(Path(".").absolute().parent.joinpath("pyspedas"))))
+
+    t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+    t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+    if credentials is None:
+        scam_vars = pyspedas.psp.fields(
+            trange=[t0, t1], datatype='merged_scam_wf', level='l3', time_clip=True, downloadonly = False
+        )
+
+        if scam_vars == []:
+            return None
+
+        data = get_data(scam_vars[0])
+        dfscam = pd.DataFrame(
+            index = data.times,
+            data = data.y,
+            columns = ['Bu','Bv','Bw']
+        )
+
+        data = get_data(scam_vars[1])
+        dfscam = dfscam.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['Bx','By','Bz']
+            )
+        )
+
+        data = get_data(scam_vars[2])
+        dfscam = dfscam.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['Br','Bt','Bn']
+            )
+        )
+
+        dfscam.index = time_string.time_datetime(time=dfscam.index)
+        dfscam.index = dfscam.index.tz_localize(None)
+        dfscam.index.name = 'datetime'
+
+        return dfscam
+
+    else:
+        # have credentials
+
+        try:
+            scam_vars = pyspedas.psp.fields(
+                trange=[t0, t1], datatype='merged_scam_wf', level='l3', time_clip=True, downloadonly = False,
+                username = credentials['username'], password = credentials['password']
+            )
+        except:
+            raise ValueError('Wrong Username or Password!')
+
+        if scam_vars == []:
+            return None
+
+        data = get_data(scam_vars[0])
+        dfscam = pd.DataFrame(
+            index = data.times,
+            data = data.y,
+            columns = ['Bu','Bv','Bw']
+        )
+
+        data = get_data(scam_vars[1])
+        dfscam = dfscam.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['Bx','By','Bz']
+            )
+        )
+
+        data = get_data(scam_vars[2])
+        dfscam = dfscam.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['Br','Bt','Bn']
+            )
+        )
+
+        dfscam.index = time_string.time_datetime(time=dfscam.index)
+        dfscam.index = dfscam.index.tz_localize(None)
+        dfscam.index.name = 'datetime'
+
+        return dfscam
+
+
+
+# Loading Procedures
+
+
+
+# -----------  Tools ----------- #
+
 def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None, keys = None):
 
     if spdf:
@@ -712,7 +1502,6 @@ def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, lo
         return d
 
 
-# -----------  Tools ----------- #
 
 
 def resample_timeseries_estimate_gaps(df, resolution = 100, large_gaps = 10):
@@ -804,12 +1593,15 @@ def SolarWindCorrelationLength(R, Vsw0 = 348.48, Vsw = None, correction = False)
         pass
 
     # calculate the recommend interval length
-    if R < 0.3:
-        T = (R/0.3) * 24
-    elif ((R >= 0.3) & (R < 1.0)):
-        T = (R/0.3)**0.3 * 24
-    else:
-        T = (1.0/0.3)**0.3 * (R/1.0)**0.27 * 24
+    # if R < 0.3:
+    #     T = (R/0.3) * 24
+    # elif ((R >= 0.3) & (R < 1.0)):
+    #     T = (R/0.3)**0.3 * 24
+    # else:
+    #     T = (1.0/0.3)**0.3 * (R/1.0)**0.27 * 24
+
+    # simple geometric growth
+    T = (R/0.3)*24
 
     return T
 
@@ -829,11 +1621,11 @@ def TracePSD(x,y,z,dt):
           + np.abs(np.fft.rfft(y, norm='ortho'))**2 \
           + np.abs(np.fft.rfft(z, norm='ortho'))**2
 
-    freqs = np.fft.fftfreq(len(x), dt)
-    freqs = freqs[freqs>0]
-    idx   = np.argsort(freqs)
+    freqs = np.fft.rfftfreq(len(x), dt)
+    # freqs = freqs[freqs>0]
+    # idx   = np.argsort(freqs)
     
-    return freqs[idx], B_pow[idx]
+    return freqs, B_pow
 
 
 @jit(nopython=True, parallel=True)
@@ -855,7 +1647,7 @@ def hampel_filter_forloop_numba(input_series, window_size, n_sigmas=3):
     
 
 @jit(nopython=True, parallel=True)      
-def smoothing_function(x,y, window=2, pad = 1):
+def smoothing_function_obsolete(x,y, window=2, pad = 1):
     xoutmid = np.zeros(len(x))*np.nan
     xoutmean = np.zeros(len(x))*np.nan
     yout = np.zeros(len(x))*np.nan
@@ -870,6 +1662,60 @@ def smoothing_function(x,y, window=2, pad = 1):
                 xoutmid[i] = x[i] + np.log10(0.5) * (x[i] - x[e])
                 xoutmean[i] = np.nanmean(x[i:e])
     return xoutmid, xoutmean, yout 
+
+
+@jit(nopython=True, parallel=True)      
+def smoothing_function(x,y, window=2, pad = 1):
+    """
+    smoothing function
+    input: x, y   numpy array
+    output: xmid, xmean, smoothed y
+    """
+    def bisection(array,value):
+        '''Given an ``array`` , and given a ``value`` , returns an index j such that ``value`` is between array[j]
+        and array[j+1]. ``array`` must be monotonic increasing. j=-1 or j=len(array) is returned
+        to indicate that ``value`` is out of range below and above respectively.'''
+        n = len(array)
+        if (value < array[0]):
+            return -1
+        elif (value > array[n-1]):
+            return n
+        jl = 0# Initialize lower
+        ju = n-1# and upper limits.
+        while (ju-jl > 1):# If we are not yet done,
+            jm=(ju+jl) >> 1# compute a midpoint with a bitshift
+            if (value >= array[jm]):
+                jl=jm# and replace either the lower limit
+            else:
+                ju=jm# or the upper limit, as appropriate.
+            # Repeat until the test condition is satisfied.
+        if (value == array[0]):# edge cases at bottom
+            return 0
+        elif (value == array[n-1]):# and top
+            return n-1
+        else:
+            return jl
+
+    len_x    = len(x)
+    max_x    = np.max(x)
+    xoutmid  = np.full(len_x, np.nan)
+    xoutmean = np.full(len_x, np.nan)
+    yout     = np.full(len_x, np.nan)
+    
+    for i in prange(len_x):
+        x0 = x[i]
+        xf = window*x0
+        
+        if xf < max_x:
+            #e = np.where(x  == x[np.abs(x - xf).argmin()])[0][0]
+            e = bisection(x,xf)
+            if e<len_x:
+                yout[i]     = np.nanmean(y[i:e])
+                xoutmid[i]  = x0 + np.log10(0.5) * (x0 - x[e])
+                xoutmean[i] = np.nanmean(x[i:e])
+
+    return xoutmid, xoutmean,  yout
+
 
 
 def curve_fit_log_wrap(x, y, x0, xf):  
@@ -890,6 +1736,7 @@ def linlaw(x, a, b) :
     return a + x * b
 
 def curve_fit_log(xdata, ydata) : 
+    
     """Fit data to a power law with weights according to a log scale"""
     # Weights according to a log scale
     # Apply fscalex
@@ -904,3 +1751,191 @@ def curve_fit_log(xdata, ydata) :
     # There is no need to apply fscalex^-1 as original data is already available
     return (popt_log, pcov_log, ydatafit_log)
 
+
+
+# -----------  Drawing ----------- #
+
+def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw = 2):
+    """
+    Draw shaded event area in time series
+    Input:
+        interval: dict, must have keys: start_time, end_time, spacecraft
+        axes: axes to plot on
+    Keyword:
+        color: default red
+    """
+
+    # start time
+    x = interval['start_time']
+    red_vline = {
+        'timestamp': interval['start_time'],
+        'x_period': None,
+        'lines': {}
+        }
+    for k, ax in axes.items():
+        red_vline['lines'][k] = ax.axvline(x, color = color, ls = '--', lw = lw)
+    
+    interval['lines1'] = red_vline['lines']
+
+    # end time
+    x = interval['end_time']
+    red_vline = {
+        'timestamp': interval['end_time'],
+        'x_period': None,
+        'lines': {}
+        }
+    for k, ax in axes.items():
+        red_vline['lines'][k] = ax.axvline(x, color = color, ls = '--', lw = lw)
+    
+    interval['lines2'] = red_vline['lines']
+
+    if 'rects' not in interval.keys():
+        interval['rects'] = {}
+    for k, ax in axes.items():
+        interval['rects'][k] = ax.axvspan(interval['start_time'], interval['end_time'], alpha = alpha, color = color)
+
+    return interval
+
+
+
+# -----------  MISC ----------- #
+
+def UpdatePSDDict(path, credentials = None):
+    """
+    Update the PSD dictionary with high resolution magnetic field time series and spectrum, and the full time series, and fix some bugs....
+    """
+    # for loading time series
+    from TimeSeriesViewer import TimeSeriesViewer
+
+    # default keys of the dictionary
+    default_keys = ['spacecraft', 'start_time', 'end_time', 'TimeSeries', 'PSD']
+
+    # load the PSD from path
+    d = pd.read_pickle(Path(path).joinpath("bpf/bpf.pkl"))
+
+    # check keys
+    for k in default_keys:
+        if k in d.keys():
+            pass
+        else:
+            raise ValueError("The dictionary is not complete... Need at least the following keys:" + "%s, " * len(default_keys) %(tuple(default_keys)))
+
+    # load spacecraft and start/end time info
+    sc = d['spacecraft']
+    tstart = d['start_time']
+    tend = d['end_time']
+
+    # load the time series with TimeSeriesViewer Module
+    start_time_0 = tstart
+    end_time_0 = tend
+    tsv = TimeSeriesViewer(
+        sc = sc,
+        start_time_0 = start_time_0, 
+        end_time_0 = end_time_0,
+        credentials = credentials
+    )
+
+    # generate the time series
+    tsv.InitFigure(tstart, tend, no_plot=True)
+
+    # store the new time series
+    d['TimeSeries'] = tsv.dfts
+
+    # Load magnetic field
+    t0 = tstart.strftime("%Y-%m-%d/%H:%M:%S")
+    t1 = tend.strftime("%Y-%m-%d/%H:%M:%S")
+    if sc == 0:
+        # Magnetic field
+        try:
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn', level='l2', time_clip=True)
+            data = get_data(names[0])
+            dfmag1 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag1.columns = ['Br','Bt','Bn']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc', level='l2', time_clip=True)
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+        except:
+            print("No MAG data is presented in the public repository!")
+            print("Trying unpublished data... please provide credentials...")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
+
+            username = credentials['psp']['fields']['username']
+            password = credentials['psp']['fields']['password']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_RTN', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag1 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag1.columns = ['Br','Bt','Bn']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_SC', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
+
+    else:
+        raise ValueError("sc=%d not supported!" %(sc))
+
+    # determine resample frequency
+    val, counts = np.unique(np.diff(dfmag.index), return_counts=True)
+
+    # gaps are not counted as real cadence hence remove gap jumps
+    # val are in timedelta64[ns], cadance > 5s are regarded as gaps
+    val = val[val.astype(float) <= 5e9]
+
+    # find the maximum of the cadence, and resample to the corresponding freq
+    if (np.max(val).astype(float)/1e6) < 100:
+        # 10 ms
+        period = 1e-1
+        dfmag_r = dfmag.resample('100ms').mean()
+    elif (np.max(val).astype(float)/1e6) < 1000:
+        # 1000 ms
+        period = 1e0
+        dfmag_r = dfmag.resample('1000ms').mean()
+    else:
+        period = 5
+        dfmag_r = dfmag.resample('5s').mean()
+
+    Bx = dfmag_r['Bx'].interpolate().dropna().values
+    By = dfmag_r['By'].interpolate().dropna().values
+    Bz = dfmag_r['Bz'].interpolate().dropna().values
+    freq, B_pow = TracePSD(Bx, By, Bz, period)
+    _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
+
+    resample_info = {
+        'Fraction_missing': dfmag_r['Br'].apply(np.isnan).sum()/len(dfmag_r['Br'])*100,
+        'resolution': period*1000,
+        'resolution_dim': 'ms'
+    }
+
+    d['PSD']['freqs'] = freq
+    d['PSD']['PSD'] = B_pow
+    d['PSD']['sm_freqs'] = sm_freqs
+    d['PSD']['sm_PSD'] = sm_PSD
+    d['PSD']['resample_info'] = resample_info
+
+    return d
