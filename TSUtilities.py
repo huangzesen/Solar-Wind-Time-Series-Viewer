@@ -703,13 +703,16 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
             sc, start_time, end_time, 
             rootdir = rootdir, 
             rolling_rate = rolling_rate,
-            credentials = credentials
+            credentials = credentials,
+            settings = settings
             )
     elif sc == 1:
         dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_SOLO(
             sc, start_time, end_time, 
             rootdir = rootdir, 
-            rolling_rate = rolling_rate)
+            rolling_rate = rolling_rate,
+            settings = settings
+        )
     else:
         raise ValueError("sc = %d not supported!" %(sc))
 
