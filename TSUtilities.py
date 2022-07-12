@@ -1932,6 +1932,26 @@ def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
         dfmag.index = time_string.time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
 
+    elif sc == 1:
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag1 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag1.columns = ['Br','Bt','Bn']
+
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='srf-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag2 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag2.columns = ['Bx','By','Bz']
+        
+        dfmag = dfmag1.join(dfmag2)
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
     else:
         raise ValueError("sc=%d not supported!" %(sc))
 
