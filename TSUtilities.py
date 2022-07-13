@@ -1536,8 +1536,6 @@ def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, lo
         return d
 
 
-
-
 def resample_timeseries_estimate_gaps(df, resolution = 100, large_gaps = 10):
     """
     Resample timeseries and estimate gaps, default setting is for FIELDS data
@@ -1640,27 +1638,6 @@ def SolarWindCorrelationLength(R, Vsw0 = 348.48, Vsw = None, correction = False)
     return T
 
 
-def TracePSD(x,y,z,dt):
-    """ 
-    Estimate Power spectral density:
-
-    Inputs:
-
-    u : timeseries, np.array
-    dt: 1/sampling frequency
-
-    """
-    
-    B_pow = np.abs(np.fft.rfft(x, norm='ortho'))**2 \
-          + np.abs(np.fft.rfft(y, norm='ortho'))**2 \
-          + np.abs(np.fft.rfft(z, norm='ortho'))**2
-
-    freqs = np.fft.rfftfreq(len(x), dt)
-    # freqs = freqs[freqs>0]
-    # idx   = np.argsort(freqs)
-    
-    return freqs, B_pow
-
 
 @jit(nopython=True, parallel=True)
 def hampel_filter_forloop_numba(input_series, window_size, n_sigmas=3):
@@ -1751,6 +1728,27 @@ def smoothing_function(x,y, window=2, pad = 1):
     return xoutmid, xoutmean,  yout
 
 
+def TracePSD(x,y,z,dt):
+    """ 
+    Estimate Power spectral density:
+
+    Inputs:
+
+    u : timeseries, np.array
+    dt: 1/sampling frequency
+
+    """
+    
+    B_pow = np.abs(np.fft.rfft(x, norm='ortho'))**2 \
+          + np.abs(np.fft.rfft(y, norm='ortho'))**2 \
+          + np.abs(np.fft.rfft(z, norm='ortho'))**2
+
+    freqs = np.fft.rfftfreq(len(x), dt)
+    # freqs = freqs[freqs>0]
+    # idx   = np.argsort(freqs)
+    
+    return freqs, B_pow
+
 
 def curve_fit_log_wrap(x, y, x0, xf):  
     # Apply fit on specified range #
@@ -1766,8 +1764,10 @@ def curve_fit_log_wrap(x, y, x0, xf):
         else:
             return [np.nan, np.nan, np.nan],np.nan,np.nan, True
 
+
 def linlaw(x, a, b) : 
     return a + x * b
+
 
 def curve_fit_log(xdata, ydata) : 
     
@@ -1994,3 +1994,87 @@ def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
     d['PSD']['resample_info'] = resample_info
 
     return d
+
+
+def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = None):
+    """
+    Return the diagnostics of a given interval.
+    Diagnostics will be return in a dictionary:
+
+    Input:
+    sc                          spacecraft
+    start_time                  start time in time stamp
+    end_time                    end time in time stamp
+    
+    Keywords:
+    settings                    dictionary of settings
+    credentials                 credentials for timeseries viewer
+
+    Return:
+    {
+        'sc':                   spacecraft
+        'start_time':           start time in timestamp
+        'end_time':             end time in timestamp
+        'timeseries':           dataframe from tsv
+        'diagnostics':          dictionary
+    }
+    list of diagnostics:
+    ['Dist_au','sc_vel','vsw','di','rho_ci','beta','np','sigma_c','sigma_r','vth','valfven']
+    besides 'Dist_au' and 'sc_vel', all the remaining diagnostics would be accompanied by their std
+    """
+
+    from TimeSeriesViewer import TimeSeriesViewer
+
+    default_settings = {
+        'loadSPEDASsettings': {
+            'interpolate_rolling': True,
+            'verbose': True,
+            'particle_mode': 'empirical'
+        },
+        'rolling_rate': '1H',
+        'resample_rate': '5s'
+
+    }
+    if settings is None:
+        settings = {}
+        for k, v in default_settings.items():
+            settings[k] = v
+    else:
+        for k in default_settings.keys():
+            if k in settings.keys():
+                pass
+            else:
+                raise ValueError("Warning: necessary key: %s not in settings!" %(k))
+
+    # window size for time series viewer object
+    default_window_size = pd.Timedelta('24H')
+    if 'window_size' not in settings.keys():
+        ws = default_window_size
+    else:
+        ws = settings['window_size']
+    
+    # determine the start and end time
+    if 5*(end_time-start_time) < ws:
+        # if 5*dt < 24H, use 24 Hr window
+        dt = end_time - start_time
+        mid_time = start_time + dt/2
+        start_time_0 = mid_time - pd.Timedelta('12H')
+        end_time_0 = mid_time + pd.Timedelta('12H')
+    else:
+        # use 5*dt window
+        dt = end_time-start_time
+        start_time_0 = start_time - 2*dt
+        end_time_0 = end_time + 2*dt
+
+    # create time series object
+    tsv = TimeSeriesViewer(
+        sc=sc,start_time_0=start_time_0, end_time_0=end_time_0,
+        credentials = credentials,
+        loadSPEDASsettings = settings['loadSPEDASsettings'],
+        resample_rate = settings['resample_rate'],
+        rolling_rate = settings['rolling_rate']
+    )
+
+
+
+    pass
