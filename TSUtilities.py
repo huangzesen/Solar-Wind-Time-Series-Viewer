@@ -680,8 +680,10 @@ def LoadSOlOTimeSeriesSPDF(start_time, end_time, keys = None, verbose = True, ge
     return spdf_data
 
 
-def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_rate = '1H', 
-    settings = None, credentials = None):
+def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, 
+    rolling_rate = '1H', resolution = '5s',
+    settings = None, credentials = None
+    ):
     """ 
     Load Time Series with SPEDAS 
     going to find data in the local directory
@@ -704,6 +706,7 @@ def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, rolling_r
             sc, start_time, end_time, 
             rootdir = rootdir, 
             rolling_rate = rolling_rate,
+            resolution = resolution,
             credentials = credentials,
             settings = settings
             )
@@ -1283,17 +1286,20 @@ def LoadTimeSeriesFromSPEDAS_PSP(
             # prioritize QTN for density, and fill with SPC, and with SPAN
             
             # proton density with QTN
-            dfpar = dfpar.join(dfqtn.resample(freq).mean())
+            if dfqtn is None:
+                dfpar['np'] = np.nan
+            else:
+                dfpar = dfpar.join(dfqtn.resample(freq).mean())
 
-            # the density is not very fluctuating, hence interpolate
-            try:
-                if settings['interpolate_qtn']:
-                    print("QTN is interpolated!")
-                    dfpar['ne_qtn'] = dfpar['ne_qtn'].interpolate()
-            except:
-                pass
+                # the density is not very fluctuating, hence interpolate
+                try:
+                    if settings['interpolate_qtn']:
+                        print("QTN is interpolated!")
+                        dfpar['ne_qtn'] = dfpar['ne_qtn'].interpolate()
+                except:
+                    pass
 
-            dfpar['np'] = dfpar['ne_qtn']/1.08
+                dfpar['np'] = dfpar['ne_qtn']/1.08
 
             keep_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','Dist_au']
 
@@ -2000,7 +2006,10 @@ def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
     return d
 
 
-def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = None):
+def FindDiagnostics(
+    sc, start_time, end_time, 
+    settings = None, credentials = None, verbose=False
+    ):
     """
     Return the diagnostics of a given interval.
     Diagnostics will be return in a dictionary:
@@ -2032,7 +2041,7 @@ def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = Non
     default_settings = {
         'loadSPEDASsettings': {
             'interpolate_rolling': True,
-            'verbose': True,
+            'verbose': False,
             'particle_mode': 'empirical'
         },
         'rolling_rate': '1H',
@@ -2059,7 +2068,7 @@ def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = Non
         ws = settings['window_size']
     
     # determine the start and end time
-    if 5*(end_time-start_time) < ws:
+    if 5*(end_time-start_time) < pd.Timedelta(ws):
         # if 5*dt < 24H, use 24 Hr window
         dt = end_time - start_time
         mid_time = start_time + dt/2
@@ -2079,7 +2088,8 @@ def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = Non
             loadSPEDASsettings = settings['loadSPEDASsettings'],
             resample_rate = settings['resample_rate'],
             rolling_rate = settings['rolling_rate'],
-            resolution = settings['resolution']
+            resolution = settings['resolution'],
+            verbose=verbose
         )
     except:
         raise ValueError("Time Series Viewer Initialization Failed! Lack of data...?")
@@ -2093,12 +2103,18 @@ def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = Non
     dfts = tsv.dfts
 
     # calculate diagnostics
-    keys = ['vsw','brangle','vbangle','Dist_au','tadv','sigma_c','sigma_r','np','di','rho_ci','vth','beta','B','Vr','Vt','Vn','valfven']
+    keys = ['vsw','brangle','vbangle','Dist_au','tadv','sigma_c','sigma_r','np','di','rho_ci','Vth','beta','B','Vr','Vt','Vn','valfven']
 
     diagnostics = {}
     for k in keys:
         diagnostics[k] = np.nanmean(dfts[k])
         diagnostics[k+'_std'] = np.nanstd(dfts[k])
+
+    resample_info = {}
+    mag_missing = dfts['B'].apply(np.isnan).sum()/len(dfts)
+    par_missing = dfts['np'].apply(np.isnan).sum()/len(dfts)
+    resample_info['mag_missing'] = mag_missing
+    resample_info['par_missing'] = par_missing
 
     d = {
         'sc': sc,
@@ -2108,7 +2124,8 @@ def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = Non
         'end_time_0': end_time_0,
         'settings': settings,
         'timeseries': dfts,
-        'diagnostics': diagnostics
+        'diagnostics': diagnostics,
+        'resample_info': resample_info
     }
 
 

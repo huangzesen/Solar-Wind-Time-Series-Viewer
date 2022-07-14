@@ -109,7 +109,7 @@ class TimeSeriesViewer:
         # Preload Time Series
         if preload:
             if verbose: print("Preloading Dataframe... This may take some time...")
-            self.PreLoadSCDataFrame(rolling_rate = rolling_rate)
+            self.PreLoadSCDataFrame()
             if verbose: print("Done.")
 
         # collect garbage
@@ -256,7 +256,7 @@ class TimeSeriesViewer:
         # Preload Time Series
         if (self.dfmag is None) | (self.dfpar is None) | (self.dfdis is None):
             if verbose: print("Preloading Dataframe... This may take some time...")
-            self.PreLoadSCDataFrame(rolling_rate = rolling_rate)
+            self.PreLoadSCDataFrame()
             if verbose: print("Done.")
 
         # Prepare Time Series
@@ -1663,7 +1663,7 @@ class TimeSeriesViewer:
         # Preload dataframe
         if (self.dfmag is None) | (self.dfpar is None) | (self.dfdis is None):
             if verbose: print("Preloading Dataframe... This may take some time...")
-            self.PreLoadSCDataFrame(rolling_rate = rolling_rate)
+            self.PreLoadSCDataFrame(r)
             if verbose: print("Done.")
 
         # Process dataframe
