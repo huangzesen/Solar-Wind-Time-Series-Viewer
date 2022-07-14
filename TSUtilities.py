@@ -1,4 +1,5 @@
 # %matplotlib tk
+from distutils.log import warn
 from matplotlib import pyplot as plt
 from matplotlib.backend_bases import MouseButton
 from matplotlib.gridspec import GridSpec
@@ -2035,8 +2036,9 @@ def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = Non
             'particle_mode': 'empirical'
         },
         'rolling_rate': '1H',
-        'resample_rate': '5s'
-
+        'resample_rate': '5s',
+        'resolution': '5s',
+        'window_size': '12H'
     }
     if settings is None:
         settings = {}
@@ -2070,18 +2072,44 @@ def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = Non
         end_time_0 = end_time + 2*dt
 
     # create time series object
-    tsv = TimeSeriesViewer(
-        sc=sc,start_time_0=start_time_0, end_time_0=end_time_0,
-        credentials = credentials,
-        loadSPEDASsettings = settings['loadSPEDASsettings'],
-        resample_rate = settings['resample_rate'],
-        rolling_rate = settings['rolling_rate'],
-        resolution = settings['resolution']
-    )
+    try:
+        tsv = TimeSeriesViewer(
+            sc=sc,start_time_0=start_time_0, end_time_0=end_time_0,
+            credentials = credentials,
+            loadSPEDASsettings = settings['loadSPEDASsettings'],
+            resample_rate = settings['resample_rate'],
+            rolling_rate = settings['rolling_rate'],
+            resolution = settings['resolution']
+        )
+    except:
+        raise ValueError("Time Series Viewer Initialization Failed! Lack of data...?")
 
-    
+    # generate diagnostics time series
+    t0 = start_time
+    t1 = end_time
+    tsv.InitFigure(t0, t1, no_plot = True)
+
+    # return the timeseries
+    dfts = tsv.dfts
+
+    # calculate diagnostics
+    keys = ['vsw','brangle','vbangle','Dist_au','tadv','sigma_c','sigma_r','np','di','rho_ci','vth','beta','B','Vr','Vt','Vn','valfven']
+
+    diagnostics = {}
+    for k in keys:
+        diagnostics[k] = np.nanmean(dfts[k])
+        diagnostics[k+'_std'] = np.nanstd(dfts[k])
+
+    d = {
+        'sc': sc,
+        'start_time': start_time,
+        'end_time': end_time,
+        'start_time_0': start_time_0,
+        'end_time_0': end_time_0,
+        'settings': settings,
+        'timeseries': dfts,
+        'diagnostics': diagnostics
+    }
 
 
-
-
-    pass
+    return d

@@ -369,37 +369,6 @@ class TimeSeriesViewer:
         return self.selected_intervals
 
 
-    def ExportTimeSeries(self, start_time, end_time, 
-        rolling_rate = '1H', verbose = True, resample_rate = '5min'
-        ):
-        """ 
-        A wrapper to export time series 
-        start_time/end_time should be pd.Timestamp
-        will return a data product, but other data can be accessed via:
-        self.dfts | self.dfts_raw | self.dfmag | self.dfpar | self.dfdis
-        """
-        # check time range
-        if (start_time < self.start_time_0) | (end_time > self.end_time_0):
-            raise ValueError("%s or %s out of range [%s, %s]" %(start_time, end_time, self.start_time_0, self.end_time_0))
-
-        # Preload dataframe
-        if (self.dfmag is None) | (self.dfpar is None) | (self.dfdis is None):
-            if verbose: print("Preloading Dataframe... This may take some time...")
-            self.PreLoadSCDataFrame(rolling_rate = rolling_rate)
-            if verbose: print("Done.")
-
-        # Process dataframe
-        if verbose: print("Preparing Time Series....")
-        self.PrepareTimeSeries(
-            start_time, end_time, 
-            verbose = verbose, 
-            resample_rate = resample_rate
-            )
-        if verbose: print("Done.")
-
-        return self.dfts
-
-
     def UpdateFigure(
         self, start_time, end_time, 
         verbose=False, resample_rate = None, update_resample_rate_only = False
@@ -596,6 +565,10 @@ class TimeSeriesViewer:
         #     dfts['tadv'] = tadv
         # except:
         #     pass
+
+        # alfven speed
+        valfven = dfts['B']*nT2T/np.sqrt(dfts['np']*1e6*m_p*mu0)
+        dfts['valfven'] = valfven
 
         # update dfts
         self.dfts = dfts
@@ -1672,3 +1645,36 @@ class TimeSeriesViewer:
             return spdf_data
         except:
             return None
+
+
+    def ExportTimeSeries(self, start_time, end_time, 
+        rolling_rate = '1H', verbose = True, resample_rate = '5min'
+        ):
+        """ 
+        A wrapper to export time series 
+        start_time/end_time should be pd.Timestamp
+        will return a data product, but other data can be accessed via:
+        self.dfts | self.dfts_raw | self.dfmag | self.dfpar | self.dfdis
+        """
+        # check time range
+        if (start_time < self.start_time_0) | (end_time > self.end_time_0):
+            raise ValueError("%s or %s out of range [%s, %s]" %(start_time, end_time, self.start_time_0, self.end_time_0))
+
+        # Preload dataframe
+        if (self.dfmag is None) | (self.dfpar is None) | (self.dfdis is None):
+            if verbose: print("Preloading Dataframe... This may take some time...")
+            self.PreLoadSCDataFrame(rolling_rate = rolling_rate)
+            if verbose: print("Done.")
+
+        # Process dataframe
+        if verbose: print("Preparing Time Series....")
+        self.PrepareTimeSeries(
+            start_time, end_time, 
+            verbose = verbose, 
+            resample_rate = resample_rate
+            )
+        if verbose: print("Done.")
+
+        return self.dfts
+
+
