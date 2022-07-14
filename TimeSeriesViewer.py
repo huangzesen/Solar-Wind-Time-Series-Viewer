@@ -54,6 +54,7 @@ class TimeSeriesViewer:
         verbose = True,
         rolling_rate = '1H',
         resample_rate = '5min',
+        resolution = '5s',
         credentials = None,
         loadSPEDASsettings = None
     ):
@@ -85,6 +86,7 @@ class TimeSeriesViewer:
         self.verbose = verbose
         self.rolling_rate = rolling_rate
         self.resample_rate = resample_rate
+        self.resolution = resolution
         self.mag_option = {'norm':0, 'sc':0}
         self.spc_only = True
         self.calc_smoothed_spec = True
@@ -116,7 +118,7 @@ class TimeSeriesViewer:
         print("Done.")
 
 
-    def PreLoadSCDataFrame(self, paths = None, rolling_rate = '1H', useSPEDAS = True):
+    def PreLoadSCDataFrame(self, paths = None, useSPEDAS = True):
         """ 
         Load Spacecraft dataframe 
         Keyword: 
@@ -133,6 +135,7 @@ class TimeSeriesViewer:
 
         # look for dataframe locally
         if not useSPEDAS:
+            rolling_rate = self.rolling_rate
             try:
                 print("Looking for files in local folder: %s" %(str(Path(os.getcwd()).absolute().joinpath("data"))))
                 if self.sc == 0:
@@ -201,7 +204,10 @@ class TimeSeriesViewer:
             # dfpar/dfdis has freq=5s
             # dfmag has freq=1s
             dftemp, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS(self.sc, self.start_time_0, self.end_time_0, 
-                rolling_rate = rolling_rate, credentials = self.credentials, settings = self.loadSPEDASsettings
+                rolling_rate = self.rolling_rate, 
+                resolution = self.resolution,
+                credentials = self.credentials, 
+                settings = self.loadSPEDASsettings
             )
             self.dfmag = dfmag
             self.dfpar = dfpar
@@ -1156,104 +1162,6 @@ class TimeSeriesViewer:
         collect()
 
 
-    def LoadSPDF(self, 
-        spacecraft = 'PSP',
-        start_time = '2021-12-11T23:53:31.000Z', 
-        end_time = '2021-12-12T00:53:31.000Z',
-        verbose = False
-        ):
-        """ load data from spdf API """
-
-        try:
-
-            # convert datetime type
-            start_time = np.datetime64(start_time).astype(datetime)
-            end_time = np.datetime64(end_time).astype(datetime)
-
-            # dict to store all the SPDF information
-            spdf_data = {
-                'spacecraft' : spacecraft,
-                'start_time': start_time,
-                'end_time': end_time
-            }
-            
-            if verbose:
-                print("Spacecraft: ", spacecraft)
-                print("Start Time: "+str(spdf_data['start_time']))
-                print("End Time: "+str(spdf_data['end_time']))
-
-            if spacecraft == 'PSP':
-
-                # load ephemeris
-                if verbose: print("Loading PSP_HELIO1DAY_POSITION from CDAWEB...")
-                vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
-                time = [start_time, end_time]
-                status, data = cdas.get_data('PSP_HELIO1DAY_POSITION', vars, time[0], time[1])
-
-                spdf_data['ephem_status'] = status
-                spdf_data['ephem_data'] = data
-
-                dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
-                dfdis = dfdis.resample('1min').mean().interpolate('linear')
-
-                # load magnetic field
-                if verbose: print("Loading PSP_FLD_L2_MAG_RTN_1MIN from CDAWEB...")
-                vars = ['psp_fld_l2_mag_RTN_1min']
-                time = [start_time, end_time]
-                status, data = cdas.get_data('PSP_FLD_L2_MAG_RTN_1MIN', vars, time[0], time[1])
-
-                spdf_data['mag_status'] = status
-                spdf_data['mag_data'] = data
-
-                dfmag = pd.DataFrame(
-                    index = spdf_data['mag_data']['epoch_mag_RTN_1min'],
-                    data = spdf_data['mag_data']['psp_fld_l2_mag_RTN_1min'],
-                    columns = ['Br_RTN','Bt_RTN','Bn_RTN']
-                ).resample('1min').mean()
-
-                spdf_data['dfspdf'] = dfmag.join(dfdis)
-
-            elif spacecraft == 'SolO':
-
-                # load ephemeris
-                if verbose: print("Loading SOLO_HELIO1DAY_POSITION from CDAWEB...")
-                vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
-                time = [start_time, end_time]
-                status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', vars, time[0], time[1])
-
-                spdf_data['ephem_status'] = status
-                spdf_data['ephem_data'] = data
-
-                dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
-                dfdis = dfdis.resample('1min').mean().interpolate('linear')
-
-                # load magnetic field
-                if verbose: print("Loading SOLO_L2_MAG-RTN-NORMAL-1-MINUTE from CDAWEB...")
-                vars = ['B_RTN']
-                time = [start_time, end_time]
-                status, data = cdas.get_data('SOLO_L2_MAG-RTN-NORMAL-1-MINUTE', vars, time[0], time[1])
-
-                spdf_data['mag_status'] = status
-                spdf_data['mag_data'] = data
-
-                dfmag = pd.DataFrame(
-                    index = spdf_data['mag_data']['EPOCH'],
-                    data = spdf_data['mag_data']['B_RTN'],
-                    columns = ['Br_RTN','Bt_RTN','Bn_RTN']
-                ).resample('1min').mean()
-
-                spdf_data['dfspdf'] = dfmag.join(dfdis)
-
-            else:
-                raise ValueError("spacecraft = %s not supported!" %(spacecraft))
-
-            if verbose: print("Done...")
-
-            return spdf_data
-        except:
-            return None
-
-
     def CheckTimeBoundary(self):
         """ check the boundary of time series """
         if self.start_time < self.start_time_0:
@@ -1665,3 +1573,102 @@ class TimeSeriesViewer:
         self.cid1 = self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
         self.cid2 = self.fig.canvas.mpl_connect('key_press_event', self.on_key_event)
 
+
+    #-------- Obsolete --------#
+
+    def LoadSPDF(self, 
+        spacecraft = 'PSP',
+        start_time = '2021-12-11T23:53:31.000Z', 
+        end_time = '2021-12-12T00:53:31.000Z',
+        verbose = False
+        ):
+        """ load data from spdf API """
+
+        try:
+
+            # convert datetime type
+            start_time = np.datetime64(start_time).astype(datetime)
+            end_time = np.datetime64(end_time).astype(datetime)
+
+            # dict to store all the SPDF information
+            spdf_data = {
+                'spacecraft' : spacecraft,
+                'start_time': start_time,
+                'end_time': end_time
+            }
+            
+            if verbose:
+                print("Spacecraft: ", spacecraft)
+                print("Start Time: "+str(spdf_data['start_time']))
+                print("End Time: "+str(spdf_data['end_time']))
+
+            if spacecraft == 'PSP':
+
+                # load ephemeris
+                if verbose: print("Loading PSP_HELIO1DAY_POSITION from CDAWEB...")
+                vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
+                time = [start_time, end_time]
+                status, data = cdas.get_data('PSP_HELIO1DAY_POSITION', vars, time[0], time[1])
+
+                spdf_data['ephem_status'] = status
+                spdf_data['ephem_data'] = data
+
+                dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
+                dfdis = dfdis.resample('1min').mean().interpolate('linear')
+
+                # load magnetic field
+                if verbose: print("Loading PSP_FLD_L2_MAG_RTN_1MIN from CDAWEB...")
+                vars = ['psp_fld_l2_mag_RTN_1min']
+                time = [start_time, end_time]
+                status, data = cdas.get_data('PSP_FLD_L2_MAG_RTN_1MIN', vars, time[0], time[1])
+
+                spdf_data['mag_status'] = status
+                spdf_data['mag_data'] = data
+
+                dfmag = pd.DataFrame(
+                    index = spdf_data['mag_data']['epoch_mag_RTN_1min'],
+                    data = spdf_data['mag_data']['psp_fld_l2_mag_RTN_1min'],
+                    columns = ['Br_RTN','Bt_RTN','Bn_RTN']
+                ).resample('1min').mean()
+
+                spdf_data['dfspdf'] = dfmag.join(dfdis)
+
+            elif spacecraft == 'SolO':
+
+                # load ephemeris
+                if verbose: print("Loading SOLO_HELIO1DAY_POSITION from CDAWEB...")
+                vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
+                time = [start_time, end_time]
+                status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', vars, time[0], time[1])
+
+                spdf_data['ephem_status'] = status
+                spdf_data['ephem_data'] = data
+
+                dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
+                dfdis = dfdis.resample('1min').mean().interpolate('linear')
+
+                # load magnetic field
+                if verbose: print("Loading SOLO_L2_MAG-RTN-NORMAL-1-MINUTE from CDAWEB...")
+                vars = ['B_RTN']
+                time = [start_time, end_time]
+                status, data = cdas.get_data('SOLO_L2_MAG-RTN-NORMAL-1-MINUTE', vars, time[0], time[1])
+
+                spdf_data['mag_status'] = status
+                spdf_data['mag_data'] = data
+
+                dfmag = pd.DataFrame(
+                    index = spdf_data['mag_data']['EPOCH'],
+                    data = spdf_data['mag_data']['B_RTN'],
+                    columns = ['Br_RTN','Bt_RTN','Bn_RTN']
+                ).resample('1min').mean()
+
+                spdf_data['dfspdf'] = dfmag.join(dfdis)
+
+            else:
+                raise ValueError("spacecraft = %s not supported!" %(spacecraft))
+
+            if verbose: print("Done...")
+
+            return spdf_data
+        except:
+            return None

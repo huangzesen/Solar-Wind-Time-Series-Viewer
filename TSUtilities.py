@@ -856,8 +856,11 @@ def LoadTimeSeriesFromSPEDAS_SOLO(sc, start_time, end_time, rootdir = None, roll
         raise ValueError("sc=%d not supported!" %(sc))
 
 
-def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time, 
-    rootdir = None, rolling_rate = '1H', settings = None, credentials = None
+def LoadTimeSeriesFromSPEDAS_PSP(
+    sc, start_time, end_time, 
+    rootdir = None, 
+    rolling_rate = '1H', resolution = '5s',
+    settings = None, credentials = None
     ):
     """" 
     Load Time Serie From SPEDAS, PSP 
@@ -1255,7 +1258,7 @@ def LoadTimeSeriesFromSPEDAS_PSP(sc, start_time, end_time,
             parmode = 'empirical'
 
         # create empty dfpar with index
-        freq = settings['final_freq']
+        freq = resolution
         index = pd.date_range(
             start = start_time, 
             end = end_time, 
@@ -2072,8 +2075,12 @@ def FindDiagnostics(sc, start_time, end_time, settings = None, credentials = Non
         credentials = credentials,
         loadSPEDASsettings = settings['loadSPEDASsettings'],
         resample_rate = settings['resample_rate'],
-        rolling_rate = settings['rolling_rate']
+        rolling_rate = settings['rolling_rate'],
+        resolution = settings['resolution']
     )
+
+    
+
 
 
 
