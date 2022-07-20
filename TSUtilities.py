@@ -1976,8 +1976,11 @@ def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
     val = val[val.astype(float) <= 5e9]
 
     # find the maximum of the cadence, and resample to the corresponding freq
-    if (np.max(val).astype(float)/1e6) < 100:
-        # 10 ms
+    if (np.max(val).astype(float)/1e6) < 10:
+        period = 1e-2
+        dfmag_r = dfmag.resample('10ms').mean()
+    elif (np.max(val).astype(float)/1e6) < 100:
+        # 100 ms
         period = 1e-1
         dfmag_r = dfmag.resample('100ms').mean()
     elif (np.max(val).astype(float)/1e6) < 1000:
