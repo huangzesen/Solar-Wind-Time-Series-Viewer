@@ -525,7 +525,7 @@ class TimeSeriesViewer:
         km2m        = 1e3
         nT2T        = 1e-9
         cm2m        = 1e-2
-        B_mag       = dfts['B'] * nT2T                        # |B| units:      [T]
+        B_mag       = Bmod * nT2T                           # |B| units:      [T]
         temp        = 1./2 * m_p * (dfts['Vth']*km2m)**2      # in [J] = [kg] * [m]^2 * [s]^-2
         dens        = dfts['np']/(cm2m**3)                    # number density: [m^-3] 
         beta        = (dens*temp)/((B_mag**2)/(2*mu_0))         # plasma beta

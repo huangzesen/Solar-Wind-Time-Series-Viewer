@@ -895,7 +895,8 @@ def LoadTimeSeriesFromSPEDAS_PSP(
         'use_hampel': False,
         'interpolate_qtn': True,
         'interpolate_rolling': True,
-        'verbose': True
+        'verbose': True,
+        'must_have_qtn': True
     }
     if settings is None:
         settings = {}
@@ -966,6 +967,8 @@ def LoadTimeSeriesFromSPEDAS_PSP(
         except:
             print("No QTN Data!")
             dfqtn = None
+            if settings['must_have_qtn']:
+                raise ValueError("Must have QTN! No QTN!")
 
         # Magnetic field
         try:
