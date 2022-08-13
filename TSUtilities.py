@@ -771,7 +771,59 @@ def LoadTimeSeriesFromSPEDAS_ULYSSES(
     rolling_rate = '1H', resolution = '5s',
     settings = None, credentials = None
 ):
-    pass
+    """
+    sc = 2
+    Ulysses
+    """ 
+    if os.path.exists("./ulysses_data"):
+        pass
+    else:
+        raise ValueError("No local data folder ./ulysses_data present!")
+
+    t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+    t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+    vhm_vars = pyspedas.ulysses.vhm(trange=[t0,t1], datatype='1sec')
+    data = get_data(vhm_vars)
+
+    dfmag = pd.DataFrame(
+        index = data[0],
+        data = data[1]
+    )
+    dfmag.columns = ['Br','Bt','Bn']
+
+    swoops_vars = pyspedas.ulysses.swoops(trange=[t0,t1])
+
+    dfpar = pd.DateFrame(
+        index = data.times
+    )
+
+    data = get_data('Density')
+    dfpar = dfpar.join(
+        pd.DateFrame(
+            index = data.times,
+            data = data.y,
+            columns = ['np','na']
+        )
+    )
+
+    data = get_data('Temperature')
+    dfpar = dfpar.join(
+        pd.DataFrame(
+            index = data.times,
+            data = data.y,
+            columns = ['Tlow','Thigh']
+        )
+    )
+
+    data = get_data("Velocity")
+    dfpar = dfpar.join(
+        pd.DataFrame(
+            index = data.times,
+            data = data.y,
+            columns = ['Vr','Vt','Vn']
+        )
+    )
 
 
 
