@@ -48,46 +48,6 @@ T_to_Gauss = 1e4
 
 # -----------  Tools ----------- #
 
-def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None, keys = None):
-
-    if spdf:
-        spdf_data = LoadTimeSeriesSPDF(sc = sc, 
-            start_time=start_time.to_pydatetime(), 
-            end_time = end_time.to_pydatetime(), 
-            verbose = verbose, keys = keys)
-
-        d = {
-            'sc': sc,
-            'start_time': start_time,
-            'end_time': end_time,
-            'spdf_data': spdf_data,
-            'Diagnostics': None
-        }
-        return d
-
-    if local:
-        try:
-            if sc == tsv.sc:
-                pass
-            else:
-                raise ValueError("sc = %d must equal tsv.sc = %d" %(sc, tsv.sc))
-        except:
-            raise ValueError("tsv must be a TimeSeriesViewer Object!!!")
-
-        dfts = tsv.ExportTimeSeries(start_time, end_time, verbose = verbose)
-
-        d = {
-            'sc': sc,
-            'start_time': start_time,
-            'end_time': end_time,
-            'local_data': {
-                'dfts_raw': tsv.dfts_raw
-            },
-            'dfts': dfts,
-            'Diagnostics': None
-        }
-        return d
-
 
 def resample_timeseries_estimate_gaps(df, resolution = 100, large_gaps = 10):
     """
@@ -685,4 +645,43 @@ def FindDiagnostics(
 
 
 
+# ------- obsolete ------- #
+# def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None, keys = None):
 
+#     if spdf:
+#         spdf_data = LoadTimeSeriesSPDF(sc = sc, 
+#             start_time=start_time.to_pydatetime(), 
+#             end_time = end_time.to_pydatetime(), 
+#             verbose = verbose, keys = keys)
+
+#         d = {
+#             'sc': sc,
+#             'start_time': start_time,
+#             'end_time': end_time,
+#             'spdf_data': spdf_data,
+#             'Diagnostics': None
+#         }
+#         return d
+
+#     if local:
+#         try:
+#             if sc == tsv.sc:
+#                 pass
+#             else:
+#                 raise ValueError("sc = %d must equal tsv.sc = %d" %(sc, tsv.sc))
+#         except:
+#             raise ValueError("tsv must be a TimeSeriesViewer Object!!!")
+
+#         dfts = tsv.ExportTimeSeries(start_time, end_time, verbose = verbose)
+
+#         d = {
+#             'sc': sc,
+#             'start_time': start_time,
+#             'end_time': end_time,
+#             'local_data': {
+#                 'dfts_raw': tsv.dfts_raw
+#             },
+#             'dfts': dfts,
+#             'Diagnostics': None
+#         }
+#         return d
