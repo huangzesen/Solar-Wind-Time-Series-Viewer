@@ -55,8 +55,9 @@ class TimeSeriesViewer:
         verbose = True,
         rolling_rate = '1H',
         resample_rate = '5min',
+        resolution = 5,
         credentials = None,
-        LTSWsettings = None
+        LTSWsettings = {}
     ):
         """ Initialize the class """
 
@@ -85,6 +86,7 @@ class TimeSeriesViewer:
         self.verbose = verbose
         self.rolling_rate = rolling_rate
         self.resample_rate = resample_rate
+        self.resolution = resolution # for function p, resolution in seconds
         self.mag_option = {'norm':0, 'sc':0}
         self.spc_only = True
         self.calc_smoothed_spec = True
@@ -130,17 +132,17 @@ class TimeSeriesViewer:
 
     def PrepareTimeSeries(
         self, start_time, end_time, 
-        resample_rate = '5min', verbose = False, update_resample_rate_only = False
+        update_resample_rate_only = False
         ):
         """ One function to prepare time series """
         if update_resample_rate_only:
             pass
         else:
-            if verbose: print("Finding Corresponding Time Series...")
-            self.FindTimeSeries(start_time, end_time, verbose = verbose)
+            if self.verbose: print("Finding Corresponding Time Series...")
+            self.FindTimeSeries(start_time, end_time)
 
-        if verbose: print("Processing the Time Series...")
-        self.ProcessTimeSeries(resample_rate = resample_rate, verbose = verbose)
+        if self.verbose: print("Processing the Time Series...")
+        self.ProcessTimeSeries()
 
 
     def FindTimeSeries(self, start_time, end_time, verbose = False):
@@ -178,32 +180,31 @@ class TimeSeriesViewer:
     #-------- Create the Plot --------#
 
 
-    def ProcessTimeSeries(self, verbose = False, resample_rate = '5min'):
+    def ProcessTimeSeries(self):
         """ Process time series to produce desired data product """
 
-        load_spdf = self.load_spdf
         dfts = self.dfts_raw.copy()
-        # resample_rate = self.resample_rate
+        resample_rate = self.resample_rate
+        verbose = self.verbose
 
         """resample the time series"""
         dfts = dfts.resample(resample_rate).mean()
 
-        # """join the spdf data"""
-        # if load_spdf:
-        #     try:
-        #         dfspdf = self.spdf_data['dfspdf']
-        #         dfts = dfts.join(dfspdf.resample(resample_rate).mean())
-        #         dfts['B_RTN'] = (dfts[['Br_RTN','Bt_RTN','Bn_RTN']]**2).sum(axis = 1).apply(np.sqrt)
-        #         # B R angle (need spdf)
-        #         dfts['brangle'] = (dfts['Br_RTN']/dfts['B_RTN']).apply(np.arccos) * 180 / np.pi
-        #     except:
-        #         pass
 
         """Modulus of vectors"""
         dfts['B_RTN'] = (dfts['Br']**2+dfts['Bt']**2+dfts['Bn']**2).apply(np.sqrt)
         dfts['V_RTN'] = (dfts['Vr']**2+dfts['Vt']**2+dfts['Vn']**2).apply(np.sqrt)
-        dfts['B_SC'] = (dfts['Bx']**2+dfts['By']**2+dfts['Bz']**2).apply(np.sqrt)
-        dfts['V_SC'] = (dfts['Vx']**2+dfts['Vy']**2+dfts['Vz']**2).apply(np.sqrt)
+        try:
+            dfts['B_SC'] = (dfts['Bx']**2+dfts['By']**2+dfts['Bz']**2).apply(np.sqrt)
+        except:    
+            print("SC MAG data not exist! Use RTN instead!")
+            dfts['B_SC'] = (dfts['Br']**2+dfts['Bt']**2+dfts['Bn']**2).apply(np.sqrt)
+        try:
+            dfts['V_SC'] = (dfts['Vx']**2+dfts['Vy']**2+dfts['Vz']**2).apply(np.sqrt)
+        except:
+            print("SC SW data not exist! Use RTN instead!")
+            dfts['V_SC'] = (dfts['Vr']**2+dfts['Vt']**2+dfts['Vn']**2).apply(np.sqrt)
+        
         dfts['B'] = dfts['B_SC']
         dfts['V'] = dfts['V_SC']
 
@@ -364,29 +365,24 @@ class TimeSeriesViewer:
 
 
     def InitFigure(self, start_time, end_time, 
-        verbose = True, resample_rate = '5min', no_plot = False, rolling_rate = '1H', clean_intervals = False, auto_connect=False
+        no_plot = False, 
+        clean_intervals = False, 
+        auto_connect=False
         ):
         """ make figure """
 
         # default values
         self.start_time = start_time
         self.end_time = end_time
-        self.resample_rate = resample_rate
-        self.rolling_rate = rolling_rate
-        self.verbose = verbose
 
-        # Preload Time Series
-        if (self.dfmag is None) | (self.dfpar is None) | (self.dfdis is None):
-            if verbose: print("Preloading Dataframe... This may take some time...")
-            self.PreLoadSCDataFrame()
-            if verbose: print("Done.")
+        # get settings
+        rolling_rate = self.rolling_rate
+        verbose = self.verbose
 
         # Prepare Time Series
         if verbose: print("Preparing Time Series....")
         self.PrepareTimeSeries(
-            start_time, end_time, 
-            verbose = verbose, 
-            resample_rate = resample_rate
+            start_time, end_time
             )
         if verbose: print("Done.")
 
@@ -1075,11 +1071,11 @@ class TimeSeriesViewer:
                         t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
                         if 'PSD' not in self.selected_intervals[i1].keys():
                             ind = (self.dfts_raw.index > t0) & (self.dfts_raw.index < t1)
-                            dftemp = self.dfts_raw.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
+                            dftemp = self.dfts_raw.resample("%ds" %(self.resolution)).mean().loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
                             Br = dftemp['Br'].interpolate().dropna().values
                             Bt = dftemp['Bt'].interpolate().dropna().values
                             Bn = dftemp['Bn'].interpolate().dropna().values
-                            freq, B_pow = TracePSD(Br, Bt, Bn, 5)
+                            freq, B_pow = TracePSD(Br, Bt, Bn, self.resolution)
                             # save the time series to dataframe
                             self.selected_intervals[i1]['TimeSeries'] = dftemp
                             self.selected_intervals[i1]['PSD'] = {
@@ -1090,7 +1086,7 @@ class TimeSeriesViewer:
                                 'PSD': B_pow,
                                 'resample_info':{
                                     'Fraction_missing': dftemp['Br'].apply(np.isnan).sum()/len(dftemp['Br'])*100,
-                                    'resolution': 1000
+                                    'resolution': self.resolution
                                 }
                             }
                             # smooth the spectrum
