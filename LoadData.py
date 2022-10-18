@@ -101,7 +101,13 @@ def LoadTimeSeriesWrapper(
             credentials = credentials
             )
     elif sc == 3:
-        df, misc = LoadTimeSeriesHelios1(
+        df, misc = LoadTimeSeriesHelios2(
+            start_time,end_time,
+            settings = settings,
+            credentials = credentials
+            )
+    elif sc == 4:
+        df, misc = LoadTimeSeriesULYSSES(
             start_time,end_time,
             settings = settings,
             credentials = credentials
@@ -344,19 +350,6 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
         dfpar.resample('%ds' %(resolution)).mean())
 
     dfts['Dist_au'] = dfts['RAD_AU']
-
-    # dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
-    # dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
-    # dfts[['Br0','Bt0','Bn0']] = dfts[['Br','Bt','Bn']].rolling(rolling_rate).mean()
-    # dfts[['Bx0','By0','Bz0']] = dfts[['Bx','By','Bz']].rolling(rolling_rate).mean()
-
-    # dfpar[['Vr0','Vt0','Vn0']] = dfpar[['Vr','Vt','Vn']].rolling(rolling_rate).mean()
-    # dfpar[['Vx0','Vy0','Vz0']] = dfpar[['Vx','Vy','Vz']].rolling(rolling_rate).mean()
-    # dfmag[['Br0','Bt0','Bn0']] = dfmag[['Br','Bt','Bn']].rolling(rolling_rate).mean()
-    # dfmag[['Bx0','By0','Bz0']] = dfmag[['Bx','By','Bz']].rolling(rolling_rate).mean()
-
-    # nothing to be stored for solar orbiter
-    # misc = {'dfdis': dfdis}
 
     misc = {'settings': settings}
 
@@ -915,14 +908,10 @@ def LoadTimeSeriesPSP(
     return dfts, misc
 
 
-def LoadTimeSeriesFromSPEDAS_ULYSSES(
-    sc, start_time, end_time, 
-    rootdir = None, 
-    rolling_rate = '1H', resolution = '5s',
-    settings = None, credentials = None
-):
+def LoadTimeSeriesULYSSES(
+    start_time, end_time, settings = {}, credentials = None
+    ):
     """
-    sc = 2
     Ulysses
     """ 
     if os.path.exists("./ulysses_data"):
@@ -930,11 +919,18 @@ def LoadTimeSeriesFromSPEDAS_ULYSSES(
     else:
         raise ValueError("No local data folder ./ulysses_data present!")
 
+    # resolution
+    if 'resolution' in settings.keys():
+        resolution = settings['resolution']
+    else:
+        resolution = 300
+        settings['resolution'] = resolution
+
     t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
     t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
     vhm_vars = pyspedas.ulysses.vhm(trange=[t0,t1], datatype='1sec')
-    data = get_data(vhm_vars)
+    data = get_data('B_RTN')
 
     dfmag = pd.DataFrame(
         index = data[0],
@@ -942,15 +938,19 @@ def LoadTimeSeriesFromSPEDAS_ULYSSES(
     )
     dfmag.columns = ['Br','Bt','Bn']
 
+    dfmag.index = time_string.time_datetime(time=dfmag.index)
+    dfmag.index = dfmag.index.tz_localize(None)  
+
     swoops_vars = pyspedas.ulysses.swoops(trange=[t0,t1])
 
-    dfpar = pd.DateFrame(
+    data = get_data('Density')
+
+    dfpar = pd.DataFrame(
         index = data.times
     )
 
-    data = get_data('Density')
     dfpar = dfpar.join(
-        pd.DateFrame(
+        pd.DataFrame(
             index = data.times,
             data = data.y,
             columns = ['np','na']
@@ -966,6 +966,9 @@ def LoadTimeSeriesFromSPEDAS_ULYSSES(
         )
     )
 
+    dfpar['Tp'] = (dfpar['Tlow']+dfpar['Thigh'])/2
+    dfpar['Vth'] = 0.128487*np.sqrt(dfpar['Tp']) # vth[km/s] = 0.128487 * √Tp[K]
+
     data = get_data("Velocity")
     dfpar = dfpar.join(
         pd.DataFrame(
@@ -974,6 +977,37 @@ def LoadTimeSeriesFromSPEDAS_ULYSSES(
             columns = ['Vr','Vt','Vn']
         )
     )
+
+    dfpar.index = time_string.time_datetime(time=dfpar.index)
+    dfpar.index = dfpar.index.tz_localize(None)    
+
+    # load ephemeris
+    vars = ['RAD_AU','SE_LAT','SE_LON']
+    time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime(), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime()]
+    status, data = cdas.get_data('ULYSSES_HELIO1DAY_POSITION', vars, time[0], time[1])
+
+    dfdis = pd.DataFrame(
+        index = data['Epoch'],
+        data = data[['RAD_AU','SE_LAT','SE_LON']]
+    ).resample("%ds" %(resolution)).interpolate()
+
+    dfdis['Dist_au'] = dfdis['RAD_AU']
+    dfdis['lon'] = dfdis['SE_LON']
+    dfdis['lat'] = dfdis['SE_LAT']
+
+    # resample and join
+    dfts = ((dfmag.resample('%ds' %(resolution)).mean())[['Br','Bt','Bn']]).join(
+        (dfpar.resample('%ds' %(resolution)).mean())[['np','Tp','Vr','Vt','Vn','Vth']]
+    ).join(
+        (dfdis.resample('%ds' %(resolution)).interpolate())[['Dist_au','lon','lat']]
+    )
+
+    misc = {'settings': settings}
+
+    # set nan (nan = -1e31)
+    dfts[dfts < -1e30] = np.nan
+
+    return dfts, misc
 
 
 
