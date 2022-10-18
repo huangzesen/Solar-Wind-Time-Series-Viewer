@@ -1080,7 +1080,7 @@ class TimeSeriesViewer:
                             
                             if (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
                                 # for Helios 1, Helios 2, Ulysses, reload magnetic field data for spectrum
-                                dfmag, infos = LoadHighResMagWrapper(self.start_time, self.end_time)
+                                dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time)
                                 Br = dfmag['Br'].interpolate().dropna().values
                                 Bt = dfmag['Bt'].interpolate().dropna().values
                                 Bn = dfmag['Bn'].interpolate().dropna().values
