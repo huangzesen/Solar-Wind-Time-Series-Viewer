@@ -1074,7 +1074,7 @@ class TimeSeriesViewer:
                                 raise ValueError("Upsampling the timeseries for spectrum! Res = %ds, Sampling Freq = %s" %(self.resolution, self.dfts_raw.index[1] - self.dfts_raw.index[0]))
 
                             dftemp0 = self.dfts_raw.resample("%ds" %(self.resolution)).mean()
-                            ind = (self.dftemp0.index > t0) & (self.dftemp0.index < t1)
+                            ind = (dftemp0.index > t0) & (dftemp0.index < t1)
 
                             dftemp = dftemp0.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
                             Br = dftemp['Br'].interpolate().dropna().values
