@@ -1070,8 +1070,9 @@ class TimeSeriesViewer:
                     if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
                         t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
                         if 'PSD' not in self.selected_intervals[i1].keys():
-                            if pd.Timedelta("%ds" %(self.resolution)) < self.dfts_raw.index[1] - self.dfts_raw.index[0]:
-                                raise ValueError("Upsampling the timeseries for spectrum! Res = %ds, Sampling Freq = %s" %(self.resolution, self.dfts_raw.index[1] - self.dfts_raw.index[0]))
+                            mindt = np.min(np.diff(self.dfts_raw.index))
+                            if pd.Timedelta("%ds" %(self.resolution)) < mindt:
+                                raise ValueError("Upsampling the timeseries for spectrum! Res = %ds, Minimal Sampling Freq = %s" %(self.resolution, mindt))
 
                             dftemp0 = self.dfts_raw.resample("%ds" %(self.resolution)).mean()
                             ind = (dftemp0.index > t0) & (dftemp0.index < t1)
