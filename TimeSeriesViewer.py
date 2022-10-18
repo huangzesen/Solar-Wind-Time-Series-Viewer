@@ -1108,7 +1108,7 @@ class TimeSeriesViewer:
                             ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
                             ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
             except:
-                pass
+                raise ValueError("Func p: Calculate Spectrum failed!")
             collect()
             pass
         # ------ b/n for changing magnetic field options ------ #  
