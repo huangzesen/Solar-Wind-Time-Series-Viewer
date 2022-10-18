@@ -37,7 +37,7 @@ T_to_Gauss = 1e4
 
 from TSUtilities import SolarWindCorrelationLength, TracePSD, DrawShadedEventInTimeSeries, smoothing_function
 from BreakPointFinderLite import BreakPointFinder
-from LoadData import LoadTimeSeriesWrapper
+from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
 
 class TimeSeriesViewer:
     """ 
@@ -1070,18 +1070,30 @@ class TimeSeriesViewer:
                     if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
                         t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
                         if 'PSD' not in self.selected_intervals[i1].keys():
+
                             self.meandt = np.min(np.diff(self.dfts_raw.index))
                             if pd.Timedelta("%ds" %(self.resolution)) < self.meandt:
                                 raise ValueError("Upsampling the timeseries for spectrum! Res = %ds, Minimal Sampling Freq = %s" %(self.resolution, self.meandt))
-
                             dftemp0 = self.dfts_raw.resample("%ds" %(self.resolution)).mean()
                             ind = (dftemp0.index > t0) & (dftemp0.index < t1)
-
                             dftemp = dftemp0.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
-                            Br = dftemp['Br'].interpolate().dropna().values
-                            Bt = dftemp['Bt'].interpolate().dropna().values
-                            Bn = dftemp['Bn'].interpolate().dropna().values
-                            freq, B_pow = TracePSD(Br, Bt, Bn, self.resolution)
+                            
+                            if (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
+                                # for Helios 1, Helios 2, Ulysses, reload magnetic field data for spectrum
+                                dfmag, infos = LoadHighResMagWrapper(self.start_time, self.end_time)
+                                Br = dfmag['Br'].interpolate().dropna().values
+                                Bt = dfmag['Bt'].interpolate().dropna().values
+                                Bn = dfmag['Bn'].interpolate().dropna().values
+                                res = infos['resolution']
+                            else:
+                                # for psp and solar orbiter
+                                Br = dftemp['Br'].interpolate().dropna().values
+                                Bt = dftemp['Bt'].interpolate().dropna().values
+                                Bn = dftemp['Bn'].interpolate().dropna().values
+                                res = self.resolution
+
+                            freq, B_pow = TracePSD(Br, Bt, Bn, res)
+                            
                             # save the time series to dataframe
                             self.selected_intervals[i1]['TimeSeries'] = dftemp
                             self.selected_intervals[i1]['PSD'] = {
@@ -1092,7 +1104,7 @@ class TimeSeriesViewer:
                                 'PSD': B_pow,
                                 'resample_info':{
                                     'Fraction_missing': dftemp['Br'].apply(np.isnan).sum()/len(dftemp['Br'])*100,
-                                    'resolution': self.resolution
+                                    'resolution': res
                                 }
                             }
                             # smooth the spectrum
@@ -1406,132 +1418,5 @@ class TimeSeriesViewer:
 
     #-------- Obsolete --------#
 
-    def LoadSPDF(self, 
-        spacecraft = 'PSP',
-        start_time = '2021-12-11T23:53:31.000Z', 
-        end_time = '2021-12-12T00:53:31.000Z',
-        verbose = False
-        ):
-        """ load data from spdf API """
-
-        try:
-
-            # convert datetime type
-            start_time = np.datetime64(start_time).astype(datetime)
-            end_time = np.datetime64(end_time).astype(datetime)
-
-            # dict to store all the SPDF information
-            spdf_data = {
-                'spacecraft' : spacecraft,
-                'start_time': start_time,
-                'end_time': end_time
-            }
-            
-            if verbose:
-                print("Spacecraft: ", spacecraft)
-                print("Start Time: "+str(spdf_data['start_time']))
-                print("End Time: "+str(spdf_data['end_time']))
-
-            if spacecraft == 'PSP':
-
-                # load ephemeris
-                if verbose: print("Loading PSP_HELIO1DAY_POSITION from CDAWEB...")
-                vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
-                time = [start_time, end_time]
-                status, data = cdas.get_data('PSP_HELIO1DAY_POSITION', vars, time[0], time[1])
-
-                spdf_data['ephem_status'] = status
-                spdf_data['ephem_data'] = data
-
-                dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
-                dfdis = dfdis.resample('1min').mean().interpolate('linear')
-
-                # load magnetic field
-                if verbose: print("Loading PSP_FLD_L2_MAG_RTN_1MIN from CDAWEB...")
-                vars = ['psp_fld_l2_mag_RTN_1min']
-                time = [start_time, end_time]
-                status, data = cdas.get_data('PSP_FLD_L2_MAG_RTN_1MIN', vars, time[0], time[1])
-
-                spdf_data['mag_status'] = status
-                spdf_data['mag_data'] = data
-
-                dfmag = pd.DataFrame(
-                    index = spdf_data['mag_data']['epoch_mag_RTN_1min'],
-                    data = spdf_data['mag_data']['psp_fld_l2_mag_RTN_1min'],
-                    columns = ['Br_RTN','Bt_RTN','Bn_RTN']
-                ).resample('1min').mean()
-
-                spdf_data['dfspdf'] = dfmag.join(dfdis)
-
-            elif spacecraft == 'SolO':
-
-                # load ephemeris
-                if verbose: print("Loading SOLO_HELIO1DAY_POSITION from CDAWEB...")
-                vars = ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON']
-                time = [start_time, end_time]
-                status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', vars, time[0], time[1])
-
-                spdf_data['ephem_status'] = status
-                spdf_data['ephem_data'] = data
-
-                dfdis = pd.DataFrame(spdf_data['ephem_data']).set_index("Epoch")
-                dfdis = dfdis.resample('1min').mean().interpolate('linear')
-
-                # load magnetic field
-                if verbose: print("Loading SOLO_L2_MAG-RTN-NORMAL-1-MINUTE from CDAWEB...")
-                vars = ['B_RTN']
-                time = [start_time, end_time]
-                status, data = cdas.get_data('SOLO_L2_MAG-RTN-NORMAL-1-MINUTE', vars, time[0], time[1])
-
-                spdf_data['mag_status'] = status
-                spdf_data['mag_data'] = data
-
-                dfmag = pd.DataFrame(
-                    index = spdf_data['mag_data']['EPOCH'],
-                    data = spdf_data['mag_data']['B_RTN'],
-                    columns = ['Br_RTN','Bt_RTN','Bn_RTN']
-                ).resample('1min').mean()
-
-                spdf_data['dfspdf'] = dfmag.join(dfdis)
-
-            else:
-                raise ValueError("spacecraft = %s not supported!" %(spacecraft))
-
-            if verbose: print("Done...")
-
-            return spdf_data
-        except:
-            return None
-
-
-    def ExportTimeSeries(self, start_time, end_time, 
-        rolling_rate = '1H', verbose = True, resample_rate = '5min'
-        ):
-        """ 
-        A wrapper to export time series 
-        start_time/end_time should be pd.Timestamp
-        will return a data product, but other data can be accessed via:
-        self.dfts | self.dfts_raw | self.dfmag | self.dfpar | self.dfdis
-        """
-        # check time range
-        if (start_time < self.start_time_0) | (end_time > self.end_time_0):
-            raise ValueError("%s or %s out of range [%s, %s]" %(start_time, end_time, self.start_time_0, self.end_time_0))
-
-        # Preload dataframe
-        if (self.dfmag is None) | (self.dfpar is None) | (self.dfdis is None):
-            if verbose: print("Preloading Dataframe... This may take some time...")
-            self.PreLoadSCDataFrame()
-            if verbose: print("Done.")
-
-        # Process dataframe
-        if verbose: print("Preparing Time Series....")
-        self.PrepareTimeSeries(
-            start_time, end_time, 
-            verbose = verbose, 
-            resample_rate = resample_rate
-            )
-        if verbose: print("Done.")
-
-        return self.dfts
 
 

@@ -233,8 +233,6 @@ def LoadTimeSeriesHelios2(
     return df, misc
 
 
-
-
 def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
     """ Load Time Series from SPEDAS with Solar Orbiter """
 
@@ -354,7 +352,6 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
     misc = {'settings': settings}
 
     return dfts, misc
-
 
 
 def LoadTimeSeriesPSP(
@@ -1010,6 +1007,138 @@ def LoadTimeSeriesULYSSES(
     return dfts, misc
 
 
+# load High-res MAG data
+def LoadHighResMagWrapper(
+    sc, start_time, end_time, verbose = True):
+    """
+    A Wrapper to load high resolution magnetic field data
+    Works for Helios 1/2 (sc = 2,3) and Ulysses (sc = 4)
+    """
+
+    if verbose:
+        print("Load High Res Mag data for sc = %d" %(sc))
+
+    if sc == 2:
+        dfmag, infos = LoadHighResMagHelios1(start_time, end_time, verbose)
+    elif sc == 3:
+        dfmag, infos = LoadHighResMagHelios2(start_time, end_time, verbose)
+    elif sc == 4:
+        dfmag, infos = LoadHighResMagUlysses(start_time, end_time, verbose)
+    else:
+        raise ValueError("sc = %d not supported!" %(sc))
+
+    return dfmag, infos
+
+
+def LoadHighResMagHelios1(
+    start_time, end_time, verbose = True
+    ):
+    """
+    Load High Res Helios-1 Mag Data:
+    CDAWEB Key: HEL1_6SEC_NESSMAG
+    Input: 
+    start_time/end_time | pd.Timestamp
+    Output: 
+    DataFrame with Bx/By/Bz
+    """
+
+    vars = ['BXSSE','BYSSE','BZSSE','B']
+    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    status, data = cdas.get_data('HEL1_6SEC_NESSMAG', vars, time[0], time[1])
+
+    dfmag = pd.DataFrame(
+        index = data['Epoch'],
+        data = {
+            'Bx': data['BXSSE'],
+            'By': data['BYSSE'],
+            'Bz': data['BZSSE'],
+            'Btot': data['B']
+        }
+    )
+
+    if verbose:
+        print("Input tstart = %s, tend = %s" %(time[0], time[1]))
+        print("Returned tstart = %s, tend = %s" %(data['Epoch'][0], data['Epoch'][-1]))
+
+    infos = {
+        'resolution': 6
+    }
+
+    return dfmag, infos
+
+
+def LoadHighResMagHelios2(
+    start_time, end_time, verbose = True
+    ):
+    """
+    Load High Res Helios-1 Mag Data:
+    CDAWEB Key: HEL1_6SEC_NESSMAG
+    Input: 
+    start_time/end_time | pd.Timestamp
+    Output: 
+    DataFrame with Bx/By/Bz
+    """
+
+    vars = ['BXSSE','BYSSE','BZSSE','B']
+    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    status, data = cdas.get_data('HEL2_6SEC_NESSMAG', vars, time[0], time[1])
+
+    dfmag = pd.DataFrame(
+        index = data['Epoch'],
+        data = {
+            'Bx': data['BXSSE'],
+            'By': data['BYSSE'],
+            'Bz': data['BZSSE'],
+            'Btot': data['B']
+        }
+    )
+
+    if verbose:
+        print("Input tstart = %s, tend = %s" %(time[0], time[1]))
+        print("Returned tstart = %s, tend = %s" %(data['Epoch'][0], data['Epoch'][-1]))
+
+    infos = {
+        'resolution': 6
+    }
+
+    return dfmag, infos
+
+
+def LoadHighResMagUlysses(
+    start_time, end_time, verbose = True
+    ):
+    """
+    Load High Res Ulysses Mag Data:
+    CDAWEB Key: UY_1MIN_VHM
+    Output: 
+    DataFrame with Bx/By/Bz
+    (Note: The actual return is in RTN, but deemed as SC frame nevertheless)
+    """
+
+    vars = ['B_RTN','B_MAG']
+    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    status, data = cdas.get_data('UY_1MIN_VHM', vars, time[0], time[1])
+
+    dfmag = pd.DataFrame(
+        index = data['Epoch'],
+        data = {
+            'Bx': data['B_RTN'][:,0],
+            'By': data['B_RTN'][:,1],
+            'Bz': data['B_RTN'][:,2],
+            'Btot': data['B_MAG']
+        }
+    )
+
+    if verbose:
+        print("Input tstart = %s, tend = %s" %(time[0], time[1]))
+        print("Returned tstart = %s, tend = %s" %(data['Epoch'][0], data['Epoch'][-1]))
+
+    infos = {
+        'resolution': 6
+    }
+
+    return dfmag, infos
+
 
 def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):
     """ 
@@ -1117,45 +1246,3 @@ def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):
 
 
 # obsolete
-
-# def LoadTimeSeriesFromSPEDAS(sc, start_time, end_time, rootdir = None, 
-#     rolling_rate = '1H', resolution = '5s',
-#     settings = None, credentials = None
-#     ):
-#     """ 
-#     Load Time Series with SPEDAS 
-#     going to find data in the local directory
-#     Default resample rate for dfmag is 1s, dfts and dfpar are 5s
-#     Input:
-#         sc                          int (0: PSP, 1: SOLO)
-#         start_time,end_time         pd.Timestamp
-#     Return:
-#         dfts                        combined dataframe
-#         dfmag                       magnetic field dataframe
-#         dfpar                       particle dataframe
-#         misc                        miscellaneous 
-#     """
-
-#     # check pyspedas location:
-#     print(pyspedas.__file__)
-
-#     if sc == 0:
-#         dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_PSP(
-#             sc, start_time, end_time, 
-#             rootdir = rootdir, 
-#             rolling_rate = rolling_rate,
-#             resolution = resolution,
-#             credentials = credentials,
-#             settings = settings
-#             )
-#     elif sc == 1:
-#         dfts, dfmag, dfpar, misc = LoadTimeSeriesFromSPEDAS_SOLO(
-#             sc, start_time, end_time, 
-#             rootdir = rootdir, 
-#             rolling_rate = rolling_rate,
-#             settings = settings
-#         )
-#     else:
-#         raise ValueError("sc = %d not supported!" %(sc))
-
-#     return dfts, dfmag, dfpar, misc
