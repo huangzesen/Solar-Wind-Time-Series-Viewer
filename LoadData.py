@@ -1034,7 +1034,7 @@ def LoadHighResMagWrapper(
     dfmag = dfmag[ind]
 
     if verbose:
-        print("Final tstart = %s, tend = %s" %(dfmag.index[0], dfmag.index[1]))
+        print("Final tstart = %s, tend = %s" %(dfmag.index[0], dfmag.index[-1]))
 
     return dfmag, infos
 
