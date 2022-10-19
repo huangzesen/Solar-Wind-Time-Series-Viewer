@@ -1013,19 +1013,28 @@ def LoadHighResMagWrapper(
     """
     A Wrapper to load high resolution magnetic field data
     Works for Helios 1/2 (sc = 2,3) and Ulysses (sc = 4)
+    Note that CDAWEB sometimes does not return the correct interval
     """
 
     if verbose:
         print("Load High Res Mag data for sc = %d" %(sc))
+        print("Required tstart = %s, tend = %s" %(start_time, end_time))
 
     if sc == 2:
-        dfmag, infos = LoadHighResMagHelios1(start_time, end_time, verbose)
+        dfmag, infos = LoadHighResMagHelios1(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 3:
-        dfmag, infos = LoadHighResMagHelios2(start_time, end_time, verbose)
+        dfmag, infos = LoadHighResMagHelios2(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 4:
-        dfmag, infos = LoadHighResMagUlysses(start_time, end_time, verbose)
+        dfmag, infos = LoadHighResMagUlysses(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     else:
         raise ValueError("sc = %d not supported!" %(sc))
+
+    # filter the correct time range
+    ind = (dfmag.index  >= start_time) & (dfmag.index < end_time)
+    dfmag = dfmag[ind]
+
+    if verbose:
+        print("Final tstart = %s, tend = %s" %(dfmag.index[0], dfmag.index[1]))
 
     return dfmag, infos
 
