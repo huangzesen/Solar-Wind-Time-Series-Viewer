@@ -6,7 +6,7 @@ from pyspedas.utilities import time_string
 import pandas as pd
 import numpy as np
 
-from TimeSeriesViewer import TimeSeriesViewer
+# from TimeSeriesViewer import TimeSeriesViewer
 
 
 def CalculateMagDiagnosticsWrapper(sc, tstart, tend, freq_range = (-4,10), credentials = None, ndts = 100):
@@ -77,6 +77,43 @@ def CalculateMagDiagnosticsWrapper(sc, tstart, tend, freq_range = (-4,10), crede
 
     return d
 
+def MagStrucFunc(Br, Bt, Bn, scale_range, npts):
+    """
+    return the magnetic structure functions
+    scale_range in log10 space in seconds
+    """
+
+    dBvecs = np.array([])
+    dBvecnorms = np.array([])
+    dBmods = np.array([])
+    dBmodnorms = np.array([])
+
+    dts = np.floor(1000*np.logspace(scale_range[0], scale_range[1], npts, base = 10))
+    for i1 in range(len(dts)):
+        dt = pd.Timedelta("%dms" %(dts[i1]))
+        rolling_window = "%dms" %(dts[i1])
+        dBvec, dBvecnorm, dBmod, dBmodnorm = CalculateMagDiagnostics(
+            Br, Bt, Bn, dt, rolling_window
+        )
+
+        dBvecs = np.append(dBvecs,dBvec)
+        dBvecnorms = np.append(dBvecnorms, dBvecnorm)
+        dBmods = np.append(dBmods, dBmod)
+        dBmodnorms = np.append(dBmodnorms, dBmodnorm)
+
+    results = {
+        'dts': dts,
+        'dBvecs': dBvecs,
+        'dBvecnorms': dBvecnorms,
+        'dBmods': dBmods,
+        'dBmodnorms': dBmodnorms
+    }
+
+    return results
+
+    
+
+
 def CalculateMagDiagnostics(Br, Bt, Bn, dt, rolling_window):
     """
     Calculate <dBvec> and <dBvec/|B|> of given dt
@@ -118,12 +155,21 @@ def TimeseriesDifference(ts, dt, rolling_window):
     ts1 = ts[ind1]
     ts2 = ts[ind2]
 
+    if len(ts1) > len(ts2):
+        ts1 = ts1[len(ts1)-len(ts2):]
+        tsmean = (ts.rolling(rolling_window, center=True).mean().interpolate())[ind2]
+    elif len(ts1) < len(ts2):
+        ts2 = ts2[0:len(ts1)]
+        tsmean = (ts.rolling(rolling_window, center=True).mean().interpolate())[ind1]
+    else:
+        tsmean = (ts.rolling(rolling_window, center=True).mean().interpolate())[ind1]
+
+
     tsdiff = pd.Series(
         index = ts1.index,
         data = ts2.values - ts1.values
     )
 
-    tsmean = (ts.rolling(rolling_window, center=True).mean().interpolate())[ind1]
 
     return tsdiff, tsmean
 

@@ -38,6 +38,7 @@ T_to_Gauss = 1e4
 from TSUtilities import SolarWindCorrelationLength, TracePSD, DrawShadedEventInTimeSeries, smoothing_function
 from BreakPointFinderLite import BreakPointFinder
 from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
+from StructureFunctions import MagStrucFunc
 
 class TimeSeriesViewer:
     """ 
@@ -57,6 +58,7 @@ class TimeSeriesViewer:
         resample_rate = '5min',
         resolution = 5,
         credentials = None,
+        p_funcs = {'PSD':True},
         LTSWsettings = {}
     ):
         """ Initialize the class """
@@ -93,6 +95,7 @@ class TimeSeriesViewer:
         self.useBPF = True
         self.credentials = credentials
         self.LTSWsettings = LTSWsettings
+        self.p_funcs = p_funcs
 
         # Preload Time Series
         if preload:
@@ -489,7 +492,7 @@ class TimeSeriesViewer:
 
     def UpdateFigure(
         self, start_time, end_time, 
-        verbose=False, resample_rate = None, update_resample_rate_only = False
+        resample_rate = None, update_resample_rate_only = False
         ):
         """ Update Figure """
 
@@ -502,14 +505,12 @@ class TimeSeriesViewer:
             self.resample_rate = resample_rate
 
         # Prepare Time Series
-        if verbose: print("Preparing Time Series....")
+        if self.verbose: print("Preparing Time Series....")
         self.PrepareTimeSeries(
             start_time, end_time, 
-            verbose = verbose, 
-            resample_rate = resample_rate, 
             update_resample_rate_only = update_resample_rate_only
             )
-        if verbose: print("Done.")
+        if self.verbose: print("Done.")
 
         # Update Time Series
         self.PlotTimeSeries(update=True)
@@ -1013,7 +1014,7 @@ class TimeSeriesViewer:
         self.end_time = tmid + pd.Timedelta(self.length_list[self.length_key])*0.5
         self.CheckTimeBoundary()
         self.UpdateFigure(
-            self.start_time, self.end_time, verbose = self.verbose
+            self.start_time, self.end_time
         )
 
 
@@ -1058,9 +1059,10 @@ class TimeSeriesViewer:
                 self.sc = window_size_history['sc']
                 self.resample_rate = window_size_history['resample_rate']
                 self.UpdateFigure(
-                    self.start_time, self.end_time, verbose=self.verbose, resample_rate = self.resample_rate
+                    self.start_time, self.end_time
                 )
             except:
+                raise ValueError("event key: %s failed!" %(event.key))
                 pass
         elif (event.key == 'p'):
             try:
@@ -1069,64 +1071,72 @@ class TimeSeriesViewer:
                     selected_interval = self.selected_intervals[i1]
                     if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
                         t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
-                        if 'PSD' not in self.selected_intervals[i1].keys():
 
-                            self.meandt = np.min(np.diff(self.dfts_raw.index))
-                            if pd.Timedelta("%ds" %(self.resolution)) < self.meandt:
-                                raise ValueError("Upsampling the timeseries for spectrum! Res = %ds, Minimal Sampling Freq = %s" %(self.resolution, self.meandt))
-                            dftemp0 = self.dfts_raw.resample("%ds" %(self.resolution)).mean()
-                            ind = (dftemp0.index > t0) & (dftemp0.index < t1)
-                            dftemp = dftemp0.loc[ind,['Br','Bt','Bn','Vr','Vt','Vn','np','Vth']]
-                            
-                            if (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
-                                # for Helios 1, Helios 2, Ulysses, reload magnetic field data for spectrum
-                                dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time)
-                                Br = dfmag['Bx'].interpolate().dropna().values
-                                Bt = dfmag['By'].interpolate().dropna().values
-                                Bn = dfmag['Bz'].interpolate().dropna().values
-                                res = infos['resolution']
-                            else:
-                                # for psp and solar orbiter
-                                Br = dftemp['Br'].interpolate().dropna().values
-                                Bt = dftemp['Bt'].interpolate().dropna().values
-                                Bn = dftemp['Bn'].interpolate().dropna().values
-                                res = self.resolution
+                        # calculate the time series for later diagnostics
+                        if len(self.p_funcs) > 0:
+                            ind = (self.dfts.index > t0) & (self.dfts.index < t1)
+                            dftemp = self.dfts.loc[ind]
 
-                            freq, B_pow = TracePSD(Br, Bt, Bn, res)
-                            
+                            dfmag, infos = LoadHighResMagWrapper(self.sc, t0, t1)
+                            res = infos['resolution']
+                            Br = dfmag['Bx'].interpolate().dropna()
+                            Bt = dfmag['By'].interpolate().dropna()
+                            Bn = dfmag['Bz'].interpolate().dropna()
+
                             # save the time series to dataframe
                             self.selected_intervals[i1]['TimeSeries'] = dftemp
-                            self.selected_intervals[i1]['PSD'] = {
-                                'start_time': t0,
-                                'end_time': t1,
-                                'sc': self.sc,
-                                'freqs': freq,
-                                'PSD': B_pow,
-                                'resample_info':{
-                                    'Fraction_missing': dftemp['Br'].apply(np.isnan).sum()/len(dftemp['Br'])*100,
-                                    'resolution': res
-                                }
-                            }
-                            # smooth the spectrum
-                            if self.calc_smoothed_spec:
-                                _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
-                                self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
-                                self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
-                        else:
-                            print("PSD is already here!")
+                            self.selected_intervals[i1]['dfmag'] = dfmag
 
-                        if self.useBPF:
-                            self.bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
-                            self.bpf.connect()
-                        else:
-                            fig1, ax1 = plt.subplots(1, figsize = [6,6])
-                            ax1.loglog(freq, B_pow)
-                            if self.calc_smoothed_spec:
-                                ax1.loglog(sm_freqs, sm_PSD)
-                            ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
-                            ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
+                        # psd
+                        if 'PSD' in self.p_funcs.keys():
+
+                            if 'PSD' not in self.selected_intervals[i1].keys():
+                                freq, B_pow = TracePSD(Br.values, Bt.values, Bn.values, res)
+                                self.selected_intervals[i1]['PSD'] = {
+                                    'start_time': t0,
+                                    'end_time': t1,
+                                    'sc': self.sc,
+                                    'freqs': freq,
+                                    'PSD': B_pow,
+                                    'resample_info':{
+                                        'Fraction_missing': Br.apply(np.isnan).sum()/len(Br)*100,
+                                        'resolution': res
+                                    }
+                                }
+                                # smooth the spectrum
+                                if self.calc_smoothed_spec:
+                                    _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
+                                    self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
+                                    self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
+                            else:
+                                print("PSD is already here!")
+
+                            if self.useBPF:
+                                self.bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
+                                self.bpf.connect()
+                            else:
+                                fig1, ax1 = plt.subplots(1, figsize = [6,6])
+                                ax1.loglog(freq, B_pow)
+                                if self.calc_smoothed_spec:
+                                    ax1.loglog(sm_freqs, sm_PSD)
+                                ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
+                                ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
+
+                        # structure func: dB
+                        if 'Struc_Func' in self.p_funcs.keys():
+                            maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
+                            struc_funcs = MagStrucFunc(Br, Bt, Bn, (1,5), 80)
+
+                            fig2, ax2 = plt.subplots(1, figsize = [6,6])
+                            ax2.loglog(struc_funcs['dts']/1000, struc_funcs['dBvecnorms'])
+                            ax2.set_xlabel(r'dts[s]')
+                            ax2.set_ylabel(r'dBvecs[nT]')
+                            ax2.set_ylim([1e-1, 1e0])
+                        
+
+
             except:
-                raise ValueError("Func p: Calculate Spectrum failed!")
+                raise ValueError("Func p: failed!")
             collect()
             pass
         # ------ b/n for changing magnetic field options ------ #  
@@ -1167,7 +1177,7 @@ class TimeSeriesViewer:
             self.end_time = self.end_time + dt
             self.CheckTimeBoundary()
             self.UpdateFigure(
-                self.start_time, self.end_time, verbose=self.verbose
+                self.start_time, self.end_time
             )
         elif (event.key == 'left'):
             self.window_size_histories.append(
@@ -1178,7 +1188,7 @@ class TimeSeriesViewer:
             self.end_time = self.end_time - dt
             self.CheckTimeBoundary()
             self.UpdateFigure(
-                self.start_time, self.end_time, verbose=self.verbose
+                self.start_time, self.end_time
             )
         # ------ up down for resolution ------ #
         elif (event.key == 'down'):
@@ -1192,8 +1202,7 @@ class TimeSeriesViewer:
             self.resample_rate = self.resample_rate_list[self.resample_rate_key]
             self.CheckTimeBoundary()
             self.UpdateFigure(
-                self.start_time, self.end_time, verbose=self.verbose,
-                resample_rate = self.resample_rate, 
+                self.start_time, self.end_time,
                 update_resample_rate_only = True
             )
         elif (event.key == 'up'):
@@ -1207,8 +1216,7 @@ class TimeSeriesViewer:
             self.resample_rate = self.resample_rate_list[self.resample_rate_key]
             self.CheckTimeBoundary()
             self.UpdateFigure(
-                self.start_time, self.end_time, verbose=self.verbose,
-                resample_rate = self.resample_rate, 
+                self.start_time, self.end_time,
                 update_resample_rate_only = True
             )
         # ------ number key for interval length ------ #
@@ -1304,7 +1312,7 @@ class TimeSeriesViewer:
                     self.start_time = tstart
                     self.end_time = tend
                     self.UpdateFigure(
-                    self.start_time, self.end_time, verbose=self.verbose
+                    self.start_time, self.end_time
                     )
                     for k, ax in self.axes.items():
                         l1['lines'][k].remove()

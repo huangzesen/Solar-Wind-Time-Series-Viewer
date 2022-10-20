@@ -1020,7 +1020,9 @@ def LoadHighResMagWrapper(
         print("Load High Res Mag data for sc = %d" %(sc))
         print("Required tstart = %s, tend = %s" %(start_time, end_time))
 
-    if sc == 2:
+    if sc == 0:
+        dfmag, infos = LoadHighResMagPSP(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
+    elif sc == 2:
         dfmag, infos = LoadHighResMagHelios1(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 3:
         dfmag, infos = LoadHighResMagHelios2(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
@@ -1038,6 +1040,38 @@ def LoadHighResMagWrapper(
 
     return dfmag, infos
 
+
+def LoadHighResMagPSP(
+    start_time, end_time, verbose = True
+    ):
+
+    vars = ['psp_fld_l2_mag_SC_4_Sa_per_Cyc']
+    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    status, data = cdas.get_data('PSP_FLD_L2_MAG_SC_4_SA_PER_CYC', vars, time[0], time[1])
+
+    dfmag = pd.DataFrame(
+        index = data['epoch_mag_SC_4_Sa_per_Cyc'],
+        data = {
+            'Bx': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,0],
+            'By': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,1],
+            'Bz': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,2]
+        }
+    )
+    dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+
+    dfmag = dfmag.resample('1s').mean()
+
+    if verbose:
+        print("Input tstart = %s, tend = %s" %(time[0], time[1]))
+        print("Returned tstart = %s, tend = %s" %(
+            data['epoch_mag_SC_4_Sa_per_Cyc'][0], 
+            data['epoch_mag_SC_4_Sa_per_Cyc'][-1]))
+
+    infos = {
+        'resolution': 1
+    }
+
+    return dfmag, infos
 
 def LoadHighResMagHelios1(
     start_time, end_time, verbose = True
