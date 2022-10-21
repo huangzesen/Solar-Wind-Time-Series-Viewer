@@ -372,7 +372,7 @@ class BreakPointFinder:
     def ResetFigure(self, loadPSD = False):
         """ reset the figure """
         self.disconnect()
-        plt.close('all')
+        plt.close(self.fig)
         if loadPSD:
             self.LoadPSD()
         self.AxesInit()

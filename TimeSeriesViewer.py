@@ -348,10 +348,12 @@ class TimeSeriesViewer:
         self.fig = fig
         self.axes = {
             'mag': axes[0],             # magnetic field
-            'speed': axes[1],           # Vth and Vsw
+            # 'speed': axes[1],           # Vth and Vsw
+            'vsw': axes[1],             # just vsw, no log
             'norm': axes[2],            # normalized quantities: sigma_c, sigma_r
             # 'spec': axes[3],          # spectrum
-            'scale': axes[3],           # di and rho_ci
+            'density': axes[3],         # density and di and rho_ci
+            #'scale': axes[3],           # di and rho_ci
             'ang': axes[4],             # angles
             # 'alfvenicity': axes[5]      # delta |B| / |delta \vec B|
             'rau': axes[5]              # rau
@@ -565,11 +567,11 @@ class TimeSeriesViewer:
                 ax = axes['mag']
                 if self.mag_option['norm'] == 0:
                     if self.mag_option['sc'] == 0:
-                        dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8)
                         ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_RTN'].max()
                     elif self.mag_option['sc'] == 1:
-                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k--'], lw = 0.8)
+                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8)
                         ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_SC'].max()
                     else:
@@ -668,6 +670,70 @@ class TimeSeriesViewer:
             print("MAG Plotting have some problems...")
             pass
 
+        """vsw"""
+        if not(update):
+            try:
+                ax = axes['vsw']
+                # speeds
+                dfts[['V']].plot(ax = ax, legend=False, style=['C2'], lw = 0.8)
+                ax.legend(['Vsw[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0], dfts.index[-1]])
+                ax.set_ylim([200,800])
+                lines['vsw'] = ax.get_lines()
+            except:
+                pass
+        else:
+            try:
+                ax = axes['vsw']
+                ls = lines['vsw']
+                # speeds
+                ls[0].set_data(dfts['V'].index, dfts['V'].values)
+                ax.legend(['Vsw[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0], dfts.index[-1]])
+                ax.set_ylim([200,800])
+                lines['vsw'] = ax.get_lines()
+            except:
+                pass
+
+        """vth"""
+        if not(update):
+            try:
+                ax = axes['vsw'].twinx()
+                # speeds
+                dfts[['Vth']].plot(ax = ax, legend=False, style=['C1'], lw = 0.6, alpha = 0.6)
+                ax.legend(['Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0], dfts.index[-1]])
+                ax.set_ylim([0.95*np.nanmin(dfts['Vth']),1.05*np.nanmax(dfts['Vth'])])
+                lines['vth'] = ax.get_lines()
+            except:
+                pass
+        else:
+            try:
+                ax = axes['vth']
+                ls = lines['vth']
+                # speeds
+                ls[0].set_data(dfts['Vth'].index, dfts['Vth'].values)
+                ax.legend(['Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0], dfts.index[-1]])
+                ax.set_ylim([0.95*np.nanmin(dfts['Vth']),1.05*np.nanmax(dfts['Vth'])])
+                lines['vth'] = ax.get_lines()
+            except:
+                pass
+
+        
+
         """speeds"""
         if not(update):
             try:
@@ -749,12 +815,44 @@ class TimeSeriesViewer:
             except:
                 pass
 
+        """density"""
+        if not(update):
+            try:
+                ax = axes['density']
+                # speeds
+                dfts[['np']].plot(ax = ax, legend=False, style=['k'], lw = 0.8)
+                ax.legend(['np[cm^-3]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0], dfts.index[-1]])
+                ax.set_ylim([0.95*np.nanmin(dfts['np']),1.05*np.nanmax(dfts['np'])])
+                lines['density'] = ax.get_lines()
+            except:
+                pass
+        else:
+            try:
+                ax = axes['vsw']
+                ls = lines['vsw']
+                # speeds
+                ls[0].set_data(dfts['np'].index, dfts['np'].values)
+                ax.legend(['np[cm^-3]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0], dfts.index[-1]])
+                ax.set_ylim([0.95*np.nanmin(dfts['np']),1.05*np.nanmax(dfts['np'])])
+                lines['density'] = ax.get_lines()
+            except:
+                pass
+
         """scales"""
         if not(update):
             try:
-                ax = axes['scale']
-                dfts[['di','rho_ci']].plot(ax = ax, legend=False, style=['C3--','C4--'], lw = 0.8)
-                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax = axes['density'].twinx()
+                self.axes['scale'] = ax
+                dfts[['di','rho_ci']].plot(ax = ax, legend=False, style=['C3--','C4--'], lw = 0.8, alpha = 0.6)
+                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
                 if dfts['di'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
@@ -777,7 +875,7 @@ class TimeSeriesViewer:
                 ls = lines['scale']
                 ls[0].set_data(dfts['di'].index, dfts['di'].values)
                 ls[1].set_data(dfts['rho_ci'].index, dfts['rho_ci'].values)
-                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
                 if dfts['di'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
@@ -885,7 +983,7 @@ class TimeSeriesViewer:
                 ax.set_ylim([10**(-lim),10**(lim)])
                 lines['beta'] = ax.get_lines()
                 axes['beta'] = ax
-                ax.axhline(0, color = 'gray', ls = '--', lw = 0.6)
+                ax.axhline(1, color = 'gray', ls = '--', lw = 0.6)
             except:
                 pass
         else:
@@ -1125,13 +1223,13 @@ class TimeSeriesViewer:
                         # structure func: dB
                         if 'Struc_Func' in self.p_funcs.keys():
                             maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
-                            struc_funcs = MagStrucFunc(Br, Bt, Bn, (1,5), 80)
+                            struc_funcs = MagStrucFunc(Br, Bt, Bn, (1,maxtime), 80)
 
                             fig2, ax2 = plt.subplots(1, figsize = [6,6])
-                            ax2.loglog(struc_funcs['dts']/1000, struc_funcs['dBvecnorms'])
-                            ax2.set_xlabel(r'dts[s]')
-                            ax2.set_ylabel(r'dBvecs[nT]')
-                            ax2.set_ylim([1e-1, 1e0])
+                            ax2.loglog(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
+                            ax2.set_xlabel(r'1/dts [Hz]')
+                            ax2.set_ylabel(r'dBvecs [nT]')
+                            ax2.set_ylim([1e-1, 4e0])
                         
 
 
