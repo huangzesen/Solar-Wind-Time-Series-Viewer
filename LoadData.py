@@ -873,6 +873,7 @@ def LoadTimeSeriesPSP(
             dfe = dfe.resample(freq).interpolate()
 
             dfts = dfts.join(dfe)
+            dfts['Dist_au'] = (dfe[['sc_pos_r','sc_pos_t','sc_pos_n']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
         except:
             raise ValueError("Ephemeris could not be loaded!")
 
@@ -1022,6 +1023,8 @@ def LoadHighResMagWrapper(
 
     if sc == 0:
         dfmag, infos = LoadHighResMagPSP(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
+    elif sc == 1:
+        dfmag, infos = LoadHighResMagSOLO(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 2:
         dfmag, infos = LoadHighResMagHelios1(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 3:
@@ -1040,6 +1043,38 @@ def LoadHighResMagWrapper(
 
     return dfmag, infos
 
+
+def LoadHighResMagSOLO(
+    start_time, end_time, verbose = True
+    ):
+
+    vars = ['B_SRF']
+    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    status, data = cdas.get_data('SOLO_L2_MAG-SRF-NORMAL', vars, time[0], time[1])
+
+    dfmag = pd.DataFrame(
+        index = data['EPOCH'],
+        data = {
+            'Bx': data['B_SRF'][:,0],
+            'By': data['B_SRF'][:,1],
+            'Bz': data['B_SRF'][:,2]
+        }
+    )
+    dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+
+    dfmag = dfmag.resample('1s').mean()
+
+    if verbose:
+        print("Input tstart = %s, tend = %s" %(time[0], time[1]))
+        print("Returned tstart = %s, tend = %s" %(
+            data['EPOCH'][0], 
+            data['EPOCH'][-1]))
+
+    infos = {
+        'resolution': 1
+    }
+
+    return dfmag, infos
 
 def LoadHighResMagPSP(
     start_time, end_time, verbose = True

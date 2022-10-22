@@ -274,6 +274,12 @@ def curve_fit_log_wrap(x, y, x0, xf):
     if  len(np.where(x == x.flat[np.abs(x - x0).argmin()])[0])>0:
         s = np.where(x == x.flat[np.abs(x - x0).argmin()])[0][0]
         e = np.where(x  == x.flat[np.abs(x - xf).argmin()])[0][0]
+        # s = np.min([s,e])
+        # e = np.max([s,e])
+        if s>e:
+            s,e = e,s
+        else:
+            pass
 
         if (len(y[s:e])>1): #& (np.median(y[s:e])>1e-1):  
             fit = curve_fit_log(x[s:e],y[s:e])

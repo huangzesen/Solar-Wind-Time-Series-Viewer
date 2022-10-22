@@ -127,7 +127,7 @@ def CalculateMagDiagnostics(Br, Bt, Bn, dt, rolling_window):
     dBvecmod = (np.sqrt(dBr**2+dBt**2+dBn**2)).to_numpy()
     Bvecmod = (np.sqrt(Brmean**2+Btmean**2+Bnmean**2)).to_numpy()
 
-    return np.nanmean(dBvecmod), np.nanmean(dBvecmod/Bvecmod), np.nanmean(np.abs(dBmod)), np.nanmean(np.abs(dBmod)/dBvecmod)
+    return np.nanmean(dBvecmod), np.nanmean(dBvecmod/Bmodmean), np.nanmean(np.abs(dBmod)), np.nanmean(np.abs(dBmod)/dBvecmod)
 
 def TimeseriesDifference(ts, dt, rolling_window):
     """

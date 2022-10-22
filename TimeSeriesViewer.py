@@ -37,6 +37,7 @@ T_to_Gauss = 1e4
 
 from TSUtilities import SolarWindCorrelationLength, TracePSD, DrawShadedEventInTimeSeries, smoothing_function
 from BreakPointFinderLite import BreakPointFinder
+from BreakPointFinderGeneral import BreakPointFinder as BPFG
 from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
 from StructureFunctions import MagStrucFunc
 
@@ -681,7 +682,7 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_ylim([200,800])
+                ax.set_ylim([100,700])
                 lines['vsw'] = ax.get_lines()
             except:
                 pass
@@ -696,7 +697,7 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_ylim([200,800])
+                ax.set_ylim([100,700])
                 lines['vsw'] = ax.get_lines()
             except:
                 pass
@@ -797,7 +798,7 @@ class TimeSeriesViewer:
                 ax.set_ylim([-1.05,1.05])
                 lines['norm'] = ax.get_lines()
             except:
-                pass
+                print("sigma_c initialization failed!")
         else:
             try:
                 ax = axes['norm']
@@ -813,7 +814,93 @@ class TimeSeriesViewer:
                 ax.set_ylim([-1.05,1.05])
                 lines['norm'] = ax.get_lines()
             except:
-                pass
+                print("sigma_c update failed!")
+
+        """magnetic compressibility"""
+        if not(update):
+            try:
+                ax = axes['norm'].twinx()
+                axes['mag_compressibility'] = ax
+                if (self.sc == 0) | (self.sc == 1):
+                    # for psp and solo, the raw resolution is 5s
+                    Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
+                elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
+                    # for Helios-1/2 and Ulysses, load high-res mag data for this line
+                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time)
+                    Btot = dfmag['Btot']
+                else:
+                    pass
+                ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
+                Btot = Btot[ind]
+
+                mag_coms = {}
+                mckeys = ['1000s','3600s', '10000s']
+                for k in mckeys:
+                    mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
+
+                self.mag_coms = mag_coms
+
+                for i1 in range(len(mckeys)):
+                    k = mckeys[i1]
+                    mag_coms[k].plot(ax = ax, style = ['C%d'%(i1+1)], lw = 0.8, alpha = 0.8)
+
+                ax.set_yscale('log')
+                ax.set_ylim([1e-2, 4e0])
+                ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
+                ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
+                ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
+
+                ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0], dfts.index[-1]])
+                lines['mag_compressibility'] = ax.get_lines()
+            except:
+                raise ValueError("mag compressibility initialization failed!")
+        else:
+            try:
+                ax = axes['mag_compressibility']
+                ls = lines['mag_compressibility']
+                if (self.sc == 0) | (self.sc == 1):
+                    # for psp and solo, the raw resolution is 5s
+                    Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
+                elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
+                    # for Helios-1/2 and Ulysses, load high-res mag data for this line
+                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time)
+                    Btot = dfmag['Btot']
+                else:
+                    pass
+                ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
+                Btot = Btot[ind]
+
+                mag_coms = {}
+                mckeys = ['1000s','3600s','10000s']
+                for k in mckeys:
+                    mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
+
+                self.mag_coms = mag_coms
+
+                for i1 in range(len(mckeys)):
+                    k = mckeys[i1]
+                    ls[i1].set_data(mag_coms[k].index, mag_coms[k].values)
+
+                ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
+                ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
+                ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
+
+                ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0], dfts.index[-1]])
+                lines['mag_compressibility'] = ax.get_lines()
+
+            except:
+                print("mag compressibility update failed!")
+
+
+
 
         """density"""
         if not(update):
@@ -832,8 +919,8 @@ class TimeSeriesViewer:
                 pass
         else:
             try:
-                ax = axes['vsw']
-                ls = lines['vsw']
+                ax = axes['density']
+                ls = lines['density']
                 # speeds
                 ls[0].set_data(dfts['np'].index, dfts['np'].values)
                 ax.legend(['np[cm^-3]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
@@ -1197,7 +1284,7 @@ class TimeSeriesViewer:
                                     'freqs': freq,
                                     'PSD': B_pow,
                                     'resample_info':{
-                                        'Fraction_missing': Br.apply(np.isnan).sum()/len(Br)*100,
+                                        'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(Br)*100,
                                         'resolution': res
                                     }
                                 }
@@ -1223,13 +1310,26 @@ class TimeSeriesViewer:
                         # structure func: dB
                         if 'Struc_Func' in self.p_funcs.keys():
                             maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
-                            struc_funcs = MagStrucFunc(Br, Bt, Bn, (1,maxtime), 80)
+                            self.struc_funcs = MagStrucFunc(Br, Bt, Bn, (1,maxtime), 80)
+                            struc_funcs = self.struc_funcs
 
-                            fig2, ax2 = plt.subplots(1, figsize = [6,6])
-                            ax2.loglog(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
-                            ax2.set_xlabel(r'1/dts [Hz]')
-                            ax2.set_ylabel(r'dBvecs [nT]')
-                            ax2.set_ylim([1e-1, 4e0])
+                            # fig2, ax2 = plt.subplots(1, figsize = [6,6])
+                            # ax2.loglog(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
+                            # # plot 1/3 line
+                            # xx = np.logspace(-1,-3)
+                            # yy = xx**(-1./3)/10
+                            # ax2.loglog(xx, yy)
+
+                            # ax2.set_xlabel(r'1/dts [Hz]')
+                            # ax2.set_ylabel(r'dBvecs [nT]')
+                            # ax2.set_ylim([1e-1, 4e0])
+
+                            self.bpfg = BPFG(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
+                            self.bpfg.connect()
+                            if np.nanmin(struc_funcs['dBvecnorms']) > 1e-1:
+                                self.bpfg.arts['PSD']['ax'].set_ylim([1e-1,5e0])
+                            elif np.nanmin(struc_funcs['dBvecnorms']) > 1e-2:
+                                self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
                         
 
 
