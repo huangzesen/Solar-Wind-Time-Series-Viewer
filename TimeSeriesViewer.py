@@ -60,7 +60,8 @@ class TimeSeriesViewer:
         resolution = 5,
         credentials = None,
         p_funcs = {'PSD':True},
-        LTSWsettings = {}
+        LTSWsettings = {},
+        layout = None,
     ):
         """ Initialize the class """
 
@@ -97,6 +98,7 @@ class TimeSeriesViewer:
         self.credentials = credentials
         self.LTSWsettings = LTSWsettings
         self.p_funcs = p_funcs
+        self.layout = layout
 
         # Preload Time Series
         if preload:
@@ -344,7 +346,7 @@ class TimeSeriesViewer:
     
     def AxesInit(self):
         """ Initialize Axes """
-        fig, axes = plt.subplots(6,1, figsize = [20,10])
+        fig, axes = plt.subplots(6,1, figsize = [20,10], layout=self.layout)
         
         self.fig = fig
         self.axes = {
@@ -373,7 +375,8 @@ class TimeSeriesViewer:
     def InitFigure(self, start_time, end_time, 
         no_plot = False, 
         clean_intervals = False, 
-        auto_connect=False
+        auto_connect=False,
+        dfts = None
         ):
         """ make figure """
 
@@ -382,15 +385,18 @@ class TimeSeriesViewer:
         self.end_time = end_time
 
         # get settings
-        rolling_rate = self.rolling_rate
         verbose = self.verbose
 
         # Prepare Time Series
-        if verbose: print("Preparing Time Series....")
-        self.PrepareTimeSeries(
-            start_time, end_time
-            )
-        if verbose: print("Done.")
+        if dfts is None:
+            if verbose: print("Preparing Time Series....")
+            self.PrepareTimeSeries(
+                start_time, end_time
+                )
+            if verbose: print("Done.")
+        else:
+            if verbose: print("Importing dfts...")
+            self.dfts = dfts
 
         if no_plot:
             return
@@ -526,7 +532,6 @@ class TimeSeriesViewer:
         """ Plot Time Series """
 
         dfts = self.dfts
-        dfts_raw = self.dfts_raw
         axes = self.axes
         fig = self.fig
         lines = self.lines
@@ -553,9 +558,9 @@ class TimeSeriesViewer:
         fig.suptitle(
             "%s to %s, parmode = %s, rolling_rate = %s" %(str(self.start_time), str(self.end_time), parmode, self.rolling_rate)
             + "\n"
-            + "SpaceCraft: %d, Resample Rate: %s, Window Option: %s (key=%d), MAG Frame: %d, Normed Mag : %d" %(self.sc, self.resample_rate, self.length_list[self.length_key], self.length_key, self.mag_option['sc'], self.mag_option['norm'])
-            + "\n"
-            + "Real Window Size = %s, Current Session (%s - %s)" %(str(self.end_time-self.start_time), self.start_time_0, self.end_time_0),
+            + "SpaceCraft: %d, Resample Rate: %s, Window Option: %s (key=%d), MAG Frame: %d, Normed Mag : %d" %(self.sc, self.resample_rate, self.length_list[self.length_key], self.length_key, self.mag_option['sc'], self.mag_option['norm']),
+            #+ "\n"
+            #+ "Real Window Size = %s, Current Session (%s - %s)" %(str(self.end_time-self.start_time), self.start_time_0, self.end_time_0),
             fontsize = 'xx-large', horizontalalignment = 'left', x = 0.02
         )
 
@@ -569,11 +574,11 @@ class TimeSeriesViewer:
                 if self.mag_option['norm'] == 0:
                     if self.mag_option['sc'] == 0:
                         dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8)
-                        ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_RTN'].max()
                     elif self.mag_option['sc'] == 1:
                         dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8)
-                        ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_SC'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
@@ -618,14 +623,14 @@ class TimeSeriesViewer:
                         ls[1].set_data(dfts['Bt'].index, dfts['Bt'].values)
                         ls[2].set_data(dfts['Bn'].index, dfts['Bn'].values)
                         ls[3].set_data(dfts['B_RTN'].index, dfts['B_RTN'].values)
-                        ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_RTN'].max()
                     elif self.mag_option['sc'] == 1:
                         ls[0].set_data(dfts['Bx'].index, dfts['Bx'].values)
                         ls[1].set_data(dfts['By'].index, dfts['By'].values)
                         ls[2].set_data(dfts['Bz'].index, dfts['Bz'].values)
                         ls[3].set_data(dfts['B_SC'].index, dfts['B_SC'].values)
-                        ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                        ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_SC'].max()
                     else:
                         raise ValueError("mag_option['sc']==%d not supported!" %(self.mag_option['sc']))
@@ -677,7 +682,7 @@ class TimeSeriesViewer:
                 ax = axes['vsw']
                 # speeds
                 dfts[['V']].plot(ax = ax, legend=False, style=['C2'], lw = 0.8)
-                ax.legend(['Vsw[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.legend(['Vsw[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -692,7 +697,7 @@ class TimeSeriesViewer:
                 ls = lines['vsw']
                 # speeds
                 ls[0].set_data(dfts['V'].index, dfts['V'].values)
-                ax.legend(['Vsw[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.legend(['Vsw[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -708,7 +713,7 @@ class TimeSeriesViewer:
                 ax = axes['vsw'].twinx()
                 # speeds
                 dfts[['Vth']].plot(ax = ax, legend=False, style=['C1'], lw = 0.6, alpha = 0.6)
-                ax.legend(['Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
+                ax.legend(['Vth[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -723,7 +728,7 @@ class TimeSeriesViewer:
                 ls = lines['vth']
                 # speeds
                 ls[0].set_data(dfts['Vth'].index, dfts['Vth'].values)
-                ax.legend(['Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
+                ax.legend(['Vth[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -790,7 +795,7 @@ class TimeSeriesViewer:
                 dfts[['sigma_c']].plot(ax = ax, legend=False, style=['C0'], lw = 0.9)
                 # dfts[['sigma_r']].plot(ax = ax, legend=False, style=['C1'], lw = 0.7)
                 # ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
-                ax.legend([r'$\sigma_c$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
+                ax.legend([r'$\sigma_c$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -806,7 +811,7 @@ class TimeSeriesViewer:
                 ls[0].set_data(dfts['sigma_c'].index, dfts['sigma_c'].values)
                 # ls[1].set_data(dfts['sigma_r'].index, dfts['sigma_r'].values)
                 # ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
-                ax.legend([r'$\sigma_c$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
+                ax.legend([r'$\sigma_c$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -823,10 +828,14 @@ class TimeSeriesViewer:
                 axes['mag_compressibility'] = ax
                 if (self.sc == 0) | (self.sc == 1):
                     # for psp and solo, the raw resolution is 5s
-                    Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
+                    try:
+                        Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
+                    except:
+                        dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
+                        Btot = dfmag['Btot']
                 elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
                     # for Helios-1/2 and Ulysses, load high-res mag data for this line
-                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time)
+                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
                     Btot = dfmag['Btot']
                 else:
                     pass
@@ -845,7 +854,7 @@ class TimeSeriesViewer:
                     mag_coms[k].plot(ax = ax, style = ['C%d'%(i1+1)], lw = 0.8, alpha = 0.8)
 
                 ax.set_yscale('log')
-                ax.set_ylim([1e-2, 4e0])
+                ax.set_ylim([10**(-2.05), 10**(0.05)])
                 ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
                 ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
                 ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
@@ -867,7 +876,7 @@ class TimeSeriesViewer:
                     Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
                 elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
                     # for Helios-1/2 and Ulysses, load high-res mag data for this line
-                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time)
+                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
                     Btot = dfmag['Btot']
                 else:
                     pass
@@ -908,7 +917,7 @@ class TimeSeriesViewer:
                 ax = axes['density']
                 # speeds
                 dfts[['np']].plot(ax = ax, legend=False, style=['k'], lw = 0.8)
-                ax.legend(['np[cm^-3]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.legend(['np[cm^-3]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -923,7 +932,7 @@ class TimeSeriesViewer:
                 ls = lines['density']
                 # speeds
                 ls[0].set_data(dfts['np'].index, dfts['np'].values)
-                ax.legend(['np[cm^-3]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.legend(['np[cm^-3]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -939,7 +948,7 @@ class TimeSeriesViewer:
                 ax = axes['density'].twinx()
                 self.axes['scale'] = ax
                 dfts[['di','rho_ci']].plot(ax = ax, legend=False, style=['C3--','C4--'], lw = 0.8, alpha = 0.6)
-                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
                 if dfts['di'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
@@ -962,7 +971,7 @@ class TimeSeriesViewer:
                 ls = lines['scale']
                 ls[0].set_data(dfts['di'].index, dfts['di'].values)
                 ls[1].set_data(dfts['rho_ci'].index, dfts['rho_ci'].values)
-                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
                 if dfts['di'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
@@ -1015,10 +1024,10 @@ class TimeSeriesViewer:
                 ax = axes['ang']
                 try:
                     dfts[['vbangle','brangle']].plot(ax = ax, legend=False, style = ['r--','b--'], lw = 0.8)
-                    ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
                 except:
                     dfts[['vbangle']].plot(ax = ax, legend=False, style = ['r--','b--'], lw = 0.8)
-                    ax.legend([r'$<\vec V, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    ax.legend([r'$<\vec V, \vec B>$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -1036,10 +1045,10 @@ class TimeSeriesViewer:
                 try:
                     ls[0].set_data(dfts['vbangle'].index, dfts['vbangle'].values)
                     ls[1].set_data(dfts['brangle'].index, dfts['brangle'].values)
-                    ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
                 except:
                     ls[0].set_data(dfts['vbangle'].index, dfts['vbangle'].values)
-                    ax.legend([r'$<\vec V, \vec B>$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    ax.legend([r'$<\vec V, \vec B>$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -1056,7 +1065,7 @@ class TimeSeriesViewer:
             try:
                 ax = axes['ang'].twinx()
                 dfts['beta'].plot(ax = ax, style = ['k-'], legend='False', lw = 1.0)
-                ax.legend([r'$\beta$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
+                ax.legend([r'$\beta$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
                 if dfts['beta'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
@@ -1078,7 +1087,7 @@ class TimeSeriesViewer:
                 ax = axes['beta']
                 ls = lines['beta']
                 ls[0].set_data(dfts['beta'].index, dfts['beta'].values)
-                ax.legend([r'$\beta$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
+                ax.legend([r'$\beta$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
                 if dfts['beta'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
                 ax.set_xticks([], minor=True)
@@ -1123,7 +1132,7 @@ class TimeSeriesViewer:
                 ax = axes['rau']
                 ydata = dfts['Dist_au']*au_to_rsun
                 (ydata).plot(ax = ax, style = ['k'], legend = False, lw = 0.8)
-                ax.legend([r'$R\ [R_{\circ}]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
+                ax.legend([r'$R\ [R_{\circ}]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
                 ax.set_ylim([0.95*np.nanmin(ydata), 1.05*np.nanmax(ydata)])
                 lines['rau'] = ax.get_lines()
@@ -1131,7 +1140,7 @@ class TimeSeriesViewer:
                 ax = axes['rau']
                 ydata = dfts['RAD_AU']*au_to_rsun
                 (ydata).plot(ax = ax, style = ['k'], legend = False, lw = 0.8)
-                ax.legend([r'$R\ [R_{\circ}]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
+                ax.legend([r'$R\ [R_{\circ}]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
                 ax.set_ylim([0.95*np.nanmin(ydata), 1.05*np.nanmax(ydata)])
                 lines['rau'] = ax.get_lines()
@@ -1141,7 +1150,7 @@ class TimeSeriesViewer:
                 ls = lines['rau']
                 ydata = dfts['Dist_au']*au_to_rsun
                 ls[0].set_data(dfts['Dist_au'].index, (ydata).values)
-                ax.legend([r'$R\ [R_{\circ}]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
+                ax.legend([r'$R\ [R_{\circ}]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
                 ax.set_ylim([0.95*np.nanmin(ydata), 1.05*np.nanmax(ydata)])
                 lines['rau'] = ax.get_lines()
@@ -1150,7 +1159,7 @@ class TimeSeriesViewer:
                 ls = lines['rau']
                 ydata = dfts['RAD_AU']*au_to_rsun
                 ls[0].set_data(dfts['RAD_AU'].index, (ydata).values)
-                ax.legend([r'$R\ [R_{\circ}]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
+                ax.legend([r'$R\ [R_{\circ}]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
                 ax.set_ylim([0.95*np.nanmin(ydata), 1.05*np.nanmax(ydata)])
                 lines['rau'] = ax.get_lines()
@@ -1161,7 +1170,7 @@ class TimeSeriesViewer:
                 ax = axes['rau'].twinx()
                 axes['tadv'] = ax
                 dfts['tadv'].plot(ax = ax, style = ['r'], legend = False, lw = 0.8)
-                ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
+                ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
                 ax.set_ylim([np.nanmin(dfts['tadv'])*0.95, np.nanmax(dfts['tadv'])*1.05])
                 lines['tadv'] = ax.get_lines()
@@ -1172,7 +1181,7 @@ class TimeSeriesViewer:
                 ax = axes['tadv']
                 ls = lines['tadv']
                 ls[0].set_data(dfts['tadv'].index, dfts['tadv'].values)
-                ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
+                ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
                 ax.set_ylim([np.nanmin(dfts['tadv'])*0.95, np.nanmax(dfts['tadv'])*1.05])
                 lines['tadv'] = ax.get_lines()
@@ -1203,6 +1212,20 @@ class TimeSeriesViewer:
         )
 
 
+    def FindSelectedIntervals(self, x):
+        flags = np.zeros_like(self.selected_intervals)
+        for i1 in range(len(self.selected_intervals)):
+            si = self.selected_intervals[i1]
+            if (x > si['start_time']) & (x < si['end_time']):
+                flags[i1] = 1
+        
+        inds = np.where(flags)
+        can_si = (np.array(self.selected_intervals))[inds]
+        lengths = np.array([np.abs(can_si[i1]['end_time']-can_si[i1]['start_time']) for i1 in range(len(can_si))])
+            
+        return inds[0][np.argmin(lengths)]
+            
+
     #--------  Visual Interface --------#
 
     def on_key_event(self, event):
@@ -1212,27 +1235,20 @@ class TimeSeriesViewer:
         if (event.key == 'd'):
             try:
                 x = self.current_x
-                for i1 in range(len(self.selected_intervals)):
-                    selected_interval = self.selected_intervals[i1]
-                    if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
-                        # check quality flag
-                        if 'QualityFlag' in selected_interval.keys():
-                            flag = selected_interval['QualityFlag']
-                            if flag == 0:
-                                continue
-                            elif flag == 4:
-                                continue
-                            else:
-                                pass
+                i1 = self.FindSelectedIntervals(x)
+                selected_interval = self.selected_intervals[i1]
 
-                        # remove the red vline and shaded area
-                        for k, ax in self.axes.items():
-                            selected_interval['rects'][k].remove()
-                            selected_interval['lines1'][k].remove()
-                            selected_interval['lines2'][k].remove()
-                            ax.figure.canvas.draw()
-                        # pop the instance
-                        self.selected_intervals.pop(i1)
+                if 'QualityFlag' in selected_interval.keys():
+                    flag = selected_interval['QualityFlag'] 
+
+                # remove the red vline and shaded area
+                for k, ax in self.axes.items():
+                    selected_interval['rects'][k].remove()
+                    selected_interval['lines1'][k].remove()
+                    selected_interval['lines2'][k].remove()
+                    ax.figure.canvas.draw()
+                # pop the instance
+                self.selected_intervals.pop(i1)
             except:
                 pass
         elif (event.key == 'backspace'):
@@ -1252,86 +1268,96 @@ class TimeSeriesViewer:
         elif (event.key == 'p'):
             try:
                 x = self.current_x
-                for i1 in range(len(self.selected_intervals)):
-                    selected_interval = self.selected_intervals[i1]
-                    if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
-                        t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
 
-                        # calculate the time series for later diagnostics
-                        if len(self.p_funcs) > 0:
-                            ind = (self.dfts.index > t0) & (self.dfts.index < t1)
-                            dftemp = self.dfts.loc[ind]
+                i1 = self.FindSelectedIntervals(x)
+                selected_interval = self.selected_intervals[i1]
+                t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
 
-                            dfmag, infos = LoadHighResMagWrapper(self.sc, t0, t1)
-                            res = infos['resolution']
-                            Br = dfmag['Bx'].interpolate().dropna()
-                            Bt = dfmag['By'].interpolate().dropna()
-                            Bn = dfmag['Bz'].interpolate().dropna()
+                # calculate the time series for later diagnostics
+                if len(self.p_funcs) > 0:
+                    ind = (self.dfts.index > t0) & (self.dfts.index < t1)
+                    dftemp = self.dfts.loc[ind]
 
-                            # save the time series to dataframe
-                            self.selected_intervals[i1]['TimeSeries'] = dftemp
-                            self.selected_intervals[i1]['dfmag'] = dfmag
+                    dfmag, infos = LoadHighResMagWrapper(self.sc, t0, t1, credentials = self.credentials)
+                    res = infos['resolution']
+                    Br = dfmag['Bx'].interpolate().dropna()
+                    Bt = dfmag['By'].interpolate().dropna()
+                    Bn = dfmag['Bz'].interpolate().dropna()
 
-                        # psd
-                        if 'PSD' in self.p_funcs.keys():
+                    # save the time series to dataframe
+                    self.selected_intervals[i1]['TimeSeries'] = dftemp
+                    self.selected_intervals[i1]['dfmag'] = dfmag
+                    self.selected_intervals[i1]['LTSWsettings'] = self.LTSWsettings
 
-                            if 'PSD' not in self.selected_intervals[i1].keys():
-                                freq, B_pow = TracePSD(Br.values, Bt.values, Bn.values, res)
-                                self.selected_intervals[i1]['PSD'] = {
-                                    'start_time': t0,
-                                    'end_time': t1,
-                                    'sc': self.sc,
-                                    'freqs': freq,
-                                    'PSD': B_pow,
-                                    'resample_info':{
-                                        'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(Br)*100,
-                                        'resolution': res
-                                    }
-                                }
-                                # smooth the spectrum
-                                if self.calc_smoothed_spec:
-                                    _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
-                                    self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
-                                    self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
-                            else:
-                                print("PSD is already here!")
+                # psd
+                if 'PSD' in self.p_funcs.keys():
 
-                            if self.useBPF:
-                                self.bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
-                                self.bpf.connect()
-                            else:
-                                fig1, ax1 = plt.subplots(1, figsize = [6,6])
-                                ax1.loglog(freq, B_pow)
-                                if self.calc_smoothed_spec:
-                                    ax1.loglog(sm_freqs, sm_PSD)
-                                ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
-                                ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
+                    freq, B_pow = TracePSD(Br.values, Bt.values, Bn.values, res)
+                    self.selected_intervals[i1]['PSD'] = {
+                        'start_time': t0,
+                        'end_time': t1,
+                        'sc': self.sc,
+                        'freqs': freq,
+                        'PSD': B_pow,
+                        'resample_info':{
+                            'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(Br)*100,
+                            'resolution': res
+                        }
+                    }
+                    # smooth the spectrum
+                    if self.calc_smoothed_spec:
+                        _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
+                        self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
+                        self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
 
-                        # structure func: dB
-                        if 'Struc_Func' in self.p_funcs.keys():
-                            maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
-                            self.struc_funcs = MagStrucFunc(Br, Bt, Bn, (1,maxtime), 80)
-                            struc_funcs = self.struc_funcs
+                    if self.useBPF:
+                        self.bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
+                        self.bpf.connect()
+                    else:
+                        fig1, ax1 = plt.subplots(1, figsize = [6,6])
+                        ax1.loglog(freq, B_pow)
+                        if self.calc_smoothed_spec:
+                            ax1.loglog(sm_freqs, sm_PSD)
+                        ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
+                        ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
 
-                            # fig2, ax2 = plt.subplots(1, figsize = [6,6])
-                            # ax2.loglog(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
-                            # # plot 1/3 line
-                            # xx = np.logspace(-1,-3)
-                            # yy = xx**(-1./3)/10
-                            # ax2.loglog(xx, yy)
+                # structure func: dB
+                if 'Struc_Func' in self.p_funcs.keys():
+                    maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
+                    self.struc_funcs = MagStrucFunc(Br, Bt, Bn, (0.5,maxtime), 120)
+                    struc_funcs = self.struc_funcs
 
-                            # ax2.set_xlabel(r'1/dts [Hz]')
-                            # ax2.set_ylabel(r'dBvecs [nT]')
-                            # ax2.set_ylim([1e-1, 4e0])
+                    # fig2, ax2 = plt.subplots(1, figsize = [6,6])
+                    # ax2.loglog(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
+                    # # plot 1/3 line
+                    # xx = np.logspace(-1,-3)
+                    # yy = xx**(-1./3)/10
+                    # ax2.loglog(xx, yy)
 
-                            self.bpfg = BPFG(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
-                            self.bpfg.connect()
-                            if np.nanmin(struc_funcs['dBvecnorms']) > 1e-1:
-                                self.bpfg.arts['PSD']['ax'].set_ylim([1e-1,5e0])
-                            elif np.nanmin(struc_funcs['dBvecnorms']) > 1e-2:
-                                self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
+                    # ax2.set_xlabel(r'1/dts [Hz]')
+                    # ax2.set_ylabel(r'dBvecs [nT]')
+                    # ax2.set_ylim([1e-1, 4e0])
+
+                    if self.p_funcs['Struc_Func'] == 1:
+                        print("Showing dBvecnorms")
+                        # freq /2 -> freq for FFT
+                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
+                    elif self.p_funcs['Struc_Func'] == 2:
+                        print("Showing dBvecs")
+                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000), struc_funcs['dBvecs'])
+                    elif self.p_funcs['Struc_Func'] == 3:
+                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000), struc_funcs['dBmodnorms'])
+                    else:
+                        raise ValueError("Wrong Struc_Func!")
+
+                    self.bpfg.connect()
+                    if np.nanmin(struc_funcs['dBvecnorms']) > 1e-1:
+                        self.bpfg.arts['PSD']['ax'].set_ylim([1e-1,5e0])
+                    elif np.nanmin(struc_funcs['dBvecnorms']) > 1e-2:
+                        self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
+
+                    self.selected_intervals[i1]['struc_funcs'] = struc_funcs
                         
-
 
             except:
                 raise ValueError("Func p: failed!")
@@ -1576,11 +1602,11 @@ class TimeSeriesViewer:
                 try:
                     dtrl = (xt - self.red_vlines[-1]['timestamp']).total_seconds()/3600
                     self.text.set_text(
-                        "%s, R[AU] = %.2f [AU], tadv = %.2f [Hr], Selected = %.2f [Hr], Recommended = %.2f [Hr], Corrected with tadv = %.2f [Hr]" %(xt, rau, tadv, dtrl, t_len1, t_len2)
+                        "%s, R[AU] = %.2f [AU] / %.2f [Rs], tadv = %.2f [Hr], Selected = %.2f [Hr], vsw = %.0f [km/s]" %(xt, rau, rau*au_to_rsun, tadv, dtrl, vsw)
                     )
                 except:
                     self.text.set_text(
-                        "%s, R[AU] = %.2f [AU], tadv = %.2f [Hr], Recommended = %.2f [Hr], Corrected with tadv = %.2f [Hr]" %(xt, rau, tadv, t_len1, t_len2)
+                        "%s, R[AU] = %.2f [AU] / %.2f [Rs], tadv = %.2f [Hr], vsw = %.0f [km/s]" %(xt, rau, rau*au_to_rsun, tadv, vsw)
                     )
             else:
                 try:
@@ -1590,16 +1616,16 @@ class TimeSeriesViewer:
                         if (x > selected_interval['start_time']) & (x < selected_interval['end_time']):
                             dtint = (selected_interval['end_time']- selected_interval['start_time']).total_seconds()/3600
                     self.text.set_text(
-                        "%s, R[AU] = %.2f [AU], tadv = %.2f [Hr], Current = %.2f [Hr], Recommended = %.2f [Hr], Corrected with tadv = %.2f [Hr]" %(xt, rau, tadv, dtint, t_len1, t_len2)
+                        "%s, R[AU] = %.2f [AU] / %.2f [Rs], tadv = %.2f [Hr], Current = %.2f [Hr], vsw = %.0f [km/s]" %(xt, rau, rau*au_to_rsun, tadv, dtint, vsw)
                     )
                 except:
                     self.text.set_text(
-                        "%s, R[AU] = %.2f [AU], tadv = %.2f [Hr], Recommended = %.2f [Hr], Corrected with tadv = %.2f [Hr]" %(xt, rau, tadv, t_len1, t_len2)
+                        "%s, R[AU] = %.2f [AU] / %.2f [Rs], tadv = %.2f [Hr], vsw = %.0f [km/s]" %(xt, rau, rau*au_to_rsun, tadv, vsw)
                     )
             # xt = pd.Period(ordinal=int(event.xdata), freq=self.resample_rate)
             # self.text.set_text("%s" %(str(xt)))
             self.text.set_fontsize('xx-large')
-            self.text.set_x(0.05)
+            self.text.set_x(-0.1)
             self.text.set_y(1.05)
 
             for k, ax in self.axes.items():

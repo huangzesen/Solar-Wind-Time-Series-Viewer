@@ -241,7 +241,7 @@ def smoothing_function(x,y, window=2, pad = 1):
     return xoutmid, xoutmean,  yout
 
 
-def TracePSD(x,y,z,dt, norm = 'forward'):
+def TracePSD(x,y,z,dt, norm = 'ortho'):
     """ 
     Estimate Power spectral density:
 

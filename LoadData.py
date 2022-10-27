@@ -872,6 +872,12 @@ def LoadTimeSeriesPSP(
 
             dfe = dfe.resample(freq).interpolate()
 
+            try:
+                # when particla_mode = span_only, there are overlapping columns
+                dfts.drop(columns = ['sc_vel_r', 'sc_vel_t', 'sc_vel_n'], inplace = True)
+            except:
+                pass
+
             dfts = dfts.join(dfe)
             dfts['Dist_au'] = (dfe[['sc_pos_r','sc_pos_t','sc_pos_n']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
         except:
@@ -1008,9 +1014,56 @@ def LoadTimeSeriesULYSSES(
     return dfts, misc
 
 
+def LoadTimeSeriesWind(
+   start_time, end_time, settings = {}, credentials = None 
+):
+    """ 
+    Load Wind Plasma Data 
+    start_time: pd.Timestamp
+    end_time: pd.Timestamp
+    """
+    
+    verbose = settings['verbose']
+
+    if verbose:
+        print("Loading WIND data from CDAWEB...")
+
+    vars = ['IMF','PLS','IMF_PTS','PLS_PTS','percent_interp','Timeshift','RMS_Timeshift','RMS_phase','Time_btwn_obs','F','BX_GSE','BY_GSE','BZ_GSE','BY_GSM','BZ_GSM','RMS_SD_B','RMS_SD_fld_vec','flow_speed','Vx','Vy','Vz','proton_density','T','Pressure','E','Beta','Mach_num','Mgs_mach_num','x','y','z','BSN_x','BSN_y','BSN_z','AE_INDEX','AL_INDEX','AU_INDEX','SYM_D','SYM_H','ASY_D','ASY_H','PC_N_INDEX']
+    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    status, data = cdas.get_data('OMNI_HRO_1MIN', vars, time[0], time[1])
+
+    if verbose:
+        print("Done.")
+
+    df = pd.DataFrame(
+        index = data['Epoch']
+    ).join(
+        pd.DataFrame(
+            index = data['Epoch'],
+            data = {
+                'Dist_au': data['R_Helio'],
+                'lon':data['clong'],
+                'lat':data['clat'],
+                'Br' : data['B_R'],
+                'Bt' : data['B_T'],
+                'Bn' : data['B_N'],
+                'Vr' : data['Vp_R'],
+                'Vt' : data['Vp_T'],
+                'Vn' : data['Vp_N'],
+                'np' : data['Np'],
+                'Tp' : data['Tp'],
+                'Vth': 0.128487*np.sqrt(data['Tp']), # vth[km/s] = 0.128487 * √Tp[K]
+                'Bx' : data['B_x'],
+                'By' : data['B_y'],
+                'Bz' : data['B_z']
+                }
+        )
+    ) 
+
+
 # load High-res MAG data
 def LoadHighResMagWrapper(
-    sc, start_time, end_time, verbose = True):
+    sc, start_time, end_time, verbose = True, credentials = None, resolution = None):
     """
     A Wrapper to load high resolution magnetic field data
     Works for Helios 1/2 (sc = 2,3) and Ulysses (sc = 4)
@@ -1022,7 +1075,7 @@ def LoadHighResMagWrapper(
         print("Required tstart = %s, tend = %s" %(start_time, end_time))
 
     if sc == 0:
-        dfmag, infos = LoadHighResMagPSP(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
+        dfmag, infos = LoadHighResMagPSP(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose, credentials = credentials, resolution = resolution)
     elif sc == 1:
         dfmag, infos = LoadHighResMagSOLO(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 2:
@@ -1077,34 +1130,73 @@ def LoadHighResMagSOLO(
     return dfmag, infos
 
 def LoadHighResMagPSP(
-    start_time, end_time, verbose = True
+    start_time, end_time, verbose = True, credentials = None, resolution = None
     ):
+    """
+    resolution in ms!
+    """
 
-    vars = ['psp_fld_l2_mag_SC_4_Sa_per_Cyc']
-    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
-    status, data = cdas.get_data('PSP_FLD_L2_MAG_SC_4_SA_PER_CYC', vars, time[0], time[1])
+    try:
+        vars = ['psp_fld_l2_mag_SC_4_Sa_per_Cyc']
+        time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+        status, data = cdas.get_data('PSP_FLD_L2_MAG_SC_4_SA_PER_CYC', vars, time[0], time[1])
 
-    dfmag = pd.DataFrame(
-        index = data['epoch_mag_SC_4_Sa_per_Cyc'],
-        data = {
-            'Bx': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,0],
-            'By': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,1],
-            'Bz': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,2]
+        dfmag = pd.DataFrame(
+            index = data['epoch_mag_SC_4_Sa_per_Cyc'],
+            data = {
+                'Bx': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,0],
+                'By': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,1],
+                'Bz': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,2]
+            }
+        )
+        dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+
+        if verbose:
+            print("Input tstart = %s, tend = %s" %(time[0], time[1]))
+            print("Returned tstart = %s, tend = %s" %(
+                data['epoch_mag_SC_4_Sa_per_Cyc'][0], 
+                data['epoch_mag_SC_4_Sa_per_Cyc'][-1]))
+
+    except:
+        print("Loading unpublished PSP high-res mag data....")
+        if credentials is None:
+            raise ValueError("No credentials are provided!")
+
+        t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+        t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+        username = credentials['psp']['fields']['username']
+        password = credentials['psp']['fields']['password']
+
+        names = pyspedas.psp.fields(trange=[t0,t1], 
+            datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
+            username=username, password=password
+        )
+        data = get_data(names[0])
+        dfmag2 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag2.columns = ['Bx','By','Bz']
+
+        dfmag = dfmag2
+        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = dfmag.index.tz_localize(None)
+
+        dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+
+    if resolution is None:
+        dfmag = dfmag.resample('1s').mean()
+        infos = {
+            'resolution': 1
         }
-    )
-    dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+    else:
+        dfmag = dfmag.resample("%dms" %(resolution)).mean()
+        infos = {
+            'resolution': resolution/1000
+        }
 
-    dfmag = dfmag.resample('1s').mean()
 
-    if verbose:
-        print("Input tstart = %s, tend = %s" %(time[0], time[1]))
-        print("Returned tstart = %s, tend = %s" %(
-            data['epoch_mag_SC_4_Sa_per_Cyc'][0], 
-            data['epoch_mag_SC_4_Sa_per_Cyc'][-1]))
-
-    infos = {
-        'resolution': 1
-    }
 
     return dfmag, infos
 

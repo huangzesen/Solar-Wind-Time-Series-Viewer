@@ -87,12 +87,13 @@ def MagStrucFunc(Br, Bt, Bn, scale_range, npts):
     dBvecnorms = np.array([])
     dBmods = np.array([])
     dBmodnorms = np.array([])
+    dBmoddBvecs = np.array([])
 
     dts = np.floor(1000*np.logspace(scale_range[0], scale_range[1], npts, base = 10))
     for i1 in range(len(dts)):
         dt = pd.Timedelta("%dms" %(dts[i1]))
         rolling_window = "%dms" %(dts[i1])
-        dBvec, dBvecnorm, dBmod, dBmodnorm = CalculateMagDiagnostics(
+        dBvec, dBvecnorm, dBmod, dBmodnorm, dBmoddBvec = CalculateMagDiagnostics(
             Br, Bt, Bn, dt, rolling_window
         )
 
@@ -100,13 +101,15 @@ def MagStrucFunc(Br, Bt, Bn, scale_range, npts):
         dBvecnorms = np.append(dBvecnorms, dBvecnorm)
         dBmods = np.append(dBmods, dBmod)
         dBmodnorms = np.append(dBmodnorms, dBmodnorm)
+        dBmoddBvecs = np.append(dBmoddBvecs, dBmoddBvec)
 
     results = {
         'dts': dts,
         'dBvecs': dBvecs,
         'dBvecnorms': dBvecnorms,
         'dBmods': dBmods,
-        'dBmodnorms': dBmodnorms
+        'dBmodnorms': dBmodnorms,
+        'dBmoddBvecs': dBmoddBvecs
     }
 
     return results
@@ -125,9 +128,8 @@ def CalculateMagDiagnostics(Br, Bt, Bn, dt, rolling_window):
     dBmod, Bmodmean = TimeseriesDifference(np.sqrt(Br**2+Bt**2+Bn**2), dt, rolling_window)
 
     dBvecmod = (np.sqrt(dBr**2+dBt**2+dBn**2)).to_numpy()
-    Bvecmod = (np.sqrt(Brmean**2+Btmean**2+Bnmean**2)).to_numpy()
 
-    return np.nanmean(dBvecmod), np.nanmean(dBvecmod/Bmodmean), np.nanmean(np.abs(dBmod)), np.nanmean(np.abs(dBmod)/dBvecmod)
+    return np.nanmean(dBvecmod), np.nanmean(dBvecmod/Bmodmean), np.nanmean(np.abs(dBmod)), np.nanmean(np.abs(dBmod)/Bmodmean), np.nanmean(np.abs(dBmod)/dBvecmod)
 
 def TimeseriesDifference(ts, dt, rolling_window):
     """
