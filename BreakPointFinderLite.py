@@ -114,11 +114,7 @@ class BreakPointFinder:
             )
         except:
             ax.set_title(
-                "QF: %d" %(self.PSD['PSD_diagnostics']['QualityFlag'])
-                +
-                "\n"
-                +
-                "%s" %(Path(self.path).stem),
+                "QF: %d" %(self.PSD['PSD_diagnostics']['QualityFlag']),
                 fontsize = 'xx-large'
             )
 

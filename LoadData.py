@@ -933,17 +933,30 @@ def LoadTimeSeriesULYSSES(
     t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
     t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
-    vhm_vars = pyspedas.ulysses.vhm(trange=[t0,t1], datatype='1sec')
-    data = get_data('B_RTN')
+    # vhm_vars = pyspedas.ulysses.vhm(trange=[t0,t1], datatype='1sec')
+    # data = get_data('B_RTN')
+
+    # dfmag = pd.DataFrame(
+    #     index = data[0],
+    #     data = data[1]
+    # )
+    # dfmag.columns = ['Br','Bt','Bn']
+
+    # dfmag.index = time_string.time_datetime(time=dfmag.index)
+    # dfmag.index = dfmag.index.tz_localize(None)  
+
+    vars = ['B_RTN','B_MAG']
+    time = [start_time.to_pydatetime()-pd.Timedelta('10H'), end_time.to_pydatetime()+pd.Timedelta('10H')]
+    status, data = cdas.get_data('UY_1MIN_VHM', vars, time[0], time[1])
 
     dfmag = pd.DataFrame(
-        index = data[0],
-        data = data[1]
+        index = data['Epoch'],
+        data = {
+            'Br': data['B_RTN'][:,0],
+            'Bt': data['B_RTN'][:,1],
+            'Bn': data['B_RTN'][:,2]
+        }
     )
-    dfmag.columns = ['Br','Bt','Bn']
-
-    dfmag.index = time_string.time_datetime(time=dfmag.index)
-    dfmag.index = dfmag.index.tz_localize(None)  
 
     swoops_vars = pyspedas.ulysses.swoops(trange=[t0,t1])
 
@@ -1279,7 +1292,7 @@ def LoadHighResMagUlysses(
     ):
     """
     Load High Res Ulysses Mag Data:
-    CDAWEB Key: UY_1MIN_VHM
+    CDAWEB Key: UY_1SEC_VHM
     Output: 
     DataFrame with Bx/By/Bz
     (Note: The actual return is in RTN, but deemed as SC frame nevertheless)
@@ -1287,7 +1300,7 @@ def LoadHighResMagUlysses(
 
     vars = ['B_RTN','B_MAG']
     time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
-    status, data = cdas.get_data('UY_1MIN_VHM', vars, time[0], time[1])
+    status, data = cdas.get_data('UY_1SEC_VHM', vars, time[0], time[1])
 
     dfmag = pd.DataFrame(
         index = data['Epoch'],
@@ -1299,12 +1312,14 @@ def LoadHighResMagUlysses(
         }
     )
 
+    dfmag = dfmag.resample('1s').mean()
+
     if verbose:
         print("Input tstart = %s, tend = %s" %(time[0], time[1]))
         print("Returned tstart = %s, tend = %s" %(data['Epoch'][0], data['Epoch'][-1]))
 
     infos = {
-        'resolution': 6
+        'resolution': 1
     }
 
     return dfmag, infos

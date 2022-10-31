@@ -687,7 +687,10 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_ylim([100,700])
+                if dfts[['V']].max() < 700:
+                    ax.set_ylim([100,700])
+                else:
+                    ax.set_ylim([300,900])
                 lines['vsw'] = ax.get_lines()
             except:
                 pass
@@ -702,7 +705,10 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_ylim([100,700])
+                if dfts[['V']].max() < 700:
+                    ax.set_ylim([100,700])
+                else:
+                    ax.set_ylim([300,900])
                 lines['vsw'] = ax.get_lines()
             except:
                 pass
@@ -1028,6 +1034,14 @@ class TimeSeriesViewer:
                 except:
                     dfts[['vbangle']].plot(ax = ax, legend=False, style = ['r--','b--'], lw = 0.8)
                     ax.legend([r'$<\vec V, \vec B>$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+
+                # plot latitude
+                try:
+                    (dfts['lat']+90).plot(ax = ax, legend = False, style = 'm--', lw = 1.2)
+                    ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$', 'Lat+90'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                except:
+                    pass
+
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -1049,6 +1063,17 @@ class TimeSeriesViewer:
                 except:
                     ls[0].set_data(dfts['vbangle'].index, dfts['vbangle'].values)
                     ax.legend([r'$<\vec V, \vec B>$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                
+                try:
+                    if len(ls) == 3:
+                        ls[2].set_data(dfts['lat'].index, (dfts['lat']+90))
+                        ax.legend([r'$<\vec V, \vec B>$',r'$<\vec r, \vec B>$', 'Lat+90'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    elif len(ls) == 2:
+                        ls[1].set_data(dfts['lat'].index, (dfts['lat']+90))
+                        ax.legend([r'$<\vec r, \vec B>$', 'Lat+90'], fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                except:
+                    pass
+
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -1341,12 +1366,12 @@ class TimeSeriesViewer:
                     if self.p_funcs['Struc_Func'] == 1:
                         print("Showing dBvecnorms")
                         # freq /2 -> freq for FFT
-                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
+                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecnorms'])
                     elif self.p_funcs['Struc_Func'] == 2:
                         print("Showing dBvecs")
-                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000), struc_funcs['dBvecs'])
+                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecs'])
                     elif self.p_funcs['Struc_Func'] == 3:
-                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000), struc_funcs['dBmodnorms'])
+                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000*2), struc_funcs['dBmodnorms'])
                     else:
                         raise ValueError("Wrong Struc_Func!")
 
