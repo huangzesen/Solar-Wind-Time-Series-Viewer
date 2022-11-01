@@ -263,8 +263,6 @@ def TracePSD(x,y,z,dt, norm = 'ortho'):
           + np.abs(np.fft.rfft(z, norm=norm))**2
 
     freqs = np.fft.rfftfreq(len(x), dt)
-    # freqs = freqs[freqs>0]
-    # idx   = np.argsort(freqs)
     
     return freqs, B_pow
 

@@ -37,7 +37,11 @@ from TSUtilities import curve_fit_log_wrap
 
 class BreakPointFinder:
     def __init__(
-        self, x, y, label = None, secondary = None):
+        self, x, y, 
+        label = None, secondary = None, 
+        app = '4pt_slope', diagnostics = None,
+        view_fit = True
+        ):
         """
         Initialize the class with fig, ax, and plot data
         data: {'xdata':, 'ydata':}
@@ -45,12 +49,13 @@ class BreakPointFinder:
         """
 
         # find breakpoint
-        self.view_fit = True
 
         self.x = x
         self.y = y
         self.secondary = secondary
         self.label = label
+        self.app = app
+        self.view_fit = view_fit
 
         self.diagnostics_template = {
             "QualityFlag": 0,
@@ -61,23 +66,71 @@ class BreakPointFinder:
         }
 
         self.diagnostics = {}
+        if diagnostics is None:
+            pass
+        else:
+            for k,v in diagnostics.items():
+                self.diagnostics[k] = diagnostics[k]
 
         for k in self.diagnostics_template.keys():
-            self.diagnostics[k] = self.diagnostics_template[k]
+            if k not in self.diagnostics.keys():
+                self.diagnostics[k] = self.diagnostics_template[k]
 
         self.AxesInit()
         self.FigureInit()
         self.connect()
         
+    def FigureInit(self):
+
+        self.xs = []
+        self.ys = []
+
+        # init Cross Hair
+        self.CrossHairInit()
+
+        # plot PSD
+        self.PlotPSD()
+
+        # plot fit
+        if self.view_fit:
+            if self.app == '4pt_slope':
+                try:    
+                    self.DrawFitLine()
+                except:
+                    pass
+            elif self.app == '2pt_avg':
+                try:
+                    self.DrawAvgLine()
+                except:
+                    pass
+            else:
+                pass
+        
+        # Redraw the canvas
+        self.DrawArts()
+
+    def AxesInit(self):
+
+        fig, ax = plt.subplots(1, figsize = [8,8])
+        self.fig = fig
+        self.arts = {
+            "PSD": {'ax': ax}
+        }
+
+
 
     def PlotPSD(self):
         view_fit = self.view_fit
         ax = self.arts['PSD']['ax']
 
-        l1 = ax.plot(self.x, self.y, label = self.label)
-
         if self.secondary is not None:
-            l2 = ax.plot(self.secondary['x'], self.secondary['y'], label = self.secondary['label'])
+            l2 = ax.plot(
+                self.secondary['x'], 
+                self.secondary['y'], 
+                label = self.secondary['label']
+            )
+
+        l1 = ax.plot(self.x, self.y, label = self.label)
 
         ax.set_xscale("log")
         ax.set_yscale("log")
@@ -95,6 +148,120 @@ class BreakPointFinder:
 
         self.DrawArts()
 
+
+
+    # -----------------  Applications ----------------- #
+    def calculate_4pt_slope(self):
+        """ Calculate Slope and intersect"""
+        ax = self.arts['PSD']['ax']
+        art = self.arts['PSD']
+        if len(self.xs) == 4:
+            
+            xs1 = np.min(self.xs[0:2])
+            xe1 = np.max(self.xs[0:2])
+            
+            xs2 = np.min(self.xs[2:4])
+            xe2 = np.max(self.xs[2:4])
+            
+            xdata, ydata = self.x, self.y
+            ind = (np.isnan(xdata)) & (np.isnan(ydata))
+            self.indtest = ind
+            
+            fit1,_,_,flag1 = curve_fit_log_wrap(xdata[~ind],ydata[~ind],xs1,xe1)
+            fit2,_,_,flag2 = curve_fit_log_wrap(xdata[~ind],ydata[~ind],xs2,xe2)
+            
+            if flag1 | flag2:
+                print("No enough Data!")
+                print("Cleaning points...")
+                self.xs = []
+                self.ys = []
+                art['RedCrossesLine'].set_data(self.xs, self.ys)
+                art['RedCrossesLine'].figure.canvas.draw()
+            else:
+                
+                intersect = 10**((fit1[0][0]-fit2[0][0])/(fit2[0][1]-fit1[0][1])) 
+                
+                self.diagnostics['Intersect'] = intersect
+                self.diagnostics['fit1'] = fit1
+                self.diagnostics['fit2'] = fit2
+                
+                self.DrawFitLine()
+        else:
+            pass
+
+    def calculate_2pt_avg(self):
+        """ Calculate Slope """
+        ax = self.arts['PSD']['ax']
+        art = self.arts['PSD']
+
+        if len(self.xs) == 2:
+            xs1 = np.min(self.xs)
+            xe1 = np.max(self.xs)
+
+            xdata, ydata = self.x, self.y
+
+            ind = (np.isnan(xdata)) & (np.isnan(ydata))
+            fit1,_,_,flag1 = curve_fit_log_wrap(xdata[~ind],ydata[~ind],xs1,xe1)
+            ind2 = (xdata >= xs1) & (xdata <= xe1)
+
+            if flag1:
+                print("No enough Data!")
+                print("Cleaning points...")
+                self.xs = []
+                self.ys = []
+                art['RedCrossesLine'].set_data(self.xs, self.ys)
+                art['RedCrossesLine'].figure.canvas.draw()       
+            else:
+                
+                self.diagnostics['2pt_avg']={
+                    'fit': fit1,
+                    'avg_y': np.nanmean(ydata[ind2]),
+                    'avg_x': np.nanmean(xdata[ind2]),
+                    'std_y': np.nanstd(ydata[ind2]),
+                    'x1': xs1,
+                    'x2': xe1
+                }
+
+                
+                self.DrawAvgLine()
+
+    def DrawAvgLine(self):
+        """ Draw the line created by 2pt avg """
+        ax = self.arts['PSD']['ax']
+        fig = self.fig
+
+        # create art
+        self.arts['AvgLine'] = {}
+        self.arts['AvgLine']['ax'] = ax
+
+        # clean legend
+        self.arts['AvgLine']['legend'] = ax.legend([])
+
+        xdata, ydata = self.x, self.y
+
+        try:
+            fit = self.diagnostics['2pt_avg']['fit']
+            f = lambda x: (10**fit[0][0])*x**(fit[0][1])
+
+            self.arts['AvgLine']['avgline'] = ax.axhline(
+                y = self.diagnostics['2pt_avg']['avg_y'],
+                color = 'm', lw = 1, ls = '--', alpha = 0.8,
+                label = r"avg = %.3f, std = %.3f" %(
+                    self.diagnostics['2pt_avg']['avg_y'],
+                    self.diagnostics['2pt_avg']['std_y']
+                )
+            )
+
+            self.arts['AvgLine']['avgfit'] = ax.loglog(
+                xdata, f(xdata), color='gray', lw='2', alpha = 0.8, 
+                label = r'$\alpha_B$'+' = %.4f' %(fit[0][1])
+            )
+
+        except:
+            raise ValueError("Find avg line failed!")
+            pass
+
+        self.arts['AvgLine']['legend'] = ax.legend(loc = 3, fontsize = 'x-large', frameon=False) 
 
     def DrawFitLine(self):
         """ Draw the fit line and intersect """
@@ -138,6 +305,7 @@ class BreakPointFinder:
             pass
             
         self.arts['FitLine']['legend'] = ax.legend(loc = 3, fontsize = 'x-large', frameon=False) 
+
 
 
     # -----------------  Visual Part ----------------- #
@@ -184,42 +352,16 @@ class BreakPointFinder:
             else:
                 art['RedCrossesLine'].set_data(self.xs, self.ys)
             ax.figure.canvas.draw()
-            
-            """ Calculate Slope """
-            if len(self.xs) == 4:
-                
-                xs1 = np.min(self.xs[0:2])
-                xe1 = np.max(self.xs[0:2])
-                
-                xs2 = np.min(self.xs[2:4])
-                xe2 = np.max(self.xs[2:4])
-                
-                xdata, ydata = self.x, self.y
-                ind = (np.isnan(xdata)) & (np.isnan(ydata))
-                self.indtest = ind
-                
-                fit1,_,_,flag1 = curve_fit_log_wrap(xdata[~ind],ydata[~ind],xs1,xe1)
-                fit2,_,_,flag2 = curve_fit_log_wrap(xdata[~ind],ydata[~ind],xs2,xe2)
-                
-                if flag1 | flag2:
-                    print("No enough Data!")
-                    print("Cleaning points...")
-                    self.xs = []
-                    self.ys = []
-                    art['RedCrossesLine'].set_data(self.xs, self.ys)
-                    art['RedCrossesLine'].figure.canvas.draw()
-                else:
-                    
-                    intersect = 10**((fit1[0][0]-fit2[0][0])/(fit2[0][1]-fit1[0][1])) 
-                    
-                    self.diagnostics['Intersect'] = intersect
-                    self.diagnostics['fit1'] = fit1
-                    self.diagnostics['fit2'] = fit2
-                    
-                    self.DrawFitLine()
                     
             self.DrawArts()
-            
+
+            # if 4pt, calculate slope
+            if self.app == '4pt_slope':
+                self.calculate_4pt_slope()    
+            elif self.app == '2pt_avg':
+                self.calculate_2pt_avg()
+            else:
+                raise ValueError("app = %s not supported" %(self.app))
                 
             
         elif event.button is MouseButton.RIGHT:
@@ -246,6 +388,7 @@ class BreakPointFinder:
             # Clean the current row
             self.arts['PSD']['ax'].text(0.5, 0.5, 'Cleaning Info...', transform=self.arts['PSD']['ax'].transAxes, fontsize=30, color = 'r')
             self.arts['PSD']['ax'].figure.canvas.draw()
+            self.diagnostics = {}
             for k, v in self.diagnostics_template.items():
                 self.diagnostics[k] = v
 
@@ -319,13 +462,6 @@ class BreakPointFinder:
             except:
                 pass
 
-    def AxesInit(self):
-
-        fig, ax = plt.subplots(1, figsize = [8,8])
-        self.fig = fig
-        self.arts = {
-            "PSD": {'ax': ax}
-        }
 
     def ResetFigure(self):
         """ reset the figure """
@@ -347,22 +483,4 @@ class BreakPointFinder:
         # text location in axes coordinates
         self.text = ax.text(0.72, 0.9, '', transform=ax.transAxes)
 
-
-    def FigureInit(self):
-
-        self.xs = []
-        self.ys = []
-
-        # init Cross Hair
-        self.CrossHairInit()
-
-        # plot PSD
-        self.PlotPSD()
-
-        # plot fit
-        if self.view_fit:
-            self.DrawFitLine()
-        
-        # Redraw the canvas
-        self.DrawArts()
 
