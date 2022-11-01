@@ -7,3 +7,4 @@ __pycache__/TSUtilities.cpython-310.pyc
 __pycache__/
 __pycache__/TimeSeriesViewer.cpython-310.pyc
 __pycache__/TimeSeriesViewer.cpython-310.pyc
+*.pyc
