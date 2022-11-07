@@ -40,12 +40,13 @@ class BreakPointFinder:
         self, x, y, 
         label = None, secondary = None, 
         app = '4pt_slope', diagnostics = None,
-        view_fit = True
+        view_fit = True, no_avg =False
         ):
         """
         Initialize the class with fig, ax, and plot data
         data: {'xdata':, 'ydata':}
-        Input: smoothed line with smoothed freqs(x) and smoothed PSD (y)
+        Input: smoothed line with smoothed freqs(x) and smoothed PSD (y),
+        app: 4pt_slope, 2pt_avg
         """
 
         # find breakpoint
@@ -56,6 +57,8 @@ class BreakPointFinder:
         self.label = label
         self.app = app
         self.view_fit = view_fit
+        
+        self.no_avg = no_avg
 
         self.diagnostics_template = {
             "QualityFlag": 0,
@@ -93,6 +96,7 @@ class BreakPointFinder:
 
         # plot fit
         if self.view_fit:
+            print("app=%s" %(self.app))
             if self.app == '4pt_slope':
                 try:    
                     self.DrawFitLine()
@@ -100,7 +104,7 @@ class BreakPointFinder:
                     pass
             elif self.app == '2pt_avg':
                 try:
-                    self.DrawAvgLine()
+                    self.DrawFitLine()
                 except:
                     pass
             else:
@@ -143,14 +147,13 @@ class BreakPointFinder:
             fontsize = 'xx-large'
         )
 
-        if view_fit:
-            self.DrawFitLine()
-
         self.DrawArts()
 
 
 
     # -----------------  Applications ----------------- #
+
+
     def calculate_4pt_slope(self):
         """ Calculate Slope and intersect"""
         ax = self.arts['PSD']['ax']
@@ -188,80 +191,6 @@ class BreakPointFinder:
                 self.DrawFitLine()
         else:
             pass
-
-    def calculate_2pt_avg(self):
-        """ Calculate Slope """
-        ax = self.arts['PSD']['ax']
-        art = self.arts['PSD']
-
-        if len(self.xs) == 2:
-            xs1 = np.min(self.xs)
-            xe1 = np.max(self.xs)
-
-            xdata, ydata = self.x, self.y
-
-            ind = (np.isnan(xdata)) & (np.isnan(ydata))
-            fit1,_,_,flag1 = curve_fit_log_wrap(xdata[~ind],ydata[~ind],xs1,xe1)
-            ind2 = (xdata >= xs1) & (xdata <= xe1)
-
-            if flag1:
-                print("No enough Data!")
-                print("Cleaning points...")
-                self.xs = []
-                self.ys = []
-                art['RedCrossesLine'].set_data(self.xs, self.ys)
-                art['RedCrossesLine'].figure.canvas.draw()       
-            else:
-                
-                self.diagnostics['2pt_avg']={
-                    'fit': fit1,
-                    'avg_y': np.nanmean(ydata[ind2]),
-                    'avg_x': np.nanmean(xdata[ind2]),
-                    'std_y': np.nanstd(ydata[ind2]),
-                    'x1': xs1,
-                    'x2': xe1
-                }
-
-                
-                self.DrawAvgLine()
-
-    def DrawAvgLine(self):
-        """ Draw the line created by 2pt avg """
-        ax = self.arts['PSD']['ax']
-        fig = self.fig
-
-        # create art
-        self.arts['AvgLine'] = {}
-        self.arts['AvgLine']['ax'] = ax
-
-        # clean legend
-        self.arts['AvgLine']['legend'] = ax.legend([])
-
-        xdata, ydata = self.x, self.y
-
-        try:
-            fit = self.diagnostics['2pt_avg']['fit']
-            f = lambda x: (10**fit[0][0])*x**(fit[0][1])
-
-            self.arts['AvgLine']['avgline'] = ax.axhline(
-                y = self.diagnostics['2pt_avg']['avg_y'],
-                color = 'm', lw = 1, ls = '--', alpha = 0.8,
-                label = r"avg = %.3f, std = %.3f" %(
-                    self.diagnostics['2pt_avg']['avg_y'],
-                    self.diagnostics['2pt_avg']['std_y']
-                )
-            )
-
-            self.arts['AvgLine']['avgfit'] = ax.loglog(
-                xdata, f(xdata), color='gray', lw='2', alpha = 0.8, 
-                label = r'$\alpha_B$'+' = %.4f' %(fit[0][1])
-            )
-
-        except:
-            raise ValueError("Find avg line failed!")
-            pass
-
-        self.arts['AvgLine']['legend'] = ax.legend(loc = 3, fontsize = 'x-large', frameon=False) 
 
     def DrawFitLine(self):
         """ Draw the fit line and intersect """
@@ -306,6 +235,83 @@ class BreakPointFinder:
             
         self.arts['FitLine']['legend'] = ax.legend(loc = 3, fontsize = 'x-large', frameon=False) 
 
+
+    def calculate_2pt_avg(self):
+        """ Calculate Slope """
+        ax = self.arts['PSD']['ax']
+        art = self.arts['PSD']
+
+        if len(self.xs) == 2:
+            xs1 = np.min(self.xs)
+            xe1 = np.max(self.xs)
+
+            xdata, ydata = self.x, self.y
+
+            ind = (np.isnan(xdata)) & (np.isnan(ydata))
+            fit1,_,_,flag1 = curve_fit_log_wrap(xdata[~ind],ydata[~ind],xs1,xe1)
+            ind2 = (xdata >= xs1) & (xdata <= xe1)
+
+            if flag1:
+                print("No enough Data!")
+                print("Cleaning points...")
+                self.xs = []
+                self.ys = []
+                art['RedCrossesLine'].set_data(self.xs, self.ys)
+                art['RedCrossesLine'].figure.canvas.draw()       
+            else:
+                
+                self.diagnostics['2pt_avg']={
+                    'fit': fit1,
+                    'avg_y': np.nanmean(ydata[ind2]),
+                    'avg_x': np.nanmean(xdata[ind2]),
+                    'std_y': np.nanstd(ydata[ind2]),
+                    'x1': xs1,
+                    'x2': xe1
+                }
+
+                
+                self.DrawAvgLine(no_avg = self.no_avg)
+
+    def DrawAvgLine(self, no_avg = False):
+        """ Draw the line created by 2pt avg """
+        ax = self.arts['PSD']['ax']
+        fig = self.fig
+
+        # create art
+        self.arts['AvgLine'] = {}
+        self.arts['AvgLine']['ax'] = ax
+
+        # clean legend
+        self.arts['AvgLine']['legend'] = ax.legend([])
+
+        xdata, ydata = self.x, self.y
+
+        try:
+            fit = self.diagnostics['2pt_avg']['fit']
+            f = lambda x: (10**fit[0][0])*x**(fit[0][1])
+
+            if no_avg:
+                pass
+            else:
+                self.arts['AvgLine']['avgline'] = ax.axhline(
+                    y = self.diagnostics['2pt_avg']['avg_y'],
+                    color = 'm', lw = 1, ls = '--', alpha = 0.8,
+                    label = r"avg = %.3f, std = %.3f" %(
+                        self.diagnostics['2pt_avg']['avg_y'],
+                        self.diagnostics['2pt_avg']['std_y']
+                    )
+                )
+
+            self.arts['AvgLine']['avgfit'] = ax.loglog(
+                xdata, f(xdata), color='g', lw=1, ls='--', alpha = 0.8, 
+                label = r'$\alpha_B$'+' = %.4f' %(fit[0][1])
+            )
+
+        except:
+            raise ValueError("Find avg line failed!")
+            pass
+
+        self.arts['AvgLine']['legend'] = ax.legend(loc = 3, fontsize = 'x-large', frameon=False) 
 
 
     # -----------------  Visual Part ----------------- #
