@@ -37,9 +37,9 @@ from TSUtilities import curve_fit_log_wrap
 
 class BreakPointFinder:
     def __init__(
-        self, x, y, 
+        self, x, y, diagnostics=None,
         label = None, secondary = None, 
-        app = '4pt_slope', diagnostics = None,
+        app = '4pt_slope',
         view_fit = True, no_avg =False
         ):
         """
@@ -59,6 +59,7 @@ class BreakPointFinder:
         self.view_fit = view_fit
         
         self.no_avg = no_avg
+        # self.struc_funcs = struc_funcs
 
         self.diagnostics_template = {
             "QualityFlag": 0,
@@ -68,12 +69,12 @@ class BreakPointFinder:
             'Intersect_r': np.nan
         }
 
-        self.diagnostics = {}
         if diagnostics is None:
-            pass
+            print("diagnostics is None")
+            self.diagnostics = {}
         else:
-            for k,v in diagnostics.items():
-                self.diagnostics[k] = diagnostics[k]
+            print("diagnostics is not None")
+            self.diagnostics = diagnostics
 
         for k in self.diagnostics_template.keys():
             if k not in self.diagnostics.keys():
@@ -309,7 +310,6 @@ class BreakPointFinder:
 
         except:
             raise ValueError("Find avg line failed!")
-            pass
 
         self.arts['AvgLine']['legend'] = ax.legend(loc = 3, fontsize = 'x-large', frameon=False) 
 
@@ -342,6 +342,7 @@ class BreakPointFinder:
             self.text.set_x(0.58)
             self.text.set_y(0.9)
             ax.figure.canvas.draw()
+
 
     def on_click_event(self, event):
         ax = self.arts['PSD']['ax']
@@ -394,7 +395,6 @@ class BreakPointFinder:
             # Clean the current row
             self.arts['PSD']['ax'].text(0.5, 0.5, 'Cleaning Info...', transform=self.arts['PSD']['ax'].transAxes, fontsize=30, color = 'r')
             self.arts['PSD']['ax'].figure.canvas.draw()
-            self.diagnostics = {}
             for k, v in self.diagnostics_template.items():
                 self.diagnostics[k] = v
 

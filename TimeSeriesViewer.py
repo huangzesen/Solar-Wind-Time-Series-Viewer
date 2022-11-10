@@ -1352,6 +1352,9 @@ class TimeSeriesViewer:
                     self.struc_funcs = MagStrucFunc(Br, Bt, Bn, (0.5,maxtime), 120)
                     struc_funcs = self.struc_funcs
 
+                    self.selected_intervals[i1]['struc_funcs'] = struc_funcs
+                    self.selected_intervals[i1]['struc_funcs']['struc_funcs_diagnostics'] = {}
+
                     # fig2, ax2 = plt.subplots(1, figsize = [6,6])
                     # ax2.loglog(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
                     # # plot 1/3 line
@@ -1366,12 +1369,21 @@ class TimeSeriesViewer:
                     if self.p_funcs['Struc_Func'] == 1:
                         print("Showing dBvecnorms")
                         # freq /2 -> freq for FFT
-                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecnorms'])
+                        self.bpfg = BPFG(
+                            1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecnorms'], 
+                            diagnostics = self.selected_intervals[i1]['struc_funcs']['struc_funcs_diagnostics']
+                            )
                     elif self.p_funcs['Struc_Func'] == 2:
                         print("Showing dBvecs")
-                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecs'])
+                        self.bpfg = BPFG(
+                            1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecs'], 
+                            diagnostics = self.selected_intervals[i1]['struc_funcs']['struc_funcs_diagnostics']
+                            )
                     elif self.p_funcs['Struc_Func'] == 3:
-                        self.bpfg = BPFG(1/(struc_funcs['dts']/1000*2), struc_funcs['dBmodnorms'])
+                        self.bpfg = BPFG(
+                            1/(struc_funcs['dts']/1000*2), struc_funcs['dBmodnorms'], 
+                            diagnostics = self.selected_intervals[i1]['struc_funcs']['struc_funcs_diagnostics']
+                            )
                     else:
                         raise ValueError("Wrong Struc_Func!")
 
@@ -1381,7 +1393,8 @@ class TimeSeriesViewer:
                     elif np.nanmin(struc_funcs['dBvecnorms']) > 1e-2:
                         self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
 
-                    self.selected_intervals[i1]['struc_funcs'] = struc_funcs
+                    
+                    # self.selected_intervals[i1]['struc_funcs_diagnostics'] = self.bpfg.diagnostics
                         
 
             except:

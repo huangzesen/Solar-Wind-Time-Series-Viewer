@@ -19,6 +19,7 @@ from gc import collect
 import warnings
 
 import datetime
+import pytz
 from numba import jit,njit,prange
 
 # SPDF API
@@ -140,7 +141,7 @@ def LoadTimeSeriesHelios1(
         print("Loading Helios-1 data from CDAWEB...")
 
     vars = ['R_Helio','ESS_Ang','clong','clat','HGIlong','B_R','B_T','B_N','Vp_R','Vp_T','Vp_N','crot','Np','Vp','Tp','V_Azimuth','V_Elev','B_x','B_y','B_z','stdev_B_x','stdev_B_y','stdev_B_z','N_a','V_a','T_a','Np2','Vp2']
-    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
     status, data = cdas.get_data('HELIOS1_40SEC_MAG-PLASMA', vars, time[0], time[1])
 
     if verbose:
@@ -194,7 +195,7 @@ def LoadTimeSeriesHelios2(
         print("Loading Helios-2 data from CDAWEB...")
 
     vars = ['R_Helio','ESS_Ang','clong','clat','HGIlong','B_R','B_T','B_N','Vp_R','Vp_T','Vp_N','crot','Np','Vp','Tp','V_Azimuth','V_Elev','B_x','B_y','B_z','stdev_B_x','stdev_B_y','stdev_B_z','N_a','V_a','T_a','Np2','Vp2']
-    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
     status, data = cdas.get_data('HELIOS2_40SEC_MAG-PLASMA', vars, time[0], time[1])
 
     if verbose:
@@ -311,7 +312,7 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
     dfpar.index.name = 'datetime'
 
 
-    time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime(), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime()]
+    time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime( ).replace(tzinfo=pytz.UTC), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime( ).replace(tzinfo=pytz.UTC)]
     status, data = cdas.get_data('SOLO_HELIO1DAY_POSITION', ['RAD_AU','SE_LAT','SE_LON','HG_LAT','HG_LON','HGI_LAT','HGI_LON'], time[0], time[1])
 
     dfdis = pd.DataFrame(
@@ -946,7 +947,7 @@ def LoadTimeSeriesULYSSES(
     # dfmag.index = dfmag.index.tz_localize(None)  
 
     vars = ['B_RTN','B_MAG']
-    time = [start_time.to_pydatetime()-pd.Timedelta('10H'), end_time.to_pydatetime()+pd.Timedelta('10H')]
+    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)-pd.Timedelta('10H'), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)+pd.Timedelta('10H')]
     status, data = cdas.get_data('UY_1MIN_VHM', vars, time[0], time[1])
 
     dfmag = pd.DataFrame(
@@ -1000,7 +1001,7 @@ def LoadTimeSeriesULYSSES(
 
     # load ephemeris
     vars = ['RAD_AU','SE_LAT','SE_LON']
-    time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime(), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime()]
+    time = [(pd.Timestamp(t0)-pd.Timedelta('3d')).to_pydatetime( ).replace(tzinfo=pytz.UTC), (pd.Timestamp(t1)+pd.Timedelta('3d')).to_pydatetime( ).replace(tzinfo=pytz.UTC)]
     status, data = cdas.get_data('ULYSSES_HELIO1DAY_POSITION', vars, time[0], time[1])
 
     dfdis = pd.DataFrame(
@@ -1039,39 +1040,31 @@ def LoadTimeSeriesWind(
     verbose = settings['verbose']
 
     if verbose:
-        print("Loading WIND data from CDAWEB...")
+        print("Loading low-res WIND data from CDAWEB...")
 
-    vars = ['IMF','PLS','IMF_PTS','PLS_PTS','percent_interp','Timeshift','RMS_Timeshift','RMS_phase','Time_btwn_obs','F','BX_GSE','BY_GSE','BZ_GSE','BY_GSM','BZ_GSM','RMS_SD_B','RMS_SD_fld_vec','flow_speed','Vx','Vy','Vz','proton_density','T','Pressure','E','Beta','Mach_num','Mgs_mach_num','x','y','z','BSN_x','BSN_y','BSN_z','AE_INDEX','AL_INDEX','AU_INDEX','SYM_D','SYM_H','ASY_D','ASY_H','PC_N_INDEX']
-    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
-    status, data = cdas.get_data('OMNI_HRO_1MIN', vars, time[0], time[1])
+    vars = ['B3GSM','B3F1']
+    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
+    status, data = cdas.get_data('WI_H0_MFI', vars, time[0], time[1])
 
     if verbose:
         print("Done.")
 
-    df = pd.DataFrame(
-        index = data['Epoch']
-    ).join(
-        pd.DataFrame(
-            index = data['Epoch'],
-            data = {
-                'Dist_au': data['R_Helio'],
-                'lon':data['clong'],
-                'lat':data['clat'],
-                'Br' : data['B_R'],
-                'Bt' : data['B_T'],
-                'Bn' : data['B_N'],
-                'Vr' : data['Vp_R'],
-                'Vt' : data['Vp_T'],
-                'Vn' : data['Vp_N'],
-                'np' : data['Np'],
-                'Tp' : data['Tp'],
-                'Vth': 0.128487*np.sqrt(data['Tp']), # vth[km/s] = 0.128487 * √Tp[K]
-                'Bx' : data['B_x'],
-                'By' : data['B_y'],
-                'Bz' : data['B_z']
-                }
-        )
-    ) 
+    dfmag = pd.DataFrame(
+        index = data['Epoch3'],
+        data = {
+            'Bx': data['B3GSM'][:,0],
+            'By': data['B3GSM'][:,1],
+            'Bz': data['B3GSM'][:,2],
+            'Btot': data['B3F1']
+        }
+    )
+
+    # fill val = -1e31
+    dfmag[dfmag['Bx'] < -1e30] = np.nan
+
+    
+
+
 
 
 # load High-res MAG data
@@ -1115,7 +1108,7 @@ def LoadHighResMagSOLO(
     ):
 
     vars = ['B_SRF']
-    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
     status, data = cdas.get_data('SOLO_L2_MAG-SRF-NORMAL', vars, time[0], time[1])
 
     dfmag = pd.DataFrame(
@@ -1151,7 +1144,7 @@ def LoadHighResMagPSP(
 
     try:
         vars = ['psp_fld_l2_mag_SC_4_Sa_per_Cyc']
-        time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+        time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
         status, data = cdas.get_data('PSP_FLD_L2_MAG_SC_4_SA_PER_CYC', vars, time[0], time[1])
 
         dfmag = pd.DataFrame(
@@ -1226,7 +1219,7 @@ def LoadHighResMagHelios1(
     """
 
     vars = ['BXSSE','BYSSE','BZSSE','B']
-    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
     status, data = cdas.get_data('HEL1_6SEC_NESSMAG', vars, time[0], time[1])
 
     dfmag = pd.DataFrame(
@@ -1263,7 +1256,7 @@ def LoadHighResMagHelios2(
     """
 
     vars = ['BXSSE','BYSSE','BZSSE','B']
-    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
     status, data = cdas.get_data('HEL2_6SEC_NESSMAG', vars, time[0], time[1])
 
     dfmag = pd.DataFrame(
@@ -1299,7 +1292,7 @@ def LoadHighResMagUlysses(
     """
 
     vars = ['B_RTN','B_MAG']
-    time = [start_time.to_pydatetime(), end_time.to_pydatetime()]
+    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
     status, data = cdas.get_data('UY_1SEC_VHM', vars, time[0], time[1])
 
     dfmag = pd.DataFrame(
