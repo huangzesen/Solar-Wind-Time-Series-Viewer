@@ -19,6 +19,7 @@ from gc import collect
 
 import datetime
 from numba import jit,njit,prange
+import numba
 
 # SPDF API
 from cdasws import CdasWs
@@ -307,6 +308,113 @@ def curve_fit_log(xdata, ydata) :
     ydatafit_log = np.power(10, linlaw(xdata_log, *popt_log))
     # There is no need to apply fscalex^-1 as original data is already available
     return (popt_log, pcov_log, ydatafit_log)
+
+
+# ----------- Wavelet ------------ #
+@numba.njit(nogil=True)
+def norm_factor_Gauss_window(scales, dt):
+   
+    s             = scales*dt
+    numer         = np.arange(-3*s, 3*s+dt, dt)
+    multiplic_fac = np.exp(-(numer)**2/(2*s**2))
+    norm_factor   = np.sum(multiplic_fac)
+    window        = len(multiplic_fac)
+   
+    return window,  multiplic_fac, norm_factor
+
+def estimate_wavelet_coeff(df_b, dj ):
+   
+    """
+    Method to calculate the  1) wavelet coefficients in RTN 2) The scale dependent angle between Vsw and Β
+    Parameters
+    ----------
+    df_b: dataframe
+        Magnetic field timeseries dataframe
+
+    mother_wave: str
+        The main waveform to transform data.
+        Available waves are:
+        'gaussian':
+        'paul': apply lomb method to compute PSD
+        'mexican_hat':
+    Returns
+    -------
+    freq : list
+        Frequency of the corresponding psd points.
+    psd : list
+        Power Spectral Density of the signal.
+    """
+   
+    # Turn columns of df into arrays  
+    Br, Bt, Bn                           =  df_b.Br.values, df_b.Bt.values, df_b.Bn.values
+
+    # Estimate magnitude of magnetic field
+    mag_orig                             =  np.sqrt(Br**2 + Bt**2 +  Bn**2 )
+   
+    # Estimate the magnitude of V vector
+    mag_v = np.sqrt(df_b['Br']**2).values
+
+    #Estimate sampling time of timeseries
+    dt                                   =  (df_b.dropna().index.to_series().diff()/np.timedelta64(1, 's')).median()
+
+    angles   = pd.DataFrame()
+    VBangles = pd.DataFrame()
+    from scipy import signal
+    # Estimate PSDand scale dependent fluctuations
+    db_x, db_y, db_z, freqs, PSD, scales = turb.trace_PSD_wavelet(Br, Bt, Bn, dt, dj,  mother_wave='morlet')
+
+
+    for ii in range(len(scales)):
+        #if np.mod(ii, 2)==0:
+           # print('Progress', 100*(ii/len(scales)))
+        try:
+            window, multiplic_fac, norm_factor= norm_factor_Gauss_window(scales[ii], dt)
+
+
+            # Estimate scale dependent background magnetic field using a Gaussian averaging window
+
+            res2_Br = (1/norm_factor)*signal.convolve(Br, multiplic_fac[::-1], 'same')
+            res2_Bt = (1/norm_factor)*signal.convolve(Bt, multiplic_fac[::-1], 'same')
+            res2_Bn = (1/norm_factor)*signal.convolve(Bn, multiplic_fac[::-1], 'same')
+
+
+            # Estimate magnitude of scale dependent background
+            mag_bac = np.sqrt(res2_Br**2 + res2_Bt**2 + res2_Bn**2 )
+
+            # Estimate angle
+            angles[str(ii+1)] = np.arccos(res2_Br/mag_bac) * 180 / np.pi
+
+            # Estimate VB angle
+            VBangles[str(ii+1)] = np.arccos((df_b['Br']*res2_Br)/(mag_bac*mag_v)) * 180 / np.pi
+
+            # Restric to 0< Θvb <90
+            VBangles[str(ii+1)][VBangles[str(ii+1)]>90] = 180 - VBangles[str(ii+1)][VBangles[str(ii+1)]>90]
+
+            # Restric to 0< Θvb <90
+            angles[str(ii+1)][angles[str(ii+1)]>90] = 180 - angles[str(ii+1)][angles[str(ii+1)]>90]
+        except:
+             pass
+
+    return db_x, db_y, db_z, angles, VBangles, freqs, PSD, scales
+
+from numba import prange
+
+@jit( parallel =True)
+def estimate_PSD_wavelets_all_intervals(db_x, db_y, db_z, angles, freqs,   dt,  per_thresh, par_thresh):
+
+    PSD_par = np.zeros(len(freqs))
+    PSD_per = np.zeros(len(freqs))
+
+    for i in range(np.shape(angles)[1]):
+
+        index_per = (np.where(angles.T[i]>per_thresh)[0]).astype(np.int64)
+        index_par = (np.where(angles.T[i]<par_thresh)[0]).astype(np.int64)
+        #print(len(index_par), len(index_per))
+
+        PSD_par[i]  = (np.nanmean(np.abs(np.array(db_x[i])[index_par])**2) + np.nanmean(np.abs(np.array(db_y[i])[index_par])**2) + np.nanmean(np.abs(np.array(db_z[i])[index_par])**2) ) * ( 2*dt)
+        PSD_per[i]  = (np.nanmean(np.abs(np.array(db_x[i])[index_per])**2) + np.nanmean(np.abs(np.array(db_y[i])[index_per])**2) + np.nanmean(np.abs(np.array(db_z[i])[index_per])**2) ) * ( 2*dt)
+
+    return PSD_par, PSD_per
 
 
 
