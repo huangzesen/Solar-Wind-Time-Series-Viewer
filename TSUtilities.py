@@ -32,6 +32,8 @@ sys.path.insert(0,"../pyspedas")
 import pyspedas
 from pyspedas.utilities import time_string
 from pytplot import get_data
+from scipy import signal
+import TurbPy as turb
 
 au_to_km = 1.496e8  # Conversion factor
 rsun     = 696340   # Sun radius in units of  [km]
@@ -264,8 +266,10 @@ def TracePSD(x,y,z,dt, norm = 'ortho'):
           + np.abs(np.fft.rfft(z, norm=norm))**2
 
     freqs = np.fft.rfftfreq(len(x), dt)
+
+    coeff = len(freqs) * dt/2
     
-    return freqs, B_pow
+    return freqs, B_pow/coeff
 
 
 def curve_fit_log_wrap(x, y, x0, xf):  
@@ -359,7 +363,7 @@ def estimate_wavelet_coeff(df_b, dj ):
 
     angles   = pd.DataFrame()
     VBangles = pd.DataFrame()
-    from scipy import signal
+
     # Estimate PSDand scale dependent fluctuations
     db_x, db_y, db_z, freqs, PSD, scales = turb.trace_PSD_wavelet(Br, Bt, Bn, dt, dj,  mother_wave='morlet')
 

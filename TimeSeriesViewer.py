@@ -35,11 +35,12 @@ au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
-from TSUtilities import SolarWindCorrelationLength, TracePSD, DrawShadedEventInTimeSeries, smoothing_function
+from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries, smoothing_function
 from BreakPointFinderLite import BreakPointFinder
 from BreakPointFinderGeneral import BreakPointFinder as BPFG
 from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
 from StructureFunctions import MagStrucFunc
+from TurbPy import trace_PSD_wavelet, TracePSD
 
 class TimeSeriesViewer:
     """ 
@@ -62,6 +63,7 @@ class TimeSeriesViewer:
         p_funcs = {'PSD':True},
         LTSWsettings = {},
         layout = None,
+        high_res_resolution = 1
     ):
         """ Initialize the class """
 
@@ -99,6 +101,8 @@ class TimeSeriesViewer:
         self.LTSWsettings = LTSWsettings
         self.p_funcs = p_funcs
         self.layout = layout
+
+        self.high_res_resolution = 1
 
         # Preload Time Series
         if preload:
@@ -1303,7 +1307,11 @@ class TimeSeriesViewer:
                     ind = (self.dfts.index > t0) & (self.dfts.index < t1)
                     dftemp = self.dfts.loc[ind]
 
-                    dfmag, infos = LoadHighResMagWrapper(self.sc, t0, t1, credentials = self.credentials)
+                    dfmag, infos = LoadHighResMagWrapper(
+                        self.sc, t0, t1, 
+                        credentials = self.credentials,
+                        resolution = self.high_res_resolution
+                    )
                     res = infos['resolution']
                     Br = dfmag['Bx'].interpolate().dropna()
                     Bt = dfmag['By'].interpolate().dropna()
@@ -1394,7 +1402,39 @@ class TimeSeriesViewer:
                         self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
 
                     
-                    # self.selected_intervals[i1]['struc_funcs_diagnostics'] = self.bpfg.diagnostics
+                # wavelet PSD: (nikos)
+                if 'wavelet_PSD' in self.p_funcs.keys():
+                    _,_,_,freqs_wl,PSD_wl,_ = trace_PSD_wavelet(Br.values, Bt.values, Bn.values, res, dj = 1./4)
+                    freqs_FFT, PSD_FFT = TracePSD(Br.values, Bt.values, Bn.values, res)
+                    _, sm_freqs_FFT, sm_PSD_FFT = smoothing_function(freqs_FFT, PSD_FFT)
+
+                    self.wavelet_PSD = {
+                        'freqs': freqs_wl,
+                        'PSD': PSD_wl,
+                        'freqs_FFT': freqs_FFT,
+                        'PSD_FFT': PSD_FFT,
+                        'wavelet_PSD_diagnostics':{}
+                    }
+
+                    self.selected_intervals[i1]['wavelet_PSD'] = self.wavelet_PSD
+
+                    self.bpfg_wl = BPFG(
+                            freqs_wl, PSD_wl, label = 'PSD_WL',
+                            diagnostics = self.wavelet_PSD['wavelet_PSD_diagnostics'],
+                            secondary = {
+                                'x': freqs_FFT,
+                                'y': PSD_FFT,
+                                'label': 'PSD_FFT'
+                            },
+                            third = {
+                                'x': sm_freqs_FFT,
+                                'y': sm_PSD_FFT,
+                                'label': 'sm_PSD_FFT'
+                            }
+                            )
+                    self.bpfg_wl.connect()
+                
+                    
                         
 
             except:

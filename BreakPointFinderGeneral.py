@@ -38,7 +38,7 @@ from TSUtilities import curve_fit_log_wrap
 class BreakPointFinder:
     def __init__(
         self, x, y, diagnostics=None,
-        label = None, secondary = None, 
+        label = None, secondary = None, third=None,
         app = '4pt_slope',
         view_fit = True, no_avg =False
         ):
@@ -54,6 +54,7 @@ class BreakPointFinder:
         self.x = x
         self.y = y
         self.secondary = secondary
+        self.third = third
         self.label = label
         self.app = app
         self.view_fit = view_fit
@@ -132,10 +133,19 @@ class BreakPointFinder:
             l2 = ax.plot(
                 self.secondary['x'], 
                 self.secondary['y'], 
-                label = self.secondary['label']
+                label = self.secondary['label'],
+                color = 'C0'
             )
 
-        l1 = ax.plot(self.x, self.y, label = self.label)
+        if self.third is not None:
+            l3 = ax.plot(
+                self.third['x'], 
+                self.third['y'], 
+                label = self.third['label'],
+                color = 'C1'
+            )
+
+        l1 = ax.plot(self.x, self.y, label = self.label, color = 'C2')
 
         ax.set_xscale("log")
         ax.set_yscale("log")
