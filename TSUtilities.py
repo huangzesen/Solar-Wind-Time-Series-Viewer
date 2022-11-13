@@ -244,7 +244,7 @@ def smoothing_function(x,y, window=2, pad = 1):
     return xoutmid, xoutmean,  yout
 
 
-def TracePSD(x,y,z,dt, norm = 'ortho'):
+def TracePSD(x,y,z,dt, norm = None):
     """ 
     Estimate Power spectral density:
 
@@ -267,7 +267,7 @@ def TracePSD(x,y,z,dt, norm = 'ortho'):
 
     freqs = np.fft.rfftfreq(len(x), dt)
 
-    coeff = len(freqs) * dt/2
+    coeff = len(x)/(2*dt)
     
     return freqs, B_pow/coeff
 
@@ -468,6 +468,84 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
 
 
 # -----------  MISC ----------- #
+from LoadData import LoadHighResMagWrapper
+from TSUtilities import smoothing_function
+from StructureFunctions import MagStrucFunc
+from TurbPy import trace_PSD_wavelet
+def PreloadDiagnostics(selected_interval, p_funcs, credentials = None, resolution = None):
+    """
+    Preload the Diagnostics, and return the selected_interval dictionary
+    """
+    si = selected_interval
+    sc = si['spacecraft']
+    t0 = si['start_time']
+    t1 = si['end_time']
+    dfmag_raw, dfmag, infos = LoadHighResMagWrapper(
+        sc, t0, t1,
+        credentials = credentials,
+        resolution = resolution
+    )
+
+    si['dfmag'] = dfmag
+    si['dfmag_raw'] = dfmag_raw
+    si['high_res_infos'] = infos
+
+    res = infos['resolution']
+    Br = dfmag['Bx'].interpolate().dropna()
+    Bt = dfmag['By'].interpolate().dropna()
+    Bn = dfmag['Bz'].interpolate().dropna()
+
+    resample_info = {
+                'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(dfmag['Bx'])*100,
+                'resolution': res
+            }
+    si['resample_info'] = resample_info
+
+
+    if 'PSD' in p_funcs.keys():
+        freqs, PSD = TracePSD(Br.values, Bt.values, Bn.values, res)
+        _, sm_freqs, sm_PSD = smoothing_function(freqs, PSD)
+
+        si['PSD'] = {
+            'freqs': freqs,
+            'PSD': PSD,
+            'sm_freqs': sm_freqs,
+            'sm_PSD': sm_PSD,
+            'diagnostics': {}
+        }
+
+    if 'struc_funcs' in p_funcs.keys():
+        maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
+        mintime = np.log10(2*res)
+        struc_funcs = MagStrucFunc(Br, Bt, Bn, (mintime, maxtime), 200)
+
+        si['struc_funcs'] = struc_funcs
+        si['struc_funcs']['diagnostics'] = {}
+        si['struc_funcs']['settings'] = {
+            'mintime': mintime,
+            'maxtime': maxtime,
+            'npts': 200
+        }
+
+    if 'wavelet_PSD' in p_funcs.keys():
+        _,_,_,freqs_wl,PSD_wl,_ = trace_PSD_wavelet(Br.values, Bt.values, Bn.values, res, dj = 1./12)
+        freqs_FFT, PSD_FFT = TracePSD(Br.values, Bt.values, Bn.values, res)
+        _, sm_freqs_FFT, sm_PSD_FFT = smoothing_function(freqs_FFT, PSD_FFT)
+
+        si['wavelet_PSD'] = {
+            'freqs': freqs_wl,
+            'PSD': PSD_wl,
+            'freqs_FFT': freqs_FFT,
+            'PSD_FFT': PSD_FFT,
+            'sm_freqs_FFT': sm_freqs_FFT,
+            'sm_PSD_FFT': sm_PSD_FFT,
+            'diagnostics':{},
+            'settings':{
+                'dj': 1./12
+            }
+        }
+
+
 
 def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
     """

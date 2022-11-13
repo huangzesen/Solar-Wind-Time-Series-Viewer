@@ -1074,6 +1074,11 @@ def LoadHighResMagWrapper(
     A Wrapper to load high resolution magnetic field data
     Works for Helios 1/2 (sc = 2,3) and Ulysses (sc = 4)
     Note that CDAWEB sometimes does not return the correct interval
+
+    return:
+        dfmag_raw: raw high res mag dataframe
+        dfmag_resampled: resampled mag dataframe
+        infos: resample information
     """
 
     if verbose:
@@ -1081,15 +1086,21 @@ def LoadHighResMagWrapper(
         print("Required tstart = %s, tend = %s" %(start_time, end_time))
 
     if sc == 0:
-        dfmag, infos = LoadHighResMagPSP(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose, credentials = credentials, resolution = resolution)
+        dfmag, dfmag1, infos = LoadHighResMagPSP(
+            start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose, 
+            credentials = credentials, resolution = resolution)
     elif sc == 1:
-        dfmag, infos = LoadHighResMagSOLO(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
+        dfmag, dfmag1, infos = LoadHighResMagSOLO(
+            start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 2:
-        dfmag, infos = LoadHighResMagHelios1(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
+        dfmag, dfmag1, infos = LoadHighResMagHelios1(
+            start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 3:
-        dfmag, infos = LoadHighResMagHelios2(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
+        dfmag, dfmag1, infos = LoadHighResMagHelios2(
+            start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     elif sc == 4:
-        dfmag, infos = LoadHighResMagUlysses(start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
+        dfmag, dfmag1, infos = LoadHighResMagUlysses(
+            start_time-pd.Timedelta('10H'), end_time+pd.Timedelta('10H'), verbose)
     else:
         raise ValueError("sc = %d not supported!" %(sc))
 
@@ -1097,10 +1108,16 @@ def LoadHighResMagWrapper(
     ind = (dfmag.index  >= start_time) & (dfmag.index < end_time)
     dfmag = dfmag[ind]
 
-    if verbose:
-        print("Final tstart = %s, tend = %s" %(dfmag.index[0], dfmag.index[-1]))
+    ind = (dfmag1.index  >= start_time) & (dfmag1.index < end_time)
+    dfmag1 = dfmag1[ind]
 
-    return dfmag, infos
+    if verbose:
+        print("Final tstart = %s, tend = %s" %(dfmag1.index[0], dfmag1.index[-1]))
+
+    dfmag_raw = dfmag
+    dfmag_resampled = dfmag1
+
+    return dfmag_raw, dfmag_resampled, infos
 
 
 def LoadHighResMagSOLO(
@@ -1121,7 +1138,7 @@ def LoadHighResMagSOLO(
     )
     dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
 
-    dfmag = dfmag.resample('1s').mean()
+    dfmag1 = dfmag.resample('1s').mean()
 
     if verbose:
         print("Input tstart = %s, tend = %s" %(time[0], time[1]))
@@ -1133,7 +1150,7 @@ def LoadHighResMagSOLO(
         'resolution': 1
     }
 
-    return dfmag, infos
+    return dfmag, dfmag1, infos
 
 def LoadHighResMagPSP(
     start_time, end_time, verbose = True, credentials = None, resolution = None
@@ -1192,19 +1209,35 @@ def LoadHighResMagPSP(
         dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
 
     if resolution is None:
-        dfmag = dfmag.resample('1s').mean()
+        dfmag1 = dfmag.resample('100ms').mean()
+        resolution = 0.1
+        print("PSP Resolution: %.2f, fraction missing %.2f" %(resolution, np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1)*100))
+        
+        if np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1) > 0.1:
+            dfmag1 = dfmag.resample('500ms').mean()
+            resolution = 0.5
+            print("PSP Resolution: %.2f, fraction missing %.2f" %(resolution, np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1)*100))
+        
+        if np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1) > 0.1:
+            dfmag1 = dfmag.resample('1000ms').mean()
+            resolution = 1.0
+            print("PSP Resolution: %.2f, fraction missing %.2f" %(resolution, np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1)*100))
+        
+        print("Final PSP Resolution: %.2f, fraction missing %.2f" %(resolution, np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1)*100))
         infos = {
-            'resolution': 1
+            'resolution': resolution,
+            'fraction_missing': np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1)
         }
     else:
-        dfmag = dfmag.resample("%dms" %(resolution)).mean()
+        dfmag1 = dfmag.resample("%dms" %(resolution)).mean()
         infos = {
             'resolution': resolution/1000
         }
+        print("Final PSP Resolution: %.2f, fraction missing %.2f" %(resolution, np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1)*100))
 
 
 
-    return dfmag, infos
+    return dfmag, dfmag1, infos
 
 def LoadHighResMagHelios1(
     start_time, end_time, verbose = True
@@ -1232,6 +1265,8 @@ def LoadHighResMagHelios1(
         }
     )
 
+    dfmag1 = dfmag.resample('%ds' %(6)).mean()
+
     if verbose:
         print("Input tstart = %s, tend = %s" %(time[0], time[1]))
         print("Returned tstart = %s, tend = %s" %(data['Epoch'][0], data['Epoch'][-1]))
@@ -1240,7 +1275,7 @@ def LoadHighResMagHelios1(
         'resolution': 6
     }
 
-    return dfmag, infos
+    return dfmag, dfmag1, infos
 
 
 def LoadHighResMagHelios2(
@@ -1269,6 +1304,8 @@ def LoadHighResMagHelios2(
         }
     )
 
+    dfmag1 = dfmag.resample('%ds' %(6)).mean()
+
     if verbose:
         print("Input tstart = %s, tend = %s" %(time[0], time[1]))
         print("Returned tstart = %s, tend = %s" %(data['Epoch'][0], data['Epoch'][-1]))
@@ -1277,7 +1314,7 @@ def LoadHighResMagHelios2(
         'resolution': 6
     }
 
-    return dfmag, infos
+    return dfmag, dfmag1, infos
 
 
 def LoadHighResMagUlysses(
@@ -1305,7 +1342,7 @@ def LoadHighResMagUlysses(
         }
     )
 
-    dfmag = dfmag.resample('1s').mean()
+    dfmag1 = dfmag.resample('1s').mean()
 
     if verbose:
         print("Input tstart = %s, tend = %s" %(time[0], time[1]))
@@ -1315,7 +1352,7 @@ def LoadHighResMagUlysses(
         'resolution': 1
     }
 
-    return dfmag, infos
+    return dfmag, dfmag1, infos
 
 
 def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):

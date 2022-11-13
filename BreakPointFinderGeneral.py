@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from glob import glob
 import pickle
+import copy
 
 from datetime import datetime
 
@@ -58,16 +59,28 @@ class BreakPointFinder:
         self.label = label
         self.app = app
         self.view_fit = view_fit
+        self.app_list = ['4pt_slope','2pt_avg']
         
         self.no_avg = no_avg
         # self.struc_funcs = struc_funcs
 
         self.diagnostics_template = {
             "QualityFlag": 0,
-            'fit1': None,
-            'fit2': None,
-            'Intersect': np.nan,
-            'Intersect_r': np.nan
+            '4pt_slope':{
+                'fit1': None,
+                'fit2': None,
+                'Intersect': np.nan,
+                'Intersect_r': np.nan,
+                'xpts': [np.nan, np.nan, np.nan, np.nan]
+            },
+            '2pt_avg':{
+                'fit': None,
+                'avg_y': np.nan,
+                'avg_x': np.nan,
+                'std_y': np.nan,
+                'x1': np.nan,
+                'x2': np.nan
+                }
         }
 
         if diagnostics is None:
@@ -79,7 +92,7 @@ class BreakPointFinder:
 
         for k in self.diagnostics_template.keys():
             if k not in self.diagnostics.keys():
-                self.diagnostics[k] = self.diagnostics_template[k]
+                self.diagnostics[k] = copy.deepcopy(self.diagnostics_template)[k]
 
         self.AxesInit()
         self.FigureInit()
@@ -142,10 +155,12 @@ class BreakPointFinder:
                 self.third['x'], 
                 self.third['y'], 
                 label = self.third['label'],
-                color = 'C1'
+                color = 'C2',
+                ls = '--',
+                lw = 1.5
             )
 
-        l1 = ax.plot(self.x, self.y, label = self.label, color = 'C2')
+        l1 = ax.plot(self.x, self.y, label = self.label, color = 'C1')
 
         ax.set_xscale("log")
         ax.set_yscale("log")
@@ -195,9 +210,10 @@ class BreakPointFinder:
                 
                 intersect = 10**((fit1[0][0]-fit2[0][0])/(fit2[0][1]-fit1[0][1])) 
                 
-                self.diagnostics['Intersect'] = intersect
-                self.diagnostics['fit1'] = fit1
-                self.diagnostics['fit2'] = fit2
+                self.diagnostics['4pt_slope']['Intersect'] = intersect
+                self.diagnostics['4pt_slope']['fit1'] = fit1
+                self.diagnostics['4pt_slope']['fit2'] = fit2
+                self.diagnostics['4pt_slope']['xpts'] = [xs1, xe1, xs2, xe2]
                 
                 self.DrawFitLine()
         else:
@@ -218,9 +234,9 @@ class BreakPointFinder:
         xdata, ydata = self.x, self.y
         
         try:
-            intersect = self.diagnostics['Intersect']
-            fit1 = self.diagnostics['fit1']
-            fit2 = self.diagnostics['fit2']
+            intersect = self.diagnostics['4pt_slope']['Intersect']
+            fit1 = self.diagnostics['4pt_slope']['fit1']
+            fit2 = self.diagnostics['4pt_slope']['fit2']
             
             f1 = lambda x: (10**fit1[0][0])*x**(fit1[0][1])
             f2 = lambda x: (10**fit2[0][0])*x**(fit2[0][1])
@@ -235,10 +251,10 @@ class BreakPointFinder:
             pass
         
         try:
-            if np.isnan(self.diagnostics['Intersect_r']):
+            if np.isnan(self.diagnostics['4pt_slope']['Intersect_r']):
                 pass
             else:
-                intersect_r = self.diagnostics['Intersect_r']
+                intersect_r = self.diagnostics['4pt_slope']['Intersect_r']
                 self.arts['FitLine']['intersect_right'] = ax.axvline(intersect_r, color='g', lw='2', 
                                                   label = "%.4f" %(np.log10(intersect_r)))
         except:
@@ -405,7 +421,7 @@ class BreakPointFinder:
             # Clean the current row
             self.arts['PSD']['ax'].text(0.5, 0.5, 'Cleaning Info...', transform=self.arts['PSD']['ax'].transAxes, fontsize=30, color = 'r')
             self.arts['PSD']['ax'].figure.canvas.draw()
-            for k, v in self.diagnostics_template.items():
+            for k, v in copy.deepcopy(self.diagnostics_template).items():
                 self.diagnostics[k] = v
 
             # time.sleep(1)

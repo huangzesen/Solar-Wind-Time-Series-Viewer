@@ -35,12 +35,12 @@ au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
-from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries, smoothing_function
-from BreakPointFinderLite import BreakPointFinder
+from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries, smoothing_function, TracePSD, PreloadDiagnostics
 from BreakPointFinderGeneral import BreakPointFinder as BPFG
 from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
-from StructureFunctions import MagStrucFunc
-from TurbPy import trace_PSD_wavelet, TracePSD
+# from BreakPointFinderLite import BreakPointFinder
+# from StructureFunctions import MagStrucFunc
+# from TurbPy import trace_PSD_wavelet
 
 class TimeSeriesViewer:
     """ 
@@ -63,7 +63,7 @@ class TimeSeriesViewer:
         p_funcs = {'PSD':True},
         LTSWsettings = {},
         layout = None,
-        high_res_resolution = 1
+        high_res_resolution = None
     ):
         """ Initialize the class """
 
@@ -84,6 +84,7 @@ class TimeSeriesViewer:
         self.resample_rate_key = 1
         self.resample_rate_list = ['1min', '5min','10min','20min','30min','60min']
         self.length_list = ['12H','24H','2d','5d','10d','20d','30d','60d','120d','365d']
+        self.p_funcs_list = ['PSD','struc_funcs','wavelet_PSD']
         self.length_key = 2
         self.red_vlines = []
         self.selected_intervals = []
@@ -102,7 +103,8 @@ class TimeSeriesViewer:
         self.p_funcs = p_funcs
         self.layout = layout
 
-        self.high_res_resolution = 1
+        self.high_res_resolution = high_res_resolution
+        self.skipPreLoadDiagnostics = False
 
         # Preload Time Series
         if preload:
@@ -1300,6 +1302,7 @@ class TimeSeriesViewer:
 
                 i1 = self.FindSelectedIntervals(x)
                 selected_interval = self.selected_intervals[i1]
+                si = self.selected_intervals[i1]
                 t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
 
                 # calculate the time series for later diagnostics
@@ -1307,90 +1310,52 @@ class TimeSeriesViewer:
                     ind = (self.dfts.index > t0) & (self.dfts.index < t1)
                     dftemp = self.dfts.loc[ind]
 
-                    dfmag, infos = LoadHighResMagWrapper(
-                        self.sc, t0, t1, 
-                        credentials = self.credentials,
-                        resolution = self.high_res_resolution
-                    )
-                    res = infos['resolution']
-                    Br = dfmag['Bx'].interpolate().dropna()
-                    Bt = dfmag['By'].interpolate().dropna()
-                    Bn = dfmag['Bz'].interpolate().dropna()
-
                     # save the time series to dataframe
-                    self.selected_intervals[i1]['TimeSeries'] = dftemp
-                    self.selected_intervals[i1]['dfmag'] = dfmag
-                    self.selected_intervals[i1]['LTSWsettings'] = self.LTSWsettings
+                    si['TimeSeries'] = dftemp
+                    si['LTSWsettings'] = self.LTSWsettings
+
+                    # load the magnetic field data and create empty diagnostics
+                    if self.skipPreLoadDiagnostics:
+                        pass
+                    else:
+                        PreloadDiagnostics(si, self.p_funcs, resolution = self.high_res_resolution)
 
                 # psd
                 if 'PSD' in self.p_funcs.keys():
 
-                    freq, B_pow = TracePSD(Br.values, Bt.values, Bn.values, res)
-                    self.selected_intervals[i1]['PSD'] = {
-                        'start_time': t0,
-                        'end_time': t1,
-                        'sc': self.sc,
-                        'freqs': freq,
-                        'PSD': B_pow,
-                        'resample_info':{
-                            'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(Br)*100,
-                            'resolution': res
-                        }
-                    }
-                    # smooth the spectrum
-                    if self.calc_smoothed_spec:
-                        _, sm_freqs, sm_PSD = smoothing_function(freq, B_pow)
-                        self.selected_intervals[i1]['PSD']['sm_freqs'] = sm_freqs
-                        self.selected_intervals[i1]['PSD']['sm_PSD'] = sm_PSD
-
-                    if self.useBPF:
-                        self.bpf = BreakPointFinder(self.selected_intervals[i1]['PSD'])
-                        self.bpf.connect()
-                    else:
-                        fig1, ax1 = plt.subplots(1, figsize = [6,6])
-                        ax1.loglog(freq, B_pow)
-                        if self.calc_smoothed_spec:
-                            ax1.loglog(sm_freqs, sm_PSD)
-                        ax1.set_xlabel(r"$f_{sc}\ [Hz]$", fontsize = 'x-large')
-                        ax1.set_ylabel(r"$PSD\ [nT^2\cdot Hz^{-1}]$", fontsize = 'x-large')
+                    self.bpfg_PSD = BPFG(
+                        si['PSD']['sm_freqs'], si['PSD']['sm_PSD'], label = 'sm_PSD_FFT',
+                        secondary={
+                            'x': si['PSD']['freqs'],
+                            'y': si['PSD']['PSD'],
+                            'label': 'PSD_FFT'
+                        },
+                        diagnostics = si['PSD']['diagnostics']
+                    )
 
                 # structure func: dB
-                if 'Struc_Func' in self.p_funcs.keys():
-                    maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
-                    self.struc_funcs = MagStrucFunc(Br, Bt, Bn, (0.5,maxtime), 120)
-                    struc_funcs = self.struc_funcs
+                if 'struc_funcs' in self.p_funcs.keys():
 
-                    self.selected_intervals[i1]['struc_funcs'] = struc_funcs
-                    self.selected_intervals[i1]['struc_funcs']['struc_funcs_diagnostics'] = {}
+                    self.struc_funcs = si['struc_funcs']
+                    struc_funcs = si['struc_funcs']
 
-                    # fig2, ax2 = plt.subplots(1, figsize = [6,6])
-                    # ax2.loglog(1/(struc_funcs['dts']/1000), struc_funcs['dBvecnorms'])
-                    # # plot 1/3 line
-                    # xx = np.logspace(-1,-3)
-                    # yy = xx**(-1./3)/10
-                    # ax2.loglog(xx, yy)
-
-                    # ax2.set_xlabel(r'1/dts [Hz]')
-                    # ax2.set_ylabel(r'dBvecs [nT]')
-                    # ax2.set_ylim([1e-1, 4e0])
-
-                    if self.p_funcs['Struc_Func'] == 1:
+                    if self.p_funcs['struc_funcs'] == 1:
                         print("Showing dBvecnorms")
                         # freq /2 -> freq for FFT
                         self.bpfg = BPFG(
                             1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecnorms'], 
-                            diagnostics = self.selected_intervals[i1]['struc_funcs']['struc_funcs_diagnostics']
+                            diagnostics = si['struc_funcs']['diagnostics']
                             )
-                    elif self.p_funcs['Struc_Func'] == 2:
+                    elif self.p_funcs['struc_funcs'] == 2:
                         print("Showing dBvecs")
                         self.bpfg = BPFG(
                             1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecs'], 
-                            diagnostics = self.selected_intervals[i1]['struc_funcs']['struc_funcs_diagnostics']
+                            diagnostics = si['struc_funcs']['diagnostics']
                             )
-                    elif self.p_funcs['Struc_Func'] == 3:
+                    elif self.p_funcs['struc_funcs'] == 3:
                         self.bpfg = BPFG(
                             1/(struc_funcs['dts']/1000*2), struc_funcs['dBmodnorms'], 
-                            diagnostics = self.selected_intervals[i1]['struc_funcs']['struc_funcs_diagnostics']
+                            diagnostics = si['struc_funcs']['diagnostics']
                             )
                     else:
                         raise ValueError("Wrong Struc_Func!")
@@ -1404,23 +1369,15 @@ class TimeSeriesViewer:
                     
                 # wavelet PSD: (nikos)
                 if 'wavelet_PSD' in self.p_funcs.keys():
-                    _,_,_,freqs_wl,PSD_wl,_ = trace_PSD_wavelet(Br.values, Bt.values, Bn.values, res, dj = 1./4)
-                    freqs_FFT, PSD_FFT = TracePSD(Br.values, Bt.values, Bn.values, res)
-                    _, sm_freqs_FFT, sm_PSD_FFT = smoothing_function(freqs_FFT, PSD_FFT)
 
-                    self.wavelet_PSD = {
-                        'freqs': freqs_wl,
-                        'PSD': PSD_wl,
-                        'freqs_FFT': freqs_FFT,
-                        'PSD_FFT': PSD_FFT,
-                        'wavelet_PSD_diagnostics':{}
-                    }
-
-                    self.selected_intervals[i1]['wavelet_PSD'] = self.wavelet_PSD
+                    self.wavelet_PSD = si['wavelet_PSD']
+                    freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
+                    freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
+                    sm_freqs_FFT, sm_PSD_FFT = si['wavelet_PSD']['sm_freqs_FFT'], si['wavelet_PSD']['sm_PSD_FFT']
 
                     self.bpfg_wl = BPFG(
                             freqs_wl, PSD_wl, label = 'PSD_WL',
-                            diagnostics = self.wavelet_PSD['wavelet_PSD_diagnostics'],
+                            diagnostics = self.wavelet_PSD['diagnostics'],
                             secondary = {
                                 'x': freqs_FFT,
                                 'y': PSD_FFT,
@@ -1433,8 +1390,6 @@ class TimeSeriesViewer:
                             }
                             )
                     self.bpfg_wl.connect()
-                
-                    
                         
 
             except:
