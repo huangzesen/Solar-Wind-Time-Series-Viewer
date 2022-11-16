@@ -55,7 +55,7 @@ T_to_Gauss = 1e4
 
 def LoadTimeSeriesWrapper(
     sc, start_time, end_time,
-    settings = {}, credentials = None):
+    settings = None, credentials = None):
     """ A wrapper for time series loading """
 
     # change to root dir, mainly for spedas
@@ -65,7 +65,7 @@ def LoadTimeSeriesWrapper(
         pass
 
     # clean settings
-    if settings:
+    if settings is not None:
         pass
     else:
         settings = {}
@@ -251,6 +251,12 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
         resolution = 5
         settings['resolution'] = resolution
 
+    # mag_rtn_only
+    if 'mag_rtn_only' in settings.keys():
+        pass
+    else:
+        settings['mag_rtn_only'] = True
+
     t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
     t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
@@ -333,15 +339,21 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
     )
     dfmag1.columns = ['Br','Bt','Bn']
 
-    names = pyspedas.solo.mag(trange=[t0,t1], datatype='srf-normal', level='l2', time_clip=True)
-    data = get_data(names[0])
-    dfmag2 = pd.DataFrame(
-        index = data[0],
-        data = data[1]
-    )
-    dfmag2.columns = ['Bx','By','Bz']
+    # use only rtn mag
+    if settings['mag_rtn_only']:
+            dfmag = dfmag1
+    else:
+        names = pyspedas.solo.mag(trange=[t0,t1], datatype='srf-normal', level='l2', time_clip=True)
+        data = get_data(names[0])
+        dfmag2 = pd.DataFrame(
+            index = data[0],
+            data = data[1]
+        )
+        dfmag2.columns = ['Bx','By','Bz']
 
-    dfmag = dfmag1.join(dfmag2)
+        dfmag = dfmag1.join(dfmag2)
+
+    
     dfmag.index = time_string.time_datetime(time=dfmag.index)
     dfmag.index = dfmag.index.tz_localize(None)
 
