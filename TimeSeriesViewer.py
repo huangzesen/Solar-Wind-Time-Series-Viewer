@@ -133,7 +133,7 @@ class TimeSeriesViewer:
         if self.sc == 0:
             # psp has 4 per cyc data, enough for our use
             dfmag_raw = misc['dfmag'][['Br','Bt','Bn']]
-            dfmag_raw.columns = [['Bx','By','Bz']]
+            dfmag_raw.columns = ['Bx','By','Bz']
             dfmag_raw['Btot'] = (dfmag_raw[['Bx','By','Bz']]**2).sum(axis=1).apply(np.sqrt)
             self.dfmag_raw_high_res = dfmag_raw
             dfmag1 = dfmag_raw.resample("500ms").mean()
