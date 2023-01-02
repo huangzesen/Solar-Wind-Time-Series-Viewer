@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 from glob import glob
 from gc import collect
+import warnings
 
 from datetime import datetime
 
@@ -128,6 +129,28 @@ class TimeSeriesViewer:
             credentials = self.credentials, 
             settings = self.LTSWsettings
         )
+
+        if self.sc == 0:
+            # psp has 4 per cyc data, enough for our use
+            dfmag_raw = misc['dfmag'][['Br','Bt','Bn']]
+            dfmag_raw.columns = [['Bx','By','Bz']]
+            dfmag_raw['Btot'] = (dfmag_raw[['Bx','By','Bz']]**2).sum(axis=1).apply(np.sqrt)
+            self.dfmag_raw_high_res = dfmag_raw
+            dfmag1 = dfmag_raw.resample("500ms").mean()
+            self.dfmag_high_res = dfmag1
+            self.dfmag_infos =  {
+                'resolution': 0.5,
+                'fraction_missing': np.isnan(dfmag1['Bx']).sum()/len(dfmag1)
+            }
+
+        else:
+            # Load High Res Magnetic field
+            dfmag_raw, dfmag, infos = LoadHighResMagWrapper(
+                self.sc, self.start_time_0, self.end_time_0, credentials = self.credentials
+            )
+            self.dfmag_raw_high_res = dfmag_raw
+            self.dfmag_high_res = dfmag
+            self.dfmag_infos = infos
 
         # calculate the averged field
         keys = ['Br','Bt','Bn','Vr','Vt','Vn','Bx','By','Bz','Vx','Vy','Vz']
@@ -833,92 +856,114 @@ class TimeSeriesViewer:
             except:
                 print("sigma_c update failed!")
 
-        """magnetic compressibility"""
+        """carrington Longitude"""
         if not(update):
             try:
                 ax = axes['norm'].twinx()
-                axes['mag_compressibility'] = ax
-                if (self.sc == 0) | (self.sc == 1):
-                    # for psp and solo, the raw resolution is 5s
-                    try:
-                        Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
-                    except:
-                        dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
-                        Btot = dfmag['Btot']
-                elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
-                    # for Helios-1/2 and Ulysses, load high-res mag data for this line
-                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
-                    Btot = dfmag['Btot']
-                else:
-                    pass
-                ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
-                Btot = Btot[ind]
-
-                mag_coms = {}
-                mckeys = ['1000s','3600s', '10000s']
-                for k in mckeys:
-                    mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
-
-                self.mag_coms = mag_coms
-
-                for i1 in range(len(mckeys)):
-                    k = mckeys[i1]
-                    mag_coms[k].plot(ax = ax, style = ['C%d'%(i1+1)], lw = 0.8, alpha = 0.8)
-
-                ax.set_yscale('log')
-                ax.set_ylim([10**(-2.05), 10**(0.05)])
-                ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
-                ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
-                ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
-
-                ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+                axes['carr_lon'] = ax
+                (dfts[['carr_lon']]).plot(ax = ax, legend=False, style=['C1'], lw = 0.8, alpha = 0.8)
+                ax.legend(['Carr Lon'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                lines['mag_compressibility'] = ax.get_lines()
+                # ax.set_ylim([-185,185])
+                # ax.set_yticks([-180,-90,0,90,180])
+                lines['carr_lon'] = ax.get_lines()
             except:
-                raise ValueError("mag compressibility initialization failed!")
+                warnings.warn("carr long failed")
         else:
             try:
-                ax = axes['mag_compressibility']
-                ls = lines['mag_compressibility']
-                if (self.sc == 0) | (self.sc == 1):
-                    # for psp and solo, the raw resolution is 5s
-                    Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
-                elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
-                    # for Helios-1/2 and Ulysses, load high-res mag data for this line
-                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
-                    Btot = dfmag['Btot']
-                else:
-                    pass
-                ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
-                Btot = Btot[ind]
-
-                mag_coms = {}
-                mckeys = ['1000s','3600s','10000s']
-                for k in mckeys:
-                    mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
-
-                self.mag_coms = mag_coms
-
-                for i1 in range(len(mckeys)):
-                    k = mckeys[i1]
-                    ls[i1].set_data(mag_coms[k].index, mag_coms[k].values)
-
-                ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
-                ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
-                ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
-
-                ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+                ax = axes['carr_lon']
+                ls = lines['carr_lon']
+                # speeds
+                ls[0].set_data(dfts['carr_lon'].index, (dfts[['carr_lon']]).values)
+                ax.legend(['Carr Lon'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                lines['mag_compressibility'] = ax.get_lines()
-
+                # ax.set_ylim([-185,185])
+                # ax.set_yticks([-180,-90,0,90,180])
+                lines['carr_lon'] = ax.get_lines()
             except:
-                print("mag compressibility update failed!")
+                warnings.warn('Carr long failed!')
+
+        """magnetic compressibility"""
+        # if not(update):
+        #     try:
+        #         ax = axes['norm'].twinx()
+        #         axes['mag_compressibility'] = ax
+        #         dfmag = self.dfmag_high_res
+        #         Btot = dfmag['Btot']
+        #         ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
+        #         Btot = Btot[ind]
+
+        #         mag_coms = {}
+        #         mckeys = ['1000s','3600s', '10000s']
+        #         for k in mckeys:
+        #             mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
+
+        #         self.mag_coms = mag_coms
+
+        #         for i1 in range(len(mckeys)):
+        #             k = mckeys[i1]
+        #             mag_coms[k].plot(ax = ax, style = ['C%d'%(i1+1)], lw = 0.8, alpha = 0.8)
+
+        #         ax.set_yscale('log')
+        #         ax.set_ylim([10**(-2.05), 10**(0.05)])
+        #         ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
+        #         ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
+        #         ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
+
+        #         ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0], dfts.index[-1]])
+        #         lines['mag_compressibility'] = ax.get_lines()
+        #     except:
+        #         raise ValueError("mag compressibility initialization failed!")
+        # else:
+        #     try:
+        #         ax = axes['mag_compressibility']
+        #         ls = lines['mag_compressibility']
+        #         if (self.sc == 0) | (self.sc == 1):
+        #             # for psp and solo, the raw resolution is 5s
+        #             Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
+        #         elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
+        #             # for Helios-1/2 and Ulysses, load high-res mag data for this line
+        #             dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
+        #             Btot = dfmag['Btot']
+        #         else:
+        #             pass
+        #         ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
+        #         Btot = Btot[ind]
+
+        #         mag_coms = {}
+        #         mckeys = ['1000s','3600s','10000s']
+        #         for k in mckeys:
+        #             mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
+
+        #         self.mag_coms = mag_coms
+
+        #         for i1 in range(len(mckeys)):
+        #             k = mckeys[i1]
+        #             ls[i1].set_data(mag_coms[k].index, mag_coms[k].values)
+
+        #         ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
+        #         ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
+        #         ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
+
+        #         ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0], dfts.index[-1]])
+        #         lines['mag_compressibility'] = ax.get_lines()
+
+        #     except:
+        #         print("mag compressibility update failed!")
 
 
 
@@ -1315,10 +1360,22 @@ class TimeSeriesViewer:
                     si['LTSWsettings'] = self.LTSWsettings
 
                     # load the magnetic field data and create empty diagnostics
-                    if self.skipPreLoadDiagnostics:
-                        pass
-                    else:
-                        PreloadDiagnostics(si, self.p_funcs, resolution = self.high_res_resolution)
+                    try:
+                        # import the preloaded high resolution magnetic field data to save time
+                        PreloadDiagnostics(
+                            si, 
+                            self.p_funcs, 
+                            resolution = self.high_res_resolution, 
+                            credentials = self.credentials,
+                            import_dfmag = {
+                                'dfmag_raw': self.dfmag_raw_high_res,
+                                'dfmag': self.dfmag_high_res,
+                                'infos': self.dfmag_infos
+                            }
+                        )
+                    except:
+                        raise ValueError(",..")
+                        PreloadDiagnostics(si, self.p_funcs, resolution = self.high_res_resolution, credentials = self.credentials)
 
                 # psd
                 if 'PSD' in self.p_funcs.keys():
@@ -1367,13 +1424,32 @@ class TimeSeriesViewer:
                         self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
 
                     
-                # wavelet PSD: (nikos)
+                # wavelet PSD:
                 if 'wavelet_PSD' in self.p_funcs.keys():
 
                     self.wavelet_PSD = si['wavelet_PSD']
                     freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
                     freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
                     sm_freqs_FFT, sm_PSD_FFT = si['wavelet_PSD']['sm_freqs_FFT'], si['wavelet_PSD']['sm_PSD_FFT']
+
+                    import_coi = None
+                    try:
+                        coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
+
+                        # show coi range, threshold = 80% under coi
+                        if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
+                            coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
+                        else:
+                            coi_thresh = 0.8
+                        ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
+
+                        import_coi = {
+                            'range': [freqs_wl[ind][0], freqs_wl[ind][-1]],
+                            'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
+                        }
+
+                    except:
+                        print("COI information is not present in wavelet_PSD")
 
                     self.bpfg_wl = BPFG(
                             freqs_wl, PSD_wl, label = 'PSD_WL',
@@ -1387,7 +1463,8 @@ class TimeSeriesViewer:
                                 'x': sm_freqs_FFT,
                                 'y': sm_PSD_FFT,
                                 'label': 'sm_PSD_FFT'
-                            }
+                            },
+                            import_coi = import_coi
                             )
                     self.bpfg_wl.connect()
                         
@@ -1657,8 +1734,8 @@ class TimeSeriesViewer:
                     )
             # xt = pd.Period(ordinal=int(event.xdata), freq=self.resample_rate)
             # self.text.set_text("%s" %(str(xt)))
-            self.text.set_fontsize('xx-large')
-            self.text.set_x(-0.1)
+            self.text.set_fontsize('x-large')
+            self.text.set_x(0.0)
             self.text.set_y(1.05)
 
             for k, ax in self.axes.items():

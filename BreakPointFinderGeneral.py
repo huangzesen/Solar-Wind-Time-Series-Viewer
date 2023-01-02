@@ -42,7 +42,8 @@ class BreakPointFinder:
         label = None, secondary = None, third=None,
         app = '4pt_slope',
         view_fit = True, no_avg =False, import_4pt_fit = None,
-        import_4pt_intersect = None, import_2pt_avg = None
+        import_4pt_intersect = None, import_2pt_avg = None,
+        import_coi = None
         ):
         """
         Initialize the class with fig, ax, and plot data
@@ -64,6 +65,7 @@ class BreakPointFinder:
         self.import_4pt_fit = import_4pt_fit
         self.import_4pt_intersect = import_4pt_intersect
         self.import_2pt_avg = import_2pt_avg
+        self.import_coi = import_coi
         
         self.no_avg = no_avg
         # self.struc_funcs = struc_funcs
@@ -198,6 +200,18 @@ class BreakPointFinder:
             "QF: %d" %(self.diagnostics['QualityFlag']),
             fontsize = 'xx-large'
         )
+
+        # draw cone of influence for wavelets
+        if self.import_coi is not None:
+            try:
+                f0 = self.import_coi['range'][0]
+                f1 = self.import_coi['range'][1]
+                label = self.import_coi['label']
+                self.arts['PSD']['coi_box'] = ax.axvspan(f0, f1, color = 'r', alpha = 0.05, label = label)
+            except:
+                raise ValueError(
+                    "import_coi should be dictionary {'range': [f0,f1], 'label':label}"
+                )
 
         self.DrawArts()
 

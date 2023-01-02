@@ -74,7 +74,17 @@ def TimeseriesDifference(ts, dt, rolling_window):
     """
 
     if not isinstance(ts, pd.Series):
-        raise ValueError("ts must be a pandas series")
+        try:
+            if isinstance(ts, pd.DataFrame):
+                ts = ts.squeeze()
+                if isinstance(ts, pd.Series):
+                    pass
+                else:
+                    ValueError("ts must be a pandas series or single column data frame")
+            else:
+                ValueError("ts must be a pandas series or single column data frame")
+        except:
+            raise ValueError("ts must be a pandas series")
 
     if not isinstance(dt, pd.Timedelta):
         raise ValueError("dt must be pandas.Timedelta")

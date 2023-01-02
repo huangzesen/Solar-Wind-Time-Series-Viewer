@@ -394,7 +394,8 @@ def LoadTimeSeriesPSP(
         'interpolate_qtn': True,
         'interpolate_rolling': True,
         'verbose': True,
-        'must_have_qtn': True
+        'must_have_qtn': True,
+        'rtn_only': True
     }
 
     for k in default_settings.keys():
@@ -466,13 +467,20 @@ def LoadTimeSeriesPSP(
             )
             dfmag1.columns = ['Br','Bt','Bn']
 
-            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
-            data = get_data(names[0])
-            dfmag2 = pd.DataFrame(
-                index = data[0],
-                data = data[1]
-            )
-            dfmag2.columns = ['Bx','By','Bz']
+            if settings['rtn_only']:
+                dfmag = dfmag1
+            else:
+                names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
+                data = get_data(names[0])
+                dfmag2 = pd.DataFrame(
+                    index = data[0],
+                    data = data[1]
+                )
+                dfmag2.columns = ['Bx','By','Bz']
+
+                dfmag = dfmag1.join(dfmag2)
+
+
         except:
             print("No MAG data is presented in the public repository!")
             print("Trying unpublished data... please provide credentials...")
@@ -493,18 +501,24 @@ def LoadTimeSeriesPSP(
             )
             dfmag1.columns = ['Br','Bt','Bn']
 
-            names = pyspedas.psp.fields(trange=[t0,t1], 
-                datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
-                username=username, password=password
-            )
-            data = get_data(names[0])
-            dfmag2 = pd.DataFrame(
-                index = data[0],
-                data = data[1]
-            )
-            dfmag2.columns = ['Bx','By','Bz']
+            if settings['rtn_only']:
+                dfmag = dfmag1
 
-        dfmag = dfmag1.join(dfmag2)
+            else:
+                names = pyspedas.psp.fields(trange=[t0,t1], 
+                    datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
+                    username=username, password=password
+                )
+                data = get_data(names[0])
+                dfmag2 = pd.DataFrame(
+                    index = data[0],
+                    data = data[1]
+                )
+                dfmag2.columns = ['Bx','By','Bz']
+
+                dfmag = dfmag1.join(dfmag2)
+
+
         dfmag.index = time_string.time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
     except:
@@ -833,6 +847,13 @@ def LoadTimeSeriesPSP(
         dftemp = pd.concat([dfpar1,dfpar2])
         dfpar = dfpar.join(dftemp[keep_keys])
 
+        # join carr longitude
+        try:
+            dfpar = dfpar.join(dfspc[['carr_lon','carr_lat']].resample(freq).mean())
+        except:
+            print("No carr lon and lat information from SPC!")
+            dfpar[['carr_lon','carr_lat']] = np.nan
+
     elif parmode == 'keep_all':
         raise ValueError("particle mode: %s under construction!" %(parmode))
     
@@ -919,7 +940,8 @@ def LoadTimeSeriesPSP(
         'parmode': parmode,
         'settings': settings,
         'dfpar': dfpar,
-        'dfmag': dfmag
+        'dfmag': dfmag,
+        'dfe': dfe
     }
 
     return dfts, misc
@@ -1165,60 +1187,156 @@ def LoadHighResMagSOLO(
     return dfmag, dfmag1, infos
 
 def LoadHighResMagPSP(
-    start_time, end_time, verbose = True, credentials = None, resolution = None
+    start_time, end_time, verbose = True, credentials = None, resolution = None, load_4_per_cyc = True, use_spedas = True,
     ):
     """
     resolution in ms!
     """
+    if load_4_per_cyc:
+        try:
+            if use_spedas:
+                print("Loading mag_rtn_4_per_cycle from SPEDAS")
+                t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+                t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
-    try:
-        vars = ['psp_fld_l2_mag_SC_4_Sa_per_Cyc']
-        time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
-        status, data = cdas.get_data('PSP_FLD_L2_MAG_SC_4_SA_PER_CYC', vars, time[0], time[1])
+                names = pyspedas.psp.fields(trange=[t0,t1], 
+                    datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True
+                )
+                data = get_data(names[0])
+                dfmag2 = pd.DataFrame(
+                    index = data[0],
+                    data = data[1]
+                )
+                dfmag2.columns = ['Bx','By','Bz']
 
-        dfmag = pd.DataFrame(
-            index = data['epoch_mag_SC_4_Sa_per_Cyc'],
-            data = {
-                'Bx': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,0],
-                'By': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,1],
-                'Bz': data['psp_fld_l2_mag_SC_4_Sa_per_Cyc'][:,2]
-            }
-        )
-        dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+                dfmag = dfmag2
+                dfmag.index = time_string.time_datetime(time=dfmag.index)
+                dfmag.index = dfmag.index.tz_localize(None)
 
-        if verbose:
-            print("Input tstart = %s, tend = %s" %(time[0], time[1]))
-            print("Returned tstart = %s, tend = %s" %(
-                data['epoch_mag_SC_4_Sa_per_Cyc'][0], 
-                data['epoch_mag_SC_4_Sa_per_Cyc'][-1]))
+                dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
 
-    except:
-        print("Loading unpublished PSP high-res mag data....")
-        if credentials is None:
-            raise ValueError("No credentials are provided!")
+            else:
+                print("Loading psp_fld_l2_mag_RTN_4_Sa_per_Cyc from SPDF")
+                vars = ['psp_fld_l2_mag_RTN_4_Sa_per_Cyc']
+                time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
+                status, data = cdas.get_data('PSP_FLD_L2_MAG_RTN_4_SA_PER_CYC', vars, time[0], time[1])
 
-        t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
-        t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+                dfmag = pd.DataFrame(
+                    index = data['epoch_mag_RTN_4_Sa_per_Cyc'],
+                    data = {
+                        'Bx': data['psp_fld_l2_mag_RTN_4_Sa_per_Cyc'][:,0],
+                        'By': data['psp_fld_l2_mag_RTN_4_Sa_per_Cyc'][:,1],
+                        'Bz': data['psp_fld_l2_mag_RTN_4_Sa_per_Cyc'][:,2]
+                    }
+                )
+                dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
 
-        username = credentials['psp']['fields']['username']
-        password = credentials['psp']['fields']['password']
+                if verbose:
+                    print("Input tstart = %s, tend = %s" %(time[0], time[1]))
+                    print("Returned tstart = %s, tend = %s" %(
+                        data['psp_fld_l2_mag_RTN_4_Sa_per_Cyc'][0], 
+                        data['psp_fld_l2_mag_RTN_4_Sa_per_Cyc'][-1]))
 
-        names = pyspedas.psp.fields(trange=[t0,t1], 
-            datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
-            username=username, password=password
-        )
-        data = get_data(names[0])
-        dfmag2 = pd.DataFrame(
-            index = data[0],
-            data = data[1]
-        )
-        dfmag2.columns = ['Bx','By','Bz']
+        except:
+            print("Loading unpublished PSP high-res mag data....")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
 
-        dfmag = dfmag2
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
-        dfmag.index = dfmag.index.tz_localize(None)
+            t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+            t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
-        dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+            username = credentials['psp']['fields']['username']
+            password = credentials['psp']['fields']['password']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_RTN_4_Sa_per_Cyc', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+
+            dfmag = dfmag2
+            dfmag.index = time_string.time_datetime(time=dfmag.index)
+            dfmag.index = dfmag.index.tz_localize(None)
+
+            dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+
+    else:
+        try:
+            if use_spedas:
+                print("Loading mag_rtn from SPEDAS")
+                t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+                t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+                names = pyspedas.psp.fields(trange=[t0,t1], 
+                    datatype='mag_rtn', level='l2', time_clip=True
+                )
+                data = get_data(names[0])
+                dfmag2 = pd.DataFrame(
+                    index = data[0],
+                    data = data[1]
+                )
+                dfmag2.columns = ['Bx','By','Bz']
+
+                dfmag = dfmag2
+                dfmag.index = time_string.time_datetime(time=dfmag.index)
+                dfmag.index = dfmag.index.tz_localize(None)
+
+                dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+
+            else:
+                print("Loading psp_fld_l2_mag_RTN from SPDF")
+                vars = ['psp_fld_l2_mag_RTN']
+                time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
+                status, data = cdas.get_data('PSP_FLD_L2_MAG_RTN', vars, time[0], time[1])
+
+                dfmag = pd.DataFrame(
+                    index = data['epoch_mag_RTN'],
+                    data = {
+                        'Bx': data['psp_fld_l2_mag_RTN'][:,0],
+                        'By': data['psp_fld_l2_mag_RTN'][:,1],
+                        'Bz': data['psp_fld_l2_mag_RTN'][:,2]
+                    }
+                )
+                dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
+
+                if verbose:
+                    print("Input tstart = %s, tend = %s" %(time[0], time[1]))
+                    print("Returned tstart = %s, tend = %s" %(
+                        data['psp_fld_l2_mag_RTN'][0], 
+                        data['psp_fld_l2_mag_RTN'][-1]))
+
+        except:
+            print("Loading unpublished PSP high-res mag data....")
+            if credentials is None:
+                raise ValueError("No credentials are provided!")
+
+            t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+            t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
+
+            username = credentials['psp']['fields']['username']
+            password = credentials['psp']['fields']['password']
+
+            names = pyspedas.psp.fields(trange=[t0,t1], 
+                datatype='mag_RTN', level='l2', time_clip=True,
+                username=username, password=password
+            )
+            data = get_data(names[0])
+            dfmag2 = pd.DataFrame(
+                index = data[0],
+                data = data[1]
+            )
+            dfmag2.columns = ['Bx','By','Bz']
+
+            dfmag = dfmag2
+            dfmag.index = time_string.time_datetime(time=dfmag.index)
+            dfmag.index = dfmag.index.tz_localize(None)
+
+            dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
 
     if resolution is None:
         dfmag1 = dfmag.resample('100ms').mean()

@@ -173,23 +173,6 @@ def hampel_filter_forloop_numba(input_series, window_size, n_sigmas=3):
     return new_series, indices
     
 
-@jit(nopython=True, parallel=True)      
-def smoothing_function_obsolete(x,y, window=2, pad = 1):
-    xoutmid = np.zeros(len(x))*np.nan
-    xoutmean = np.zeros(len(x))*np.nan
-    yout = np.zeros(len(x))*np.nan
-    for i in prange(len(x)):
-        x0 = x[i]
-        xf = window*x[i]
-        
-        if xf < np.max(x):
-            e = np.where(x  == x.flat[np.abs(x - xf).argmin()])[0][0]
-            if e<len(x):
-                yout[i] = np.nanmean(y[i:e])
-                xoutmid[i] = x[i] + np.log10(0.5) * (x[i] - x[e])
-                xoutmean[i] = np.nanmean(x[i:e])
-    return xoutmid, xoutmean, yout 
-
 
 @jit(nopython=True, parallel=True)      
 def smoothing_function(x,y, window=2, pad = 1):
@@ -315,6 +298,13 @@ def curve_fit_log(xdata, ydata) :
 
 
 # ----------- Wavelet ------------ #
+import pycwt as wavelet
+mother_wave_dict = {
+    'gaussian': wavelet.DOG(),
+    'paul': wavelet.Paul(),
+    'mexican_hat': wavelet.MexicanHat()
+}
+
 @numba.njit(nogil=True)
 def norm_factor_Gauss_window(scales, dt):
    
@@ -421,6 +411,82 @@ def estimate_PSD_wavelets_all_intervals(db_x, db_y, db_z, angles, freqs,   dt,  
     return PSD_par, PSD_per
 
 
+def trace_PSD_wavelet(x, y, z, dt, dj,  mother_wave='morlet', coi_thresh = 0.8, consider_coi=True):
+    """
+    Method to calculate the  power spectral density using wavelet method.
+    Parameters
+    ----------
+    x,y,z: array-like
+        the components of the field to apply wavelet tranform
+    dt: float
+        the sampling time of the timeseries
+    dj: determines how many scales are used to estimate wavelet coeff
+    
+        (e.g., for dj=1 -> 2**numb_scales 
+    mother_wave: str
+        The main waveform to transform data.
+        Available waves are:
+        'gaussian':
+        'paul': apply lomb method to compute PSD
+        'mexican_hat':
+    coi_thresh: float [0.0, 1.0]
+        Lower limit of percentage of coefficients inside the Cone of Influence
+    consider_coi : boolean
+        consider coi or not when calculating trace PSD
+    Returns
+    -------
+    db_x,db_y,db_zz: array-like
+        component coeficients of th wavelet tranform
+    freq : array-like
+        Frequency of the corresponding psd points.
+    psd : array-like
+        Power Spectral Density of the signal.
+    scales : array-like
+        The scales at which wavelet was estimated
+    coi : array-like
+        The Cone of Influence (CoI)
+    """
+    
+
+    if mother_wave in mother_wave_dict.keys():
+        mother_morlet = mother_wave_dict[mother_wave]
+    else:
+        mother_morlet = wavelet.Morlet()
+        
+    N                                       = len(x)
+
+    db_x, scales, freqs, coi, _, _ = wavelet.cwt(x, dt, dj, wavelet=mother_morlet)
+    db_y, scales, freqs, coi, _, _ = wavelet.cwt(y, dt, dj, wavelet=mother_morlet)
+    db_z, scales, freqs, coi, _, _ = wavelet.cwt(z, dt, dj, wavelet=mother_morlet)
+
+
+    if consider_coi:
+        # Estimate trace PSD with coefficients under COI
+        try:
+            PSD = np.zeros_like(freqs)
+            for i1 in range(len(scales)):
+                scale = scales[i1]
+                ind = coi > scale
+                if np.sum(ind)/len(ind) > 0.0:
+                    PSD[i1] = (
+                        np.nanmean(np.abs(db_x[i1, ind])**2) + 
+                        np.nanmean(np.abs(db_y[i1, ind])**2) + 
+                        np.nanmean(np.abs(db_z[i1, ind])**2)
+                    )*( 2*dt)
+                else:
+                    PSD[i1] = np.nan
+        except:
+            raise ValueError("failed at i1 = %d" %(i1))
+    else:
+        # Estimate trace powerspectral density without considering COI
+        PSD = (np.nanmean(np.abs(db_x)**2, axis=1) + np.nanmean(np.abs(db_y)**2, axis=1) + np.nanmean(np.abs(db_z)**2, axis=1)   )*( 2*dt)
+    
+    # # Also estimate the scales to use later
+    # scales = ((1/freqs)/dt)#.astype(int)
+    
+    return db_x, db_y, db_z, freqs, PSD, scales, coi
+
+
 
 # -----------  Drawing ----------- #
 
@@ -471,29 +537,43 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
 from LoadData import LoadHighResMagWrapper
 from TSUtilities import smoothing_function
 from StructureFunctions import MagStrucFunc
-from TurbPy import trace_PSD_wavelet
-def PreloadDiagnostics(selected_interval, p_funcs, credentials = None, resolution = None):
+
+def PreloadDiagnostics(selected_interval, p_funcs, credentials = None, resolution = None, import_dfmag = None):
     """
     Preload the Diagnostics, and return the selected_interval dictionary
+    keywords:
+        import_dfmag        dictionary, contains dfmag_raw, dfmag, infos
     """
     si = selected_interval
     sc = si['spacecraft']
     t0 = si['start_time']
     t1 = si['end_time']
-    dfmag_raw, dfmag, infos = LoadHighResMagWrapper(
-        sc, t0, t1,
-        credentials = credentials,
-        resolution = resolution
-    )
+
+    try:
+        if import_dfmag is not None:
+            ind = (import_dfmag['dfmag_raw'].index > t0) & (import_dfmag['dfmag_raw'].index <= t1)
+            dfmag_raw = import_dfmag['dfmag_raw'][ind]
+            ind = (import_dfmag['dfmag'].index > t0) & (import_dfmag['dfmag'].index <= t1)
+            dfmag = import_dfmag['dfmag'][ind]
+            infos = import_dfmag['infos']
+        else:
+            raise ValueError("Importing dfmag failed!")
+
+    except:
+        dfmag_raw, dfmag, infos = LoadHighResMagWrapper(
+            sc, t0, t1,
+            credentials = credentials,
+            resolution = resolution
+        )
 
     si['dfmag'] = dfmag
     si['dfmag_raw'] = dfmag_raw
     si['high_res_infos'] = infos
 
     res = infos['resolution']
-    Br = dfmag['Bx'].interpolate().dropna()
-    Bt = dfmag['By'].interpolate().dropna()
-    Bn = dfmag['Bz'].interpolate().dropna()
+    Br = dfmag['Bx'].interpolate().dropna().squeeze()
+    Bt = dfmag['By'].interpolate().dropna().squeeze()
+    Bn = dfmag['Bz'].interpolate().dropna().squeeze()
 
     resample_info = {
                 'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(dfmag['Bx'])*100,
@@ -528,13 +608,24 @@ def PreloadDiagnostics(selected_interval, p_funcs, credentials = None, resolutio
         }
 
     if 'wavelet_PSD' in p_funcs.keys():
-        _,_,_,freqs_wl,PSD_wl,_ = trace_PSD_wavelet(Br.values, Bt.values, Bn.values, res, dj = 1./12)
+
+        if 'coi_thresh' in p_funcs['wavelet_PSD'].keys():
+            coi_thresh = p_funcs['wavelet_PSD']['coi_thresh']
+        else:
+            coi_thresh = 0.8
+
+        _,_,_,freqs_wl,PSD_wl,scales,coi = trace_PSD_wavelet(
+            Br.values, Bt.values, Bn.values, res, 
+            dj = 1./12, coi_thresh = coi_thresh
+        )
         freqs_FFT, PSD_FFT = TracePSD(Br.values, Bt.values, Bn.values, res)
         _, sm_freqs_FFT, sm_PSD_FFT = smoothing_function(freqs_FFT, PSD_FFT)
 
         si['wavelet_PSD'] = {
             'freqs': freqs_wl,
             'PSD': PSD_wl,
+            'scales': scales,
+            'coi': coi,
             'freqs_FFT': freqs_FFT,
             'PSD_FFT': PSD_FFT,
             'sm_freqs_FFT': sm_freqs_FFT,
@@ -879,3 +970,21 @@ def FindDiagnostics(
 #             'Diagnostics': None
 #         }
 #         return d
+
+
+# @jit(nopython=True, parallel=True)      
+# def smoothing_function_obsolete(x,y, window=2, pad = 1):
+#     xoutmid = np.zeros(len(x))*np.nan
+#     xoutmean = np.zeros(len(x))*np.nan
+#     yout = np.zeros(len(x))*np.nan
+#     for i in prange(len(x)):
+#         x0 = x[i]
+#         xf = window*x[i]
+        
+#         if xf < np.max(x):
+#             e = np.where(x  == x.flat[np.abs(x - xf).argmin()])[0][0]
+#             if e<len(x):
+#                 yout[i] = np.nanmean(y[i:e])
+#                 xoutmid[i] = x[i] + np.log10(0.5) * (x[i] - x[e])
+#                 xoutmean[i] = np.nanmean(x[i:e])
+#     return xoutmid, xoutmean, yout 

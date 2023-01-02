@@ -20,10 +20,10 @@ def StructureFunctionDistribution(arr, s, n):
      Output:
         SFD = (arr(t+s) - arr(t))^n
     """
-    SFD = np.zeros([l-s-1])
     l = len(arr)
+    SFD = np.zeros(l-s-1)
 
     for i1 in range(l-s-1):
-        SFD[i1] = (arr(i1+s) - arr(i1))**n
+        SFD[i1] = (arr[i1+s] - arr[i1])**n
 
     return SFD
