@@ -48,6 +48,9 @@ au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
+from LoadData import LoadHighResMagWrapper
+from StructureFunctions import MagStrucFunc
+
 
 # -----------  Tools ----------- #
 
@@ -411,7 +414,12 @@ def estimate_PSD_wavelets_all_intervals(db_x, db_y, db_z, angles, freqs,   dt,  
     return PSD_par, PSD_per
 
 
-def trace_PSD_wavelet(x, y, z, dt, dj,  mother_wave='morlet', coi_thresh = 0.8, consider_coi=True):
+def trace_PSD_wavelet(
+        x, y, z, dt, dj,  
+        mother_wave='morlet', 
+        consider_coi=True,
+        keep_ind = None
+    ):
     """
     Method to calculate the  power spectral density using wavelet method.
     Parameters
@@ -429,10 +437,11 @@ def trace_PSD_wavelet(x, y, z, dt, dj,  mother_wave='morlet', coi_thresh = 0.8, 
         'gaussian':
         'paul': apply lomb method to compute PSD
         'mexican_hat':
-    coi_thresh: float [0.0, 1.0]
-        Lower limit of percentage of coefficients inside the Cone of Influence
     consider_coi : boolean
         consider coi or not when calculating trace PSD
+    keep_ind : array-like
+        same length as x,y,z, values are boolean True/False
+        the points labeled as False will be ignored upon averaging
     Returns
     -------
     db_x,db_y,db_zz: array-like
@@ -467,6 +476,11 @@ def trace_PSD_wavelet(x, y, z, dt, dj,  mother_wave='morlet', coi_thresh = 0.8, 
             for i1 in range(len(scales)):
                 scale = scales[i1]
                 ind = coi > scale
+                if keep_ind is None:
+                    pass
+                else:
+                    # ignore points labeled as False in keep_ind
+                    ind = ind & keep_ind
                 if np.sum(ind)/len(ind) > 0.0:
                     PSD[i1] = (
                         np.nanmean(np.abs(db_x[i1, ind])**2) + 
@@ -534,9 +548,6 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
 
 
 # -----------  MISC ----------- #
-from LoadData import LoadHighResMagWrapper
-from TSUtilities import smoothing_function
-from StructureFunctions import MagStrucFunc
 
 def PreloadDiagnostics(selected_interval, p_funcs, credentials = None, resolution = None, import_dfmag = None):
     """
@@ -616,7 +627,7 @@ def PreloadDiagnostics(selected_interval, p_funcs, credentials = None, resolutio
 
         _,_,_,freqs_wl,PSD_wl,scales,coi = trace_PSD_wavelet(
             Br.values, Bt.values, Bn.values, res, 
-            dj = 1./12, coi_thresh = coi_thresh
+            dj = 1./12
         )
         freqs_FFT, PSD_FFT = TracePSD(Br.values, Bt.values, Bn.values, res)
         _, sm_freqs_FFT, sm_PSD_FFT = smoothing_function(freqs_FFT, PSD_FFT)
