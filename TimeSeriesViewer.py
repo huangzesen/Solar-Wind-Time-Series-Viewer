@@ -1596,24 +1596,26 @@ class TimeSeriesViewer:
                                 )
                         self.bpfg_wl.connect()
 
-                        # show the histogram of Btot
-                        Btot = si['dfmag']['Btot']
-                        self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
-                        plt.sca(self.ax_btot_hist)
-                        plt.hist(
-                            Btot, bins = 100, histtype = 'step', density = True
-                        )
-                        # plt.xlim([-1, np.max(Btot)*1.05])
-                        plt.axvline(x = np.mean(Btot), ls = '--', color = 'C0', label = '<|B|> = %.2f' %(np.mean(Btot)))
-                        plt.axvline(x = np.mean(Btot)-np.std(Btot), ls = '--', color = 'C1', label = r'$\sigma_{B}$ = %.2f' %(np.std(Btot)))
-                        plt.axvline(x = np.mean(Btot)+np.std(Btot), ls = '--', color = 'C1')
-                        # over plot gaussian
-                        x_data = np.linspace(np.mean(Btot)-4*np.std(Btot), np.mean(Btot)+4*np.std(Btot), 1000)
-                        y_data = stats.norm.pdf(x_data, np.mean(Btot), np.std(Btot))
-                        plt.plot(
-                            x_data, y_data, 'k--'
-                        )
-                        plt.legend(fontsize = 'x-large')
+                        if 'show_btot_histogram' in self.p_funcs['wavelet_PSD'].keys():
+
+                            # show the histogram of Btot
+                            Btot = si['dfmag']['Btot']
+                            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
+                            plt.sca(self.ax_btot_hist)
+                            plt.hist(
+                                Btot, bins = 100, histtype = 'step', density = True
+                            )
+                            # plt.xlim([-1, np.max(Btot)*1.05])
+                            plt.axvline(x = np.mean(Btot), ls = '--', color = 'C0', label = '<|B|> = %.2f' %(np.mean(Btot)))
+                            plt.axvline(x = np.mean(Btot)-np.std(Btot), ls = '--', color = 'C1', label = r'$\sigma_{B}$ = %.2f' %(np.std(Btot)))
+                            plt.axvline(x = np.mean(Btot)+np.std(Btot), ls = '--', color = 'C1')
+                            # over plot gaussian
+                            x_data = np.linspace(np.mean(Btot)-4*np.std(Btot), np.mean(Btot)+4*np.std(Btot), 1000)
+                            y_data = stats.norm.pdf(x_data, np.mean(Btot), np.std(Btot))
+                            plt.plot(
+                                x_data, y_data, 'k--'
+                            )
+                            plt.legend(fontsize = 'x-large')
                     else:
                         Br, Bt, Bn, Btot = si['dfmag']['Bx'], si['dfmag']['By'], si['dfmag']['Bz'], si['dfmag']['Btot']
                         res = si['high_res_infos']['resolution']
@@ -1663,25 +1665,27 @@ class TimeSeriesViewer:
                                 )
                         self.bpfg_wl.connect()
 
-                        # show the histogram of Btot
-                        self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
-                        plt.sca(self.ax_btot_hist)
-                        plt.hist(
-                            Btot, bins = 100, histtype = 'step', density = True
-                        )
-                        # plt.xlim([-1, np.max(Btot)*1.05])
-                        plt.axvspan(
-                            np.min(Btot[keep_ind]), np.max(Btot[keep_ind]),
-                            color = 'r', alpha = 0.05, label = 'keep mode : %s, ratio = %.2f' %(keep_mode, np.sum(keep_ind)/len(keep_ind))
-                        )
-                        plt.axvline(x = np.mean(Btot), ls = '--', label = r'<|B|> = %.2f, $\sigma_{B}$ = %.2f' %(np.mean(Btot), np.std(Btot)))
-                        # over plot gaussian
-                        x_data = np.linspace(np.mean(Btot)-4*np.std(Btot), np.mean(Btot)+4*np.std(Btot), 1000)
-                        y_data = stats.norm.pdf(x_data, np.mean(Btot), np.std(Btot))
-                        plt.plot(
-                            x_data, y_data, 'k--'
-                        )
-                        plt.legend(fontsize = 'x-large')
+                        if 'show_btot_histogram' in self.p_funcs['wavelet_PSD'].keys():
+
+                            # show the histogram of Btot
+                            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
+                            plt.sca(self.ax_btot_hist)
+                            plt.hist(
+                                Btot, bins = 100, histtype = 'step', density = True
+                            )
+                            # plt.xlim([-1, np.max(Btot)*1.05])
+                            plt.axvspan(
+                                np.min(Btot[keep_ind]), np.max(Btot[keep_ind]),
+                                color = 'r', alpha = 0.05, label = 'keep mode : %s, ratio = %.2f' %(keep_mode, np.sum(keep_ind)/len(keep_ind))
+                            )
+                            plt.axvline(x = np.mean(Btot), ls = '--', label = r'<|B|> = %.2f, $\sigma_{B}$ = %.2f' %(np.mean(Btot), np.std(Btot)))
+                            # over plot gaussian
+                            x_data = np.linspace(np.mean(Btot)-4*np.std(Btot), np.mean(Btot)+4*np.std(Btot), 1000)
+                            y_data = stats.norm.pdf(x_data, np.mean(Btot), np.std(Btot))
+                            plt.plot(
+                                x_data, y_data, 'k--'
+                            )
+                            plt.legend(fontsize = 'x-large')
 
                 if 'wavelet_rainbow' in self.p_funcs.keys():
                     if 'wavelet_rainbows' in si.keys():
