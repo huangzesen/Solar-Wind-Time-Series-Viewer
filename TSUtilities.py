@@ -549,11 +549,16 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
 
 # -----------  MISC ----------- #
 
-def PreloadDiagnostics(selected_interval, p_funcs, credentials = None, resolution = None, import_dfmag = None):
+def PreloadDiagnostics(
+        selected_interval, p_funcs, 
+        credentials = None, resolution = None, import_dfmag = None,
+        rescale_mag = False
+    ):
     """
     Preload the Diagnostics, and return the selected_interval dictionary
     keywords:
         import_dfmag        dictionary, contains dfmag_raw, dfmag, infos
+        rescale_mag         rescale magnetic field data with dist_au
     """
     si = selected_interval
     sc = si['spacecraft']
@@ -585,6 +590,17 @@ def PreloadDiagnostics(selected_interval, p_funcs, credentials = None, resolutio
     Br = dfmag['Bx'].interpolate().dropna().squeeze()
     Bt = dfmag['By'].interpolate().dropna().squeeze()
     Bn = dfmag['Bz'].interpolate().dropna().squeeze()
+
+    # rescale magnetic field data with heliocentric distance
+    if rescale_mag == True:
+        # acquire radial distance from si
+        try:
+            r = si['Dist_au']
+            Br = Br * ((r/r[0])**2)
+            Bt = Bt * ((r/r[0]))
+            Bn = Bn * ((r/r[0]))
+        except:
+            raise ValueError("No r in selected_interval['Dist_au']")
 
     resample_info = {
                 'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(dfmag['Bx'])*100,

@@ -41,6 +41,7 @@ from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries,
 from BreakPointFinderGeneral import BreakPointFinder as BPFG
 from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
 from WaveletRainbow import WaveletRainbow
+from scipy.stats import shapiro
 # from BreakPointFinderLite import BreakPointFinder
 # from StructureFunctions import MagStrucFunc
 # from TurbPy import trace_PSD_wavelet
@@ -610,6 +611,10 @@ class TimeSeriesViewer:
             
             if 'PSD' not in interval.keys():
                 interval['PSD'] = None
+
+            # force the start_time and end_time to be pd.Timestamp
+            interval['start_time'] = pd.Timestamp(interval['start_time'])
+            interval['end_time'] = pd.Timestamp(interval['end_time'])
 
             self.selected_intervals.append(interval)
 
@@ -1483,9 +1488,20 @@ class TimeSeriesViewer:
                     # save the time series to dataframe
                     si['TimeSeries'] = dftemp
                     si['LTSWsettings'] = self.LTSWsettings
+
+                    # save dist_au to the dictionary
+                    Btot = si['dfmag']['Btot']
+                    Dist_au = self.dfts_raw0['Dist_au'].resample(pd.infer_freq(Btot.index)).interpolate()
+                    r = Dist_au[Btot.index].values
+                    self.selected_interval['Dist_au'] = r
                     
                     if (self.sc == 0):
                         si['par_settings'] = self.par_settings
+
+                    if 'rescale_mag' in self.p_funcs.keys():
+                        rescale_mag = self.p_funcs['rescale_mag']
+                    else:
+                        rescale_mag = False
 
                     # load the magnetic field data and create empty diagnostics
                     try:
@@ -1499,10 +1515,116 @@ class TimeSeriesViewer:
                                 'dfmag_raw': self.dfmag_raw_high_res,
                                 'dfmag': self.dfmag_high_res,
                                 'infos': self.dfmag_infos
-                            }
+                            },
+                            rescale_mag = rescale_mag
                         )
                     except:
-                        PreloadDiagnostics(si, self.p_funcs, resolution = self.high_res_resolution, credentials = self.credentials)
+                        PreloadDiagnostics(
+                            si, self.p_funcs, 
+                            resolution = self.high_res_resolution, credentials = self.credentials,
+                            rescale_mag = rescale_mag
+                        )
+
+                # compare magnetic field rescaling
+                if 'compare_mag_rescale' in self.p_funcs.keys():
+                    # calculate diagnostics without rescale
+                    PreloadDiagnostics(
+                        si, self.p_funcs, 
+                        resolution = self.high_res_resolution, credentials = self.credentials,
+                        rescale_mag = False
+                    )
+
+                    self.wavelet_PSD = si['wavelet_PSD']
+                    freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
+                    freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
+                    sm_freqs_FFT, sm_PSD_FFT = si['wavelet_PSD']['sm_freqs_FFT'], si['wavelet_PSD']['sm_PSD_FFT']
+
+                    coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
+
+                    # show coi range, threshold = 80% under coi
+                    if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
+                        coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
+                    else:
+                        coi_thresh = 0.8
+                    ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
+
+                    import_coi = {
+                        'range': [freqs_wl[ind][0], freqs_wl[ind][-1]],
+                        'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
+                    }
+
+                    # plot the spectrum
+                    self.bpfg_wl = BPFG(
+                            freqs_wl, PSD_wl, label = 'PSD_WL',
+                            diagnostics = self.wavelet_PSD['diagnostics'],
+                            secondary = {
+                                'x': freqs_FFT,
+                                'y': PSD_FFT,
+                                'label': 'PSD_FFT'
+                            },
+                            third = {
+                                'x': sm_freqs_FFT,
+                                'y': sm_PSD_FFT,
+                                'label': 'sm_PSD_FFT'
+                            },
+                            import_coi = import_coi
+                            )
+                    self.bpfg_wl.connect()
+
+
+                # histgram
+                if 'show_btot_histogram' in self.p_funcs.keys():
+                    Btot = si['dfmag']['Btot']
+
+                    # delete unphysical values
+                    ind1 = Btot < 0.1
+                    Btot[ind1] = np.nan
+                    Btot = Btot.interpolate()
+
+                    # normalize with dist_au
+                    r = si['Dist_au']
+                    Btot1 = Btot * ((r/r[0])**2)
+                    
+
+                    # show the histogram of Btot
+                    self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
+                    plt.sca(self.ax_btot_hist)
+                    plt.hist(
+                        Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^2$', color = 'C2'
+                    )
+                    plt.hist(
+                        Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
+                    )
+                    # plt.xlim([-1, np.max(Btot)*1.05])
+                    bmean = np.mean(Btot1)
+                    bstd = np.std(Btot1)
+                    plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
+                    plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
+                    plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
+                    # over plot gaussian
+                    x_data = np.linspace(np.mean(Btot1)-4*np.std(Btot1), np.mean(Btot1)+4*np.std(Btot1), 1000)
+                    y_data = stats.norm.pdf(x_data, np.mean(Btot1), np.std(Btot1))
+                    plt.plot(
+                        x_data, y_data, 'k--'
+                    )
+                    plt.xlim([bmean-5*bstd, bmean+5*bstd])
+
+                    # keep ind
+                    if 'discard_3std' in self.p_funcs['show_btot_histogram'].keys():
+                        print("Discarding 3std!")
+                        bstd = np.std(Btot1)
+                        bmean = np.mean(Btot1)
+                        keep_ind = (Btot1 > bmean - 3*bstd) & (Btot1 < bmean + 3*bstd)
+                        Btot1[np.invert(keep_ind)] = np.nan
+                        Btot1 = Btot1.interpolate()
+
+                    # show normality test
+                    x = Btot1.values
+
+                    a1 = np.array([shapiro(np.random.choice(x, size=500)).pvalue for i1 in range(10000)])
+                    sa1 = np.sum(a1 > 0.05)/len(a1)
+                    plt.title("Normality test score: %.4f" %(sa1), fontsize = 'large')
+                    plt.legend(fontsize = 'medium')
 
                 # psd
                 if 'PSD' in self.p_funcs.keys():
@@ -1596,26 +1718,7 @@ class TimeSeriesViewer:
                                 )
                         self.bpfg_wl.connect()
 
-                        if 'show_btot_histogram' in self.p_funcs['wavelet_PSD'].keys():
 
-                            # show the histogram of Btot
-                            Btot = si['dfmag']['Btot']
-                            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
-                            plt.sca(self.ax_btot_hist)
-                            plt.hist(
-                                Btot, bins = 100, histtype = 'step', density = True
-                            )
-                            # plt.xlim([-1, np.max(Btot)*1.05])
-                            plt.axvline(x = np.mean(Btot), ls = '--', color = 'C0', label = '<|B|> = %.2f' %(np.mean(Btot)))
-                            plt.axvline(x = np.mean(Btot)-np.std(Btot), ls = '--', color = 'C1', label = r'$\sigma_{B}$ = %.2f' %(np.std(Btot)))
-                            plt.axvline(x = np.mean(Btot)+np.std(Btot), ls = '--', color = 'C1')
-                            # over plot gaussian
-                            x_data = np.linspace(np.mean(Btot)-4*np.std(Btot), np.mean(Btot)+4*np.std(Btot), 1000)
-                            y_data = stats.norm.pdf(x_data, np.mean(Btot), np.std(Btot))
-                            plt.plot(
-                                x_data, y_data, 'k--'
-                            )
-                            plt.legend(fontsize = 'x-large')
                     else:
                         Br, Bt, Bn, Btot = si['dfmag']['Bx'], si['dfmag']['By'], si['dfmag']['Bz'], si['dfmag']['Btot']
                         res = si['high_res_infos']['resolution']
@@ -1665,27 +1768,6 @@ class TimeSeriesViewer:
                                 )
                         self.bpfg_wl.connect()
 
-                        if 'show_btot_histogram' in self.p_funcs['wavelet_PSD'].keys():
-
-                            # show the histogram of Btot
-                            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
-                            plt.sca(self.ax_btot_hist)
-                            plt.hist(
-                                Btot, bins = 100, histtype = 'step', density = True
-                            )
-                            # plt.xlim([-1, np.max(Btot)*1.05])
-                            plt.axvspan(
-                                np.min(Btot[keep_ind]), np.max(Btot[keep_ind]),
-                                color = 'r', alpha = 0.05, label = 'keep mode : %s, ratio = %.2f' %(keep_mode, np.sum(keep_ind)/len(keep_ind))
-                            )
-                            plt.axvline(x = np.mean(Btot), ls = '--', label = r'<|B|> = %.2f, $\sigma_{B}$ = %.2f' %(np.mean(Btot), np.std(Btot)))
-                            # over plot gaussian
-                            x_data = np.linspace(np.mean(Btot)-4*np.std(Btot), np.mean(Btot)+4*np.std(Btot), 1000)
-                            y_data = stats.norm.pdf(x_data, np.mean(Btot), np.std(Btot))
-                            plt.plot(
-                                x_data, y_data, 'k--'
-                            )
-                            plt.legend(fontsize = 'x-large')
 
                 if 'wavelet_rainbow' in self.p_funcs.keys():
                     if 'wavelet_rainbows' in si.keys():
@@ -1991,6 +2073,7 @@ class TimeSeriesViewer:
                         "%s, R[AU] = %.2f [AU] / %.2f [Rs], tadv = %.2f [Hr], Current = %.2f [Hr], vsw = %.0f [km/s]" %(xt, rau, rau*au_to_rsun, tadv, dtint, vsw)
                     )
                 except:
+                    # raise ValueError("..")
                     self.text.set_text(
                         "%s, R[AU] = %.2f [AU] / %.2f [Rs], tadv = %.2f [Hr], vsw = %.0f [km/s]" %(xt, rau, rau*au_to_rsun, tadv, vsw)
                     )
