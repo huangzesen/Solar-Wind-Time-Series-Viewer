@@ -33,7 +33,7 @@ import pyspedas
 from pyspedas.utilities import time_string
 from pytplot import get_data
 from scipy import signal
-import TurbPy as turb
+# import TurbPy as turb
 
 au_to_km = 1.496e8  # Conversion factor
 rsun     = 696340   # Sun radius in units of  [km]
@@ -319,80 +319,80 @@ def norm_factor_Gauss_window(scales, dt):
    
     return window,  multiplic_fac, norm_factor
 
-def estimate_wavelet_coeff(df_b, dj ):
+# def estimate_wavelet_coeff(df_b, dj ):
    
-    """
-    Method to calculate the  1) wavelet coefficients in RTN 2) The scale dependent angle between Vsw and Β
-    Parameters
-    ----------
-    df_b: dataframe
-        Magnetic field timeseries dataframe
+#     """
+#     Method to calculate the  1) wavelet coefficients in RTN 2) The scale dependent angle between Vsw and Β
+#     Parameters
+#     ----------
+#     df_b: dataframe
+#         Magnetic field timeseries dataframe
 
-    mother_wave: str
-        The main waveform to transform data.
-        Available waves are:
-        'gaussian':
-        'paul': apply lomb method to compute PSD
-        'mexican_hat':
-    Returns
-    -------
-    freq : list
-        Frequency of the corresponding psd points.
-    psd : list
-        Power Spectral Density of the signal.
-    """
+#     mother_wave: str
+#         The main waveform to transform data.
+#         Available waves are:
+#         'gaussian':
+#         'paul': apply lomb method to compute PSD
+#         'mexican_hat':
+#     Returns
+#     -------
+#     freq : list
+#         Frequency of the corresponding psd points.
+#     psd : list
+#         Power Spectral Density of the signal.
+#     """
    
-    # Turn columns of df into arrays  
-    Br, Bt, Bn                           =  df_b.Br.values, df_b.Bt.values, df_b.Bn.values
+#     # Turn columns of df into arrays  
+#     Br, Bt, Bn                           =  df_b.Br.values, df_b.Bt.values, df_b.Bn.values
 
-    # Estimate magnitude of magnetic field
-    mag_orig                             =  np.sqrt(Br**2 + Bt**2 +  Bn**2 )
+#     # Estimate magnitude of magnetic field
+#     mag_orig                             =  np.sqrt(Br**2 + Bt**2 +  Bn**2 )
    
-    # Estimate the magnitude of V vector
-    mag_v = np.sqrt(df_b['Br']**2).values
+#     # Estimate the magnitude of V vector
+#     mag_v = np.sqrt(df_b['Br']**2).values
 
-    #Estimate sampling time of timeseries
-    dt                                   =  (df_b.dropna().index.to_series().diff()/np.timedelta64(1, 's')).median()
+#     #Estimate sampling time of timeseries
+#     dt                                   =  (df_b.dropna().index.to_series().diff()/np.timedelta64(1, 's')).median()
 
-    angles   = pd.DataFrame()
-    VBangles = pd.DataFrame()
+#     angles   = pd.DataFrame()
+#     VBangles = pd.DataFrame()
 
-    # Estimate PSDand scale dependent fluctuations
-    db_x, db_y, db_z, freqs, PSD, scales = turb.trace_PSD_wavelet(Br, Bt, Bn, dt, dj,  mother_wave='morlet')
-
-
-    for ii in range(len(scales)):
-        #if np.mod(ii, 2)==0:
-           # print('Progress', 100*(ii/len(scales)))
-        try:
-            window, multiplic_fac, norm_factor= norm_factor_Gauss_window(scales[ii], dt)
+#     # Estimate PSDand scale dependent fluctuations
+#     db_x, db_y, db_z, freqs, PSD, scales = turb.trace_PSD_wavelet(Br, Bt, Bn, dt, dj,  mother_wave='morlet')
 
 
-            # Estimate scale dependent background magnetic field using a Gaussian averaging window
+#     for ii in range(len(scales)):
+#         #if np.mod(ii, 2)==0:
+#            # print('Progress', 100*(ii/len(scales)))
+#         try:
+#             window, multiplic_fac, norm_factor= norm_factor_Gauss_window(scales[ii], dt)
 
-            res2_Br = (1/norm_factor)*signal.convolve(Br, multiplic_fac[::-1], 'same')
-            res2_Bt = (1/norm_factor)*signal.convolve(Bt, multiplic_fac[::-1], 'same')
-            res2_Bn = (1/norm_factor)*signal.convolve(Bn, multiplic_fac[::-1], 'same')
+
+#             # Estimate scale dependent background magnetic field using a Gaussian averaging window
+
+#             res2_Br = (1/norm_factor)*signal.convolve(Br, multiplic_fac[::-1], 'same')
+#             res2_Bt = (1/norm_factor)*signal.convolve(Bt, multiplic_fac[::-1], 'same')
+#             res2_Bn = (1/norm_factor)*signal.convolve(Bn, multiplic_fac[::-1], 'same')
 
 
-            # Estimate magnitude of scale dependent background
-            mag_bac = np.sqrt(res2_Br**2 + res2_Bt**2 + res2_Bn**2 )
+#             # Estimate magnitude of scale dependent background
+#             mag_bac = np.sqrt(res2_Br**2 + res2_Bt**2 + res2_Bn**2 )
 
-            # Estimate angle
-            angles[str(ii+1)] = np.arccos(res2_Br/mag_bac) * 180 / np.pi
+#             # Estimate angle
+#             angles[str(ii+1)] = np.arccos(res2_Br/mag_bac) * 180 / np.pi
 
-            # Estimate VB angle
-            VBangles[str(ii+1)] = np.arccos((df_b['Br']*res2_Br)/(mag_bac*mag_v)) * 180 / np.pi
+#             # Estimate VB angle
+#             VBangles[str(ii+1)] = np.arccos((df_b['Br']*res2_Br)/(mag_bac*mag_v)) * 180 / np.pi
 
-            # Restric to 0< Θvb <90
-            VBangles[str(ii+1)][VBangles[str(ii+1)]>90] = 180 - VBangles[str(ii+1)][VBangles[str(ii+1)]>90]
+#             # Restric to 0< Θvb <90
+#             VBangles[str(ii+1)][VBangles[str(ii+1)]>90] = 180 - VBangles[str(ii+1)][VBangles[str(ii+1)]>90]
 
-            # Restric to 0< Θvb <90
-            angles[str(ii+1)][angles[str(ii+1)]>90] = 180 - angles[str(ii+1)][angles[str(ii+1)]>90]
-        except:
-             pass
+#             # Restric to 0< Θvb <90
+#             angles[str(ii+1)][angles[str(ii+1)]>90] = 180 - angles[str(ii+1)][angles[str(ii+1)]>90]
+#         except:
+#              pass
 
-    return db_x, db_y, db_z, angles, VBangles, freqs, PSD, scales
+#     return db_x, db_y, db_z, angles, VBangles, freqs, PSD, scales
 
 from numba import prange
 
@@ -552,7 +552,7 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
 def PreloadDiagnostics(
         selected_interval, p_funcs, 
         credentials = None, resolution = None, import_dfmag = None,
-        rescale_mag = False
+        rescale_mag = False, check_exist = True
     ):
     """
     Preload the Diagnostics, and return the selected_interval dictionary
@@ -567,10 +567,8 @@ def PreloadDiagnostics(
 
     try:
         if import_dfmag is not None:
-            ind = (import_dfmag['dfmag_raw'].index > t0) & (import_dfmag['dfmag_raw'].index <= t1)
-            dfmag_raw = import_dfmag['dfmag_raw'][ind]
-            ind = (import_dfmag['dfmag'].index > t0) & (import_dfmag['dfmag'].index <= t1)
-            dfmag = import_dfmag['dfmag'][ind]
+            dfmag = import_dfmag['dfmag']
+            dfmag_raw = import_dfmag['dfmag_raw']
             infos = import_dfmag['infos']
         else:
             raise ValueError("Importing dfmag failed!")
@@ -587,9 +585,9 @@ def PreloadDiagnostics(
     si['high_res_infos'] = infos
 
     res = infos['resolution']
-    Br = dfmag['Bx'].interpolate().dropna().squeeze()
-    Bt = dfmag['By'].interpolate().dropna().squeeze()
-    Bn = dfmag['Bz'].interpolate().dropna().squeeze()
+    Br = dfmag['Bx'].interpolate()
+    Bt = dfmag['By'].interpolate()
+    Bn = dfmag['Bz'].interpolate()
 
     # rescale magnetic field data with heliocentric distance
     if rescale_mag == True:
@@ -602,66 +600,83 @@ def PreloadDiagnostics(
         except:
             raise ValueError("No r in selected_interval['Dist_au']")
 
+    # drop na
+    Br = Br.dropna().squeeze()
+    Bt = Bt.dropna().squeeze()
+    Bn = Bn.dropna().squeeze()
+
     resample_info = {
                 'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(dfmag['Bx'])*100,
                 'resolution': res
             }
     si['resample_info'] = resample_info
 
+    if check_exist:
+        print("Keeping the diagnostics!!")
 
     if 'PSD' in p_funcs.keys():
-        freqs, PSD = TracePSD(Br.values, Bt.values, Bn.values, res)
-        _, sm_freqs, sm_PSD = smoothing_function(freqs, PSD)
+        if (check_exist) & ('PSD' in si.keys()):
+            print("Skipping PSD")
+        else:
+            freqs, PSD = TracePSD(Br.values, Bt.values, Bn.values, res)
+            _, sm_freqs, sm_PSD = smoothing_function(freqs, PSD)
 
-        si['PSD'] = {
-            'freqs': freqs,
-            'PSD': PSD,
-            'sm_freqs': sm_freqs,
-            'sm_PSD': sm_PSD,
-            'diagnostics': {}
-        }
+            si['PSD'] = {
+                'freqs': freqs,
+                'PSD': PSD,
+                'sm_freqs': sm_freqs,
+                'sm_PSD': sm_PSD,
+                'diagnostics': {}
+            }
 
     if 'struc_funcs' in p_funcs.keys():
-        maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
-        mintime = np.log10(2*res)
-        struc_funcs = MagStrucFunc(Br, Bt, Bn, (mintime, maxtime), 200)
+        print("Skipping struc_funcs")
+        if (check_exist) & ('struc_funcs' in si.keys()):
+            pass
+        else:
+            maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
+            mintime = np.log10(2*res)
+            struc_funcs = MagStrucFunc(Br, Bt, Bn, (mintime, maxtime), 200)
 
-        si['struc_funcs'] = struc_funcs
-        si['struc_funcs']['diagnostics'] = {}
-        si['struc_funcs']['settings'] = {
-            'mintime': mintime,
-            'maxtime': maxtime,
-            'npts': 200
-        }
+            si['struc_funcs'] = struc_funcs
+            si['struc_funcs']['diagnostics'] = {}
+            si['struc_funcs']['settings'] = {
+                'mintime': mintime,
+                'maxtime': maxtime,
+                'npts': 200
+            }
 
     if 'wavelet_PSD' in p_funcs.keys():
-
-        if 'coi_thresh' in p_funcs['wavelet_PSD'].keys():
-            coi_thresh = p_funcs['wavelet_PSD']['coi_thresh']
+        print("Skipping wavelet_PSD")
+        if (check_exist) & ('wavelet_PSD' in si.keys()):
+            pass
         else:
-            coi_thresh = 0.8
+            if 'coi_thresh' in p_funcs['wavelet_PSD'].keys():
+                coi_thresh = p_funcs['wavelet_PSD']['coi_thresh']
+            else:
+                coi_thresh = 0.8
 
-        _,_,_,freqs_wl,PSD_wl,scales,coi = trace_PSD_wavelet(
-            Br.values, Bt.values, Bn.values, res, 
-            dj = 1./12
-        )
-        freqs_FFT, PSD_FFT = TracePSD(Br.values, Bt.values, Bn.values, res)
-        _, sm_freqs_FFT, sm_PSD_FFT = smoothing_function(freqs_FFT, PSD_FFT)
+            _,_,_,freqs_wl,PSD_wl,scales,coi = trace_PSD_wavelet(
+                Br.values, Bt.values, Bn.values, res, 
+                dj = 1./12
+            )
+            freqs_FFT, PSD_FFT = TracePSD(Br.values, Bt.values, Bn.values, res)
+            _, sm_freqs_FFT, sm_PSD_FFT = smoothing_function(freqs_FFT, PSD_FFT)
 
-        si['wavelet_PSD'] = {
-            'freqs': freqs_wl,
-            'PSD': PSD_wl,
-            'scales': scales,
-            'coi': coi,
-            'freqs_FFT': freqs_FFT,
-            'PSD_FFT': PSD_FFT,
-            'sm_freqs_FFT': sm_freqs_FFT,
-            'sm_PSD_FFT': sm_PSD_FFT,
-            'diagnostics':{},
-            'settings':{
-                'dj': 1./12
+            si['wavelet_PSD'] = {
+                'freqs': freqs_wl,
+                'PSD': PSD_wl,
+                'scales': scales,
+                'coi': coi,
+                'freqs_FFT': freqs_FFT,
+                'PSD_FFT': PSD_FFT,
+                'sm_freqs_FFT': sm_freqs_FFT,
+                'sm_PSD_FFT': sm_PSD_FFT,
+                'diagnostics':{},
+                'settings':{
+                    'dj': 1./12
+                }
             }
-        }
 
 
 

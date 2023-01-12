@@ -1005,6 +1005,35 @@ def LoadTimeSeriesPSP(
         except:
             raise ValueError("Ephemeris could not be loaded!")
 
+    
+    if 'local_carr_lon' in settings.keys():
+        print("Loading local carr lon from %s" %(Path(settings['local_carr_lon']).absolute()))
+        df_carr = pd.read_pickle(settings['local_carr_lon'])
+        ind = (df_carr.index > start_time - pd.Timedelta('1d')) & (df_carr.index < end_time + pd.Timedelta('1d'))
+        df_carr = df_carr[ind]
+        df_carr = df_carr.resample(freq).interpolate()
+
+        dfts.drop(columns = ['carr_lon','carr_lat'], inplace=True)
+        dfts = dfts.join(df_carr)
+        
+
+    else:
+        df_carr = None
+
+
+    misc = {
+        'dfqtn': dfqtn,
+        'dfspc': dfspc,
+        'dfspan': dfspan,
+        'dfspan_a': dfspan_a,
+        'parmode': parmode,
+        'settings': settings,
+        'dfpar': dfpar,
+        'dfmag': dfmag,
+        'dfe': dfe,
+        'df_carr': df_carr
+    }
+
     # if settings['interpolate_rolling']:
     #     dfts[['Vr0','Vt0','Vn0']] = dfts[['Vr','Vt','Vn']].rolling(rolling_rate).mean().interpolate()
     #     dfts[['Vx0','Vy0','Vz0']] = dfts[['Vx','Vy','Vz']].rolling(rolling_rate).mean().interpolate()
@@ -1020,18 +1049,6 @@ def LoadTimeSeriesPSP(
     # dfmag = dfmag.resample(freq).mean()
     # dfmag[['Br0','Bt0','Bn0','Bx0','By0','Bz0']] = dfmag[['Br','Bt','Bn','Bx','By','Bz']].rolling(rolling_rate).mean()
     # dfpar = dfts[['Vr','Vt','Vn','Vx','Vy','Vz','Vr0','Vt0','Vn0','Vx0','Vy0','Vz0','np','Vth']]
-
-    misc = {
-        'dfqtn': dfqtn,
-        'dfspc': dfspc,
-        'dfspan': dfspan,
-        'dfspan_a': dfspan_a,
-        'parmode': parmode,
-        'settings': settings,
-        'dfpar': dfpar,
-        'dfmag': dfmag,
-        'dfe': dfe
-    }
 
     return dfts, misc
 

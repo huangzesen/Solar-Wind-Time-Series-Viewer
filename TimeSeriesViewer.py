@@ -429,7 +429,10 @@ class TimeSeriesViewer:
         dfts['valfven'] = valfven
 
         # na/np ratio
-        dfts['nanp_ratio'] = dfts['na']/dfts['np']
+        nanp_ratio = dfts['na']/dfts['np']
+        ind =  nanp_ratio > 0.2
+        nanp_ratio[ind] = np.nan
+        dfts['nanp_ratio'] = nanp_ratio
 
         # update dfts
         self.dfts = dfts
@@ -695,11 +698,11 @@ class TimeSeriesViewer:
                 ax = axes['mag']
                 if self.mag_option['norm'] == 0:
                     if self.mag_option['sc'] == 0:
-                        dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8)
+                        dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8, alpha = 0.7)
                         ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_RTN'].max()
                     elif self.mag_option['sc'] == 1:
-                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8)
+                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8, alpha = 0.7)
                         ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_SC'].max()
                     else:
@@ -1489,11 +1492,19 @@ class TimeSeriesViewer:
                     si['TimeSeries'] = dftemp
                     si['LTSWsettings'] = self.LTSWsettings
 
+                    # save dfmag
+                    ind = (self.dfmag_raw_high_res.index > t0) & (self.dfmag_raw_high_res.index <= t1)
+                    si['dfmag_raw'] = self.dfmag_raw_high_res[ind]
+                    ind = (self.dfmag_high_res.index > t0) & (self.dfmag_high_res.index <= t1)
+                    si['dfmag'] = self.dfmag_high_res[ind]
+
                     # save dist_au to the dictionary
                     Btot = si['dfmag']['Btot']
                     Dist_au = self.dfts_raw0['Dist_au'].resample(pd.infer_freq(Btot.index)).interpolate()
+                    self.selected_interval['Dist_au_raw'] = Dist_au[Btot.index]
                     r = Dist_au[Btot.index].values
                     self.selected_interval['Dist_au'] = r
+
                     
                     if (self.sc == 0):
                         si['par_settings'] = self.par_settings
@@ -1512,13 +1523,14 @@ class TimeSeriesViewer:
                             resolution = self.high_res_resolution, 
                             credentials = self.credentials,
                             import_dfmag = {
-                                'dfmag_raw': self.dfmag_raw_high_res,
-                                'dfmag': self.dfmag_high_res,
+                                'dfmag_raw': si['dfmag_raw'],
+                                'dfmag': si['dfmag'],
                                 'infos': self.dfmag_infos
                             },
                             rescale_mag = rescale_mag
                         )
                     except:
+                        raise ValueError("Import dfmag failed!")
                         PreloadDiagnostics(
                             si, self.p_funcs, 
                             resolution = self.high_res_resolution, credentials = self.credentials,
@@ -1529,17 +1541,36 @@ class TimeSeriesViewer:
                 if 'compare_mag_rescale' in self.p_funcs.keys():
                     # calculate diagnostics without rescale
                     PreloadDiagnostics(
-                        si, self.p_funcs, 
-                        resolution = self.high_res_resolution, credentials = self.credentials,
+                        si, 
+                        self.p_funcs, 
+                        resolution = self.high_res_resolution, 
+                        credentials = self.credentials,
+                        import_dfmag = {
+                            'dfmag_raw': si['dfmag_raw'],
+                            'dfmag': si['dfmag'],
+                            'infos': self.dfmag_infos
+                        },
                         rescale_mag = False
                     )
+                    freqs_wl1, PSD_wl1 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
 
-                    self.wavelet_PSD = si['wavelet_PSD']
-                    freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
-                    freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
-                    sm_freqs_FFT, sm_PSD_FFT = si['wavelet_PSD']['sm_freqs_FFT'], si['wavelet_PSD']['sm_PSD_FFT']
+                    # calculate diagnostics with rescale
+                    PreloadDiagnostics(
+                        si, 
+                        self.p_funcs, 
+                        resolution = self.high_res_resolution, 
+                        credentials = self.credentials,
+                        import_dfmag = {
+                            'dfmag_raw': si['dfmag_raw'],
+                            'dfmag': si['dfmag'],
+                            'infos': self.dfmag_infos
+                        },
+                        rescale_mag = True
+                    )
+                    freqs_wl2, PSD_wl2 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
 
                     coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
+                    freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
 
                     # show coi range, threshold = 80% under coi
                     if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
@@ -1547,25 +1578,23 @@ class TimeSeriesViewer:
                     else:
                         coi_thresh = 0.8
                     ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
-
                     import_coi = {
-                        'range': [freqs_wl[ind][0], freqs_wl[ind][-1]],
+                        'range': [freqs_wl1[ind][0], freqs_wl1[ind][-1]],
                         'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
                     }
 
                     # plot the spectrum
                     self.bpfg_wl = BPFG(
-                            freqs_wl, PSD_wl, label = 'PSD_WL',
-                            diagnostics = self.wavelet_PSD['diagnostics'],
+                            freqs_wl1, PSD_wl1, label = 'original',
                             secondary = {
                                 'x': freqs_FFT,
                                 'y': PSD_FFT,
                                 'label': 'PSD_FFT'
                             },
                             third = {
-                                'x': sm_freqs_FFT,
-                                'y': sm_PSD_FFT,
-                                'label': 'sm_PSD_FFT'
+                                'x': freqs_wl2,
+                                'y': PSD_wl2,
+                                'label': 'rescaled'
                             },
                             import_coi = import_coi
                             )
@@ -1579,15 +1608,36 @@ class TimeSeriesViewer:
                     # delete unphysical values
                     ind1 = Btot < 0.1
                     Btot[ind1] = np.nan
-                    Btot = Btot.interpolate()
+                    # Btot = Btot.interpolate()
 
                     # normalize with dist_au
                     r = si['Dist_au']
-                    Btot1 = Btot * ((r/r[0])**2)
-                    
+                    Btot1 = Btot * ((r/np.mean(r))**2)
+                    bstd = np.std(Btot1)
+                    bmean = np.mean(Btot1)
 
+                    # keep ind
+                    if 'discard_3std' in self.p_funcs['show_btot_histogram'].keys():
+                        print("Discarding 3std!")
+                        keep_ind = (Btot1 > bmean - 3*bstd) & (Btot1 < bmean + 3*bstd)
+                        Btot1[np.invert(keep_ind)] = np.nan
+                        discard_rate = 1-np.sum(keep_ind)/len(keep_ind)
+                        # Btot1 = Btot1.interpolate()
+                    else:
+                        discard_rate = 0
+                    
                     # show the histogram of Btot
                     self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
+                    
+                    # show normality test
+                    x = Btot1.values[np.invert(np.isnan(Btot1.values))]
+                    if 'normality' in self.p_funcs['show_btot_histogram'].keys():
+                        a1 = np.array([shapiro(np.random.choice(x, size=500, replace=False)).pvalue for i1 in range(10000)])
+                        sa1 = np.sum(a1 > 0.05)/len(a1)
+                        plt.title("Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'large')
+                    else:
+                        plt.title("Discard %.2f %%" %(discard_rate*100), fontsize = 'large')
+
                     plt.sca(self.ax_btot_hist)
                     plt.hist(
                         Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^2$', color = 'C2'
@@ -1596,8 +1646,6 @@ class TimeSeriesViewer:
                         Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
                     )
                     # plt.xlim([-1, np.max(Btot)*1.05])
-                    bmean = np.mean(Btot1)
-                    bstd = np.std(Btot1)
                     plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
                     plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
                     plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
@@ -1609,22 +1657,8 @@ class TimeSeriesViewer:
                     )
                     plt.xlim([bmean-5*bstd, bmean+5*bstd])
 
-                    # keep ind
-                    if 'discard_3std' in self.p_funcs['show_btot_histogram'].keys():
-                        print("Discarding 3std!")
-                        bstd = np.std(Btot1)
-                        bmean = np.mean(Btot1)
-                        keep_ind = (Btot1 > bmean - 3*bstd) & (Btot1 < bmean + 3*bstd)
-                        Btot1[np.invert(keep_ind)] = np.nan
-                        Btot1 = Btot1.interpolate()
-
-                    # show normality test
-                    x = Btot1.values
-
-                    a1 = np.array([shapiro(np.random.choice(x, size=500)).pvalue for i1 in range(10000)])
-                    sa1 = np.sum(a1 > 0.05)/len(a1)
-                    plt.title("Normality test score: %.4f" %(sa1), fontsize = 'large')
                     plt.legend(fontsize = 'medium')
+
 
                 # psd
                 if 'PSD' in self.p_funcs.keys():
