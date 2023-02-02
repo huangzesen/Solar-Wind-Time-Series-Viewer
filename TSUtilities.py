@@ -630,8 +630,9 @@ def PreloadDiagnostics(
             }
 
     if 'struc_funcs' in p_funcs.keys():
+        print("Skipping struc_funcs")
         if (check_exist) & ('struc_funcs' in si.keys()):
-            print("Skipping struc_funcs")
+            pass
         else:
             maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
             mintime = np.log10(2*res)
@@ -646,8 +647,9 @@ def PreloadDiagnostics(
             }
 
     if 'wavelet_PSD' in p_funcs.keys():
+        print("Skipping wavelet_PSD")
         if (check_exist) & ('wavelet_PSD' in si.keys()):
-            print("Skipping wavelet_PSD")
+            pass
         else:
             if 'coi_thresh' in p_funcs['wavelet_PSD'].keys():
                 coi_thresh = p_funcs['wavelet_PSD']['coi_thresh']
