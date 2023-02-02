@@ -5,6 +5,7 @@ from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 import numpy as np
+from scipy import stats
 from scipy.optimize import curve_fit
 import gc
 import time
@@ -15,6 +16,7 @@ import os
 from pathlib import Path
 from glob import glob
 from gc import collect
+import warnings
 
 from datetime import datetime
 
@@ -35,9 +37,11 @@ au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
-from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries, smoothing_function, TracePSD, PreloadDiagnostics
+from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries, smoothing_function, TracePSD, PreloadDiagnostics, trace_PSD_wavelet
 from BreakPointFinderGeneral import BreakPointFinder as BPFG
 from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
+from WaveletRainbow import WaveletRainbow
+from scipy.stats import shapiro
 # from BreakPointFinderLite import BreakPointFinder
 # from StructureFunctions import MagStrucFunc
 # from TurbPy import trace_PSD_wavelet
@@ -129,6 +133,28 @@ class TimeSeriesViewer:
             settings = self.LTSWsettings
         )
 
+        if self.sc == 0:
+            # psp has 4 per cyc data, enough for our use
+            dfmag_raw = misc['dfmag'][['Br','Bt','Bn']]
+            dfmag_raw.columns = ['Bx','By','Bz']
+            dfmag_raw['Btot'] = (dfmag_raw[['Bx','By','Bz']]**2).sum(axis=1).apply(np.sqrt)
+            self.dfmag_raw_high_res = dfmag_raw
+            dfmag1 = dfmag_raw.resample("500ms").mean()
+            self.dfmag_high_res = dfmag1
+            self.dfmag_infos =  {
+                'resolution': 0.5,
+                'fraction_missing': np.isnan(dfmag1['Bx']).sum()/len(dfmag1)
+            }
+
+        else:
+            # Load High Res Magnetic field
+            dfmag_raw, dfmag, infos = LoadHighResMagWrapper(
+                self.sc, self.start_time_0, self.end_time_0, credentials = self.credentials
+            )
+            self.dfmag_raw_high_res = dfmag_raw
+            self.dfmag_high_res = dfmag
+            self.dfmag_infos = infos
+
         # calculate the averged field
         keys = ['Br','Bt','Bn','Vr','Vt','Vn','Bx','By','Bz','Vx','Vy','Vz']
 
@@ -137,6 +163,20 @@ class TimeSeriesViewer:
                 dfts_raw0[k+'0'] = dfts_raw0[k].rolling(self.rolling_rate).mean()
             else:
                 print("%s not in columns...!" %(k))
+
+        # for parmode = 'keep_all', conduct additional rolling...
+        if (self.sc == 0) & (misc['parmode'] == 'keep_all'):
+            print("Parmode: keep_all, additional rolling...")
+            # keys = [mom+'_'+ins for mom in ['Vr','Vt','Vn','Vx','Vy','Vz'] for ins in ['spc','span']]
+            for mom in ['Vr','Vt','Vn','Vx','Vy','Vz']:
+                for ins in ['spc','span']:
+                    k = mom+'_'+ins
+                    if k in dfts_raw0.columns:
+                        print("Rolling: %s" %(k))
+                        dfts_raw0[mom+"0"+"_"+ins] = dfts_raw0[k].rolling(self.rolling_rate).mean()
+                    else:
+                        print("%s not in columns...!" %(k))
+
 
         self.dfts_raw0 = dfts_raw0
         self.dfts_misc = misc
@@ -157,18 +197,60 @@ class TimeSeriesViewer:
         self.ProcessTimeSeries()
 
 
-    def FindTimeSeries(self, start_time, end_time, verbose = False):
+    def FindTimeSeries(
+        self, start_time, end_time
+        ):
         """ 
         Find time series in dataframe and create a dfts dataframe 
         start_time and end_time should be either datetime64[ns] or timestamp
         sc: 0-PSP, 1-SolO, 2-Helios1, 3-Helios2
+
+        par_settings: Dictionary
+            allowed settings:
+                'density': 'QTN'/'SPC'/'SPAN'
+                'moments': 'SPC'/'SPAN'/'empirical'
+            Note: 'empirical' use 'SPC' before 2021-07-01, and 'SPAN' afterwards
+
         """
 
         # find the time series between start and end time
         ind = (self.dfts_raw0.index > start_time) & (self.dfts_raw0.index < end_time) 
 
         # store the time series dataframe
-        self.dfts_raw = self.dfts_raw0[ind]
+        self.dfts_raw = self.dfts_raw0[ind].copy()
+
+        # if parmode = 'keep_all', now choose particle data, default is empirical
+        par_settings = self.par_settings
+        if (self.dfts_misc['parmode'] == 'keep_all') & (self.sc == 0):
+            if self.verbose:
+                print("sc = %d, Parmode: keep_all" %(self.sc))
+                print("Current Partical settings:")
+                for k, v in par_settings.items():
+                    print("%s: %s" %(k, v))
+
+                if 'density' in par_settings.keys():
+                    if par_settings['density'] == 'QTN':
+                        self.dfts_raw['np'] = self.dfts_raw['np_qtn']
+                    elif par_settings['density'] == 'SPC':
+                        self.dfts_raw['np'] = self.dfts_raw['np_spc']
+                    elif par_settings['density'] == 'SPAN':
+                        self.dfts_raw['np'] = self.dfts_raw['np_span']
+                    else:
+                        warnings.warn("density = %s not supported, use default QTN!" %(par_settings['density']))
+                        self.dfts_raw['np'] = self.dfts_raw['np_qtn']
+                
+                mom_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','na', 'Vx0','Vy0','Vz0','Vr0','Vt0','Vn0']
+                if 'moments' in par_settings.keys():
+                    if par_settings['moments'] == 'SPC':
+                        for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_spc']
+                    elif par_settings['moments'] == 'SPAN':
+                        for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_span']
+                    elif par_settings['moments'] == 'empirical':
+                        if end_time < pd.Timestamp("2021-07-01"):
+                            for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_spc']
+                        else:
+                            for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_span']
+
 
         # collect garbage
         collect()
@@ -346,6 +428,12 @@ class TimeSeriesViewer:
         valfven = dfts['B']*nT2T/np.sqrt(dfts['np']*1e6*m_p*mu0)
         dfts['valfven'] = valfven
 
+        # na/np ratio
+        nanp_ratio = dfts['na']/dfts['np']
+        ind =  nanp_ratio > 0.2
+        nanp_ratio[ind] = np.nan
+        dfts['nanp_ratio'] = nanp_ratio
+
         # update dfts
         self.dfts = dfts
 
@@ -382,9 +470,31 @@ class TimeSeriesViewer:
         no_plot = False, 
         clean_intervals = False, 
         auto_connect=False,
+        par_settings = {
+            'density': 'QTN',
+            'moments': 'empirical'
+        },
         dfts = None
         ):
-        """ make figure """
+        """ 
+        Initialize figure 
+        Keywords:
+            no_plot: Boolean
+                set to True to create dfts only
+            clean_interval: Boolean
+                set to True to clean self.selected_intervals
+            auto_connect: Boolean
+                set to True to connect to matplotlib object automatically, otherwise self.connect() manually
+            par_settings: Dictionary
+                defaults values is set to density=QTN, moments=empirical, will be saved as self.par_settings
+                only useable for sc==0 & parmode == 'keep_all'
+                allowed settings:
+                    'density': 'QTN'/'SPC'/'SPAN'
+                    'moments': 'SPC'/'SPAN'/'empirical'
+                Note: 'empirical' use 'SPC' before 2021-07-01, and 'SPAN' afterwards
+            dfts: 
+                import dfts instead of creating one, will be deprecate soon...
+        """
 
         # default values
         self.start_time = start_time
@@ -393,6 +503,9 @@ class TimeSeriesViewer:
         # get settings
         verbose = self.verbose
 
+        # set par_settings
+        self.par_settings = par_settings
+
         # Prepare Time Series
         if dfts is None:
             if verbose: print("Preparing Time Series....")
@@ -400,10 +513,12 @@ class TimeSeriesViewer:
                 start_time, end_time
                 )
             if verbose: print("Done.")
+        # import dfts
         else:
             if verbose: print("Importing dfts...")
             self.dfts = dfts
 
+        # just create dfts
         if no_plot:
             return
 
@@ -500,6 +615,10 @@ class TimeSeriesViewer:
             if 'PSD' not in interval.keys():
                 interval['PSD'] = None
 
+            # force the start_time and end_time to be pd.Timestamp
+            interval['start_time'] = pd.Timestamp(interval['start_time'])
+            interval['end_time'] = pd.Timestamp(interval['end_time'])
+
             self.selected_intervals.append(interval)
 
         return self.selected_intervals
@@ -562,7 +681,7 @@ class TimeSeriesViewer:
 
         """make title"""
         fig.suptitle(
-            "%s to %s, parmode = %s, rolling_rate = %s" %(str(self.start_time), str(self.end_time), parmode, self.rolling_rate)
+            "%s to %s, DEN=%s, MOM=%s, rolling_rate = %s" %(str(self.start_time), str(self.end_time), self.par_settings['density'], self.par_settings['moments'], self.rolling_rate)
             + "\n"
             + "SpaceCraft: %d, Resample Rate: %s, Window Option: %s (key=%d), MAG Frame: %d, Normed Mag : %d" %(self.sc, self.resample_rate, self.length_list[self.length_key], self.length_key, self.mag_option['sc'], self.mag_option['norm']),
             #+ "\n"
@@ -579,11 +698,11 @@ class TimeSeriesViewer:
                 ax = axes['mag']
                 if self.mag_option['norm'] == 0:
                     if self.mag_option['sc'] == 0:
-                        dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8)
+                        dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8, alpha = 0.7)
                         ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_RTN'].max()
                     elif self.mag_option['sc'] == 1:
-                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8)
+                        dfts[['Bx','By','Bz','B_SC']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8, alpha = 0.7)
                         ax.legend(['Bx [nT]','By','Bz','|B|_SC'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_SC'].max()
                     else:
@@ -833,92 +952,114 @@ class TimeSeriesViewer:
             except:
                 print("sigma_c update failed!")
 
-        """magnetic compressibility"""
+        """carrington Longitude"""
         if not(update):
             try:
                 ax = axes['norm'].twinx()
-                axes['mag_compressibility'] = ax
-                if (self.sc == 0) | (self.sc == 1):
-                    # for psp and solo, the raw resolution is 5s
-                    try:
-                        Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
-                    except:
-                        dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
-                        Btot = dfmag['Btot']
-                elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
-                    # for Helios-1/2 and Ulysses, load high-res mag data for this line
-                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
-                    Btot = dfmag['Btot']
-                else:
-                    pass
-                ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
-                Btot = Btot[ind]
-
-                mag_coms = {}
-                mckeys = ['1000s','3600s', '10000s']
-                for k in mckeys:
-                    mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
-
-                self.mag_coms = mag_coms
-
-                for i1 in range(len(mckeys)):
-                    k = mckeys[i1]
-                    mag_coms[k].plot(ax = ax, style = ['C%d'%(i1+1)], lw = 0.8, alpha = 0.8)
-
-                ax.set_yscale('log')
-                ax.set_ylim([10**(-2.05), 10**(0.05)])
-                ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
-                ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
-                ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
-
-                ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+                axes['carr_lon'] = ax
+                (dfts[['carr_lon']]).plot(ax = ax, legend=False, style=['C1'], lw = 0.8, alpha = 0.8)
+                ax.legend(['Carr Lon'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                lines['mag_compressibility'] = ax.get_lines()
+                # ax.set_ylim([-185,185])
+                # ax.set_yticks([-180,-90,0,90,180])
+                lines['carr_lon'] = ax.get_lines()
             except:
-                raise ValueError("mag compressibility initialization failed!")
+                warnings.warn("carr long failed")
         else:
             try:
-                ax = axes['mag_compressibility']
-                ls = lines['mag_compressibility']
-                if (self.sc == 0) | (self.sc == 1):
-                    # for psp and solo, the raw resolution is 5s
-                    Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
-                elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
-                    # for Helios-1/2 and Ulysses, load high-res mag data for this line
-                    dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
-                    Btot = dfmag['Btot']
-                else:
-                    pass
-                ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
-                Btot = Btot[ind]
-
-                mag_coms = {}
-                mckeys = ['1000s','3600s','10000s']
-                for k in mckeys:
-                    mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
-
-                self.mag_coms = mag_coms
-
-                for i1 in range(len(mckeys)):
-                    k = mckeys[i1]
-                    ls[i1].set_data(mag_coms[k].index, mag_coms[k].values)
-
-                ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
-                ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
-                ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
-
-                ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+                ax = axes['carr_lon']
+                ls = lines['carr_lon']
+                # speeds
+                ls[0].set_data(dfts['carr_lon'].index, (dfts[['carr_lon']]).values)
+                ax.legend(['Carr Lon'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                lines['mag_compressibility'] = ax.get_lines()
-
+                # ax.set_ylim([-185,185])
+                # ax.set_yticks([-180,-90,0,90,180])
+                lines['carr_lon'] = ax.get_lines()
             except:
-                print("mag compressibility update failed!")
+                warnings.warn('Carr long failed!')
+
+        """magnetic compressibility"""
+        # if not(update):
+        #     try:
+        #         ax = axes['norm'].twinx()
+        #         axes['mag_compressibility'] = ax
+        #         dfmag = self.dfmag_high_res
+        #         Btot = dfmag['Btot']
+        #         ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
+        #         Btot = Btot[ind]
+
+        #         mag_coms = {}
+        #         mckeys = ['1000s','3600s', '10000s']
+        #         for k in mckeys:
+        #             mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
+
+        #         self.mag_coms = mag_coms
+
+        #         for i1 in range(len(mckeys)):
+        #             k = mckeys[i1]
+        #             mag_coms[k].plot(ax = ax, style = ['C%d'%(i1+1)], lw = 0.8, alpha = 0.8)
+
+        #         ax.set_yscale('log')
+        #         ax.set_ylim([10**(-2.05), 10**(0.05)])
+        #         ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
+        #         ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
+        #         ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
+
+        #         ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0], dfts.index[-1]])
+        #         lines['mag_compressibility'] = ax.get_lines()
+        #     except:
+        #         raise ValueError("mag compressibility initialization failed!")
+        # else:
+        #     try:
+        #         ax = axes['mag_compressibility']
+        #         ls = lines['mag_compressibility']
+        #         if (self.sc == 0) | (self.sc == 1):
+        #             # for psp and solo, the raw resolution is 5s
+        #             Btot = (self.dfts_raw0[['Br','Bt','Bn']]**2).sum(axis = 1)
+        #         elif (self.sc == 2) | (self.sc == 3) | (self.sc == 4):
+        #             # for Helios-1/2 and Ulysses, load high-res mag data for this line
+        #             dfmag, infos = LoadHighResMagWrapper(self.sc, self.start_time, self.end_time, credentials = self.credentials)
+        #             Btot = dfmag['Btot']
+        #         else:
+        #             pass
+        #         ind = (Btot.index >= self.start_time) & (Btot.index <= self.end_time)
+        #         Btot = Btot[ind]
+
+        #         mag_coms = {}
+        #         mckeys = ['1000s','3600s','10000s']
+        #         for k in mckeys:
+        #             mag_coms[k] = ((Btot.rolling(k).std())/(Btot.rolling(k).mean())).resample(self.resample_rate).mean()
+
+        #         self.mag_coms = mag_coms
+
+        #         for i1 in range(len(mckeys)):
+        #             k = mckeys[i1]
+        #             ls[i1].set_data(mag_coms[k].index, mag_coms[k].values)
+
+        #         ax.axhline(y = 1e-2, color = 'gray', ls = '--', lw = 0.6)
+        #         ax.axhline(y = 1e-1, color = 'gray', ls = '--', lw = 0.6)
+        #         ax.axhline(y = 1e0, color = 'gray', ls = '--', lw = 0.6)
+
+        #         ax.legend([r'$10^{-3}$ Hz',r'$1H^{-1}$ Hz',r'$10^{-4}$ Hz'], fontsize='medium', frameon=False, bbox_to_anchor=(1.02,0.8), loc = 2)
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0], dfts.index[-1]])
+        #         lines['mag_compressibility'] = ax.get_lines()
+
+        #     except:
+        #         print("mag compressibility update failed!")
 
 
 
@@ -954,52 +1095,88 @@ class TimeSeriesViewer:
             except:
                 pass
 
-        """scales"""
+        """na/np"""
         if not(update):
             try:
                 ax = axes['density'].twinx()
-                self.axes['scale'] = ax
-                dfts[['di','rho_ci']].plot(ax = ax, legend=False, style=['C3--','C4--'], lw = 0.8, alpha = 0.6)
-                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-                if dfts['di'].apply(np.isnan).sum() != len(dfts):
-                    ax.set_yscale('log')
+                self.axes['nanp_ratio'] = ax
+                dfts[['nanp_ratio']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
+                ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
                 try:
-                    min1 = np.nanmin(dfts['di']); max1 = np.nanmax(dfts['di'])
-                    min2 = np.nanmin(dfts['rho_ci']); max2 = np.nanmax(dfts['rho_ci'])
-                    min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
-                    ax.set_ylim([0.95*min0, 1.05*max0])
+                    ax.set_ylim([-0.005, np.nanmax(dfts[['nanp_ratio']])*1.05])
                 except:
-                    if verbose: print("Setting scale limit failed... omitting...")
-                lines['scale'] = ax.get_lines()
+                    pass
+                lines['nanp_ratio'] = ax.get_lines()
             except:
-                raise ValueError("Initializing scale failed!")
+                warnings.warn("Initializing nanp_ratio failed!")
         else:
             try:
-                ax = axes['scale']
-                ls = lines['scale']
-                ls[0].set_data(dfts['di'].index, dfts['di'].values)
-                ls[1].set_data(dfts['rho_ci'].index, dfts['rho_ci'].values)
-                ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-                if dfts['di'].apply(np.isnan).sum() != len(dfts):
-                    ax.set_yscale('log')
+                ax = axes['nanp_ratio']
+                ls = lines['nanp_ratio']
+                ls[0].set_data(dfts['nanp_ratio'].index, dfts['nanp_ratio'].values)
+                ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0], dfts.index[-1]])
                 try:
-                    min1 = np.nanmin(dfts['di']); max1 = np.nanmax(dfts['di'])
-                    min2 = np.nanmin(dfts['rho_ci']); max2 = np.nanmax(dfts['rho_ci'])
-                    min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
-                    ax.set_ylim([0.95*min0, 1.05*max0])
+                    ax.set_ylim([-0.005, np.nanmax(dfts[['nanp_ratio']])*1.05])
                 except:
-                    if verbose: print("Setting scale limit failed... omitting...")
-                lines['scale'] = ax.get_lines()
+                    pass
+                lines['nanp_ratio'] = ax.get_lines()
             except:
-                raise ValueError("Updating scale failed!...")
+                warnings.warn("Updating nanp_ratio failed!...")
+
+        # """scales"""
+        # if not(update):
+        #     try:
+        #         ax = axes['density'].twinx()
+        #         self.axes['scale'] = ax
+        #         dfts[['di','rho_ci']].plot(ax = ax, legend=False, style=['C3--','C4--'], lw = 0.8, alpha = 0.6)
+        #         ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+        #         if dfts['di'].apply(np.isnan).sum() != len(dfts):
+        #             ax.set_yscale('log')
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0], dfts.index[-1]])
+        #         try:
+        #             min1 = np.nanmin(dfts['di']); max1 = np.nanmax(dfts['di'])
+        #             min2 = np.nanmin(dfts['rho_ci']); max2 = np.nanmax(dfts['rho_ci'])
+        #             min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
+        #             ax.set_ylim([0.95*min0, 1.05*max0])
+        #         except:
+        #             if verbose: print("Setting scale limit failed... omitting...")
+        #         lines['scale'] = ax.get_lines()
+        #     except:
+        #         raise ValueError("Initializing scale failed!")
+        # else:
+        #     try:
+        #         ax = axes['scale']
+        #         ls = lines['scale']
+        #         ls[0].set_data(dfts['di'].index, dfts['di'].values)
+        #         ls[1].set_data(dfts['rho_ci'].index, dfts['rho_ci'].values)
+        #         ax.legend([r'$d_i$[km]',r'$\rho_{ci}$[km]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+        #         if dfts['di'].apply(np.isnan).sum() != len(dfts):
+        #             ax.set_yscale('log')
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0], dfts.index[-1]])
+        #         try:
+        #             min1 = np.nanmin(dfts['di']); max1 = np.nanmax(dfts['di'])
+        #             min2 = np.nanmin(dfts['rho_ci']); max2 = np.nanmax(dfts['rho_ci'])
+        #             min0 = np.nanmin([min1,min2]); max0 = np.nanmax([max1, max2])
+        #             ax.set_ylim([0.95*min0, 1.05*max0])
+        #         except:
+        #             if verbose: print("Setting scale limit failed... omitting...")
+        #         lines['scale'] = ax.get_lines()
+        #     except:
+        #         raise ValueError("Updating scale failed!...")
 
         # """spectrogram"""
         # try:
@@ -1302,6 +1479,7 @@ class TimeSeriesViewer:
 
                 i1 = self.FindSelectedIntervals(x)
                 selected_interval = self.selected_intervals[i1]
+                self.selected_interval = selected_interval
                 si = self.selected_intervals[i1]
                 t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
 
@@ -1314,11 +1492,173 @@ class TimeSeriesViewer:
                     si['TimeSeries'] = dftemp
                     si['LTSWsettings'] = self.LTSWsettings
 
-                    # load the magnetic field data and create empty diagnostics
-                    if self.skipPreLoadDiagnostics:
-                        pass
+                    # save dfmag
+                    ind = (self.dfmag_raw_high_res.index > t0) & (self.dfmag_raw_high_res.index <= t1)
+                    si['dfmag_raw'] = self.dfmag_raw_high_res[ind]
+                    ind = (self.dfmag_high_res.index > t0) & (self.dfmag_high_res.index <= t1)
+                    si['dfmag'] = self.dfmag_high_res[ind]
+
+                    # save dist_au to the dictionary
+                    Btot = si['dfmag']['Btot']
+                    Dist_au = self.dfts_raw0['Dist_au'].resample(pd.infer_freq(Btot.index)).interpolate()
+                    self.selected_interval['Dist_au_raw'] = Dist_au[Btot.index]
+                    r = Dist_au[Btot.index].values
+                    self.selected_interval['Dist_au'] = r
+
+                    
+                    if (self.sc == 0):
+                        si['par_settings'] = self.par_settings
+
+                    if 'rescale_mag' in self.p_funcs.keys():
+                        rescale_mag = self.p_funcs['rescale_mag']
                     else:
-                        PreloadDiagnostics(si, self.p_funcs, resolution = self.high_res_resolution)
+                        rescale_mag = False
+
+                    # load the magnetic field data and create empty diagnostics
+                    try:
+                        # import the preloaded high resolution magnetic field data to save time
+                        PreloadDiagnostics(
+                            si, 
+                            self.p_funcs, 
+                            resolution = self.high_res_resolution, 
+                            credentials = self.credentials,
+                            import_dfmag = {
+                                'dfmag_raw': si['dfmag_raw'],
+                                'dfmag': si['dfmag'],
+                                'infos': self.dfmag_infos
+                            },
+                            rescale_mag = rescale_mag
+                        )
+                    except:
+                        raise ValueError("Import dfmag failed!")
+                        PreloadDiagnostics(
+                            si, self.p_funcs, 
+                            resolution = self.high_res_resolution, credentials = self.credentials,
+                            rescale_mag = rescale_mag
+                        )
+
+                # compare magnetic field rescaling
+                if 'compare_mag_rescale' in self.p_funcs.keys():
+                    # calculate diagnostics without rescale
+                    PreloadDiagnostics(
+                        si, 
+                        self.p_funcs, 
+                        resolution = self.high_res_resolution, 
+                        credentials = self.credentials,
+                        import_dfmag = {
+                            'dfmag_raw': si['dfmag_raw'],
+                            'dfmag': si['dfmag'],
+                            'infos': self.dfmag_infos
+                        },
+                        rescale_mag = False
+                    )
+                    freqs_wl1, PSD_wl1 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
+
+                    # calculate diagnostics with rescale
+                    PreloadDiagnostics(
+                        si, 
+                        self.p_funcs, 
+                        resolution = self.high_res_resolution, 
+                        credentials = self.credentials,
+                        import_dfmag = {
+                            'dfmag_raw': si['dfmag_raw'],
+                            'dfmag': si['dfmag'],
+                            'infos': self.dfmag_infos
+                        },
+                        rescale_mag = True
+                    )
+                    freqs_wl2, PSD_wl2 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
+
+                    coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
+                    freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
+
+                    # show coi range, threshold = 80% under coi
+                    if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
+                        coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
+                    else:
+                        coi_thresh = 0.8
+                    ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
+                    import_coi = {
+                        'range': [freqs_wl1[ind][0], freqs_wl1[ind][-1]],
+                        'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
+                    }
+
+                    # plot the spectrum
+                    self.bpfg_wl = BPFG(
+                            freqs_wl1, PSD_wl1, label = 'original',
+                            secondary = {
+                                'x': freqs_FFT,
+                                'y': PSD_FFT,
+                                'label': 'PSD_FFT'
+                            },
+                            third = {
+                                'x': freqs_wl2,
+                                'y': PSD_wl2,
+                                'label': 'rescaled'
+                            },
+                            import_coi = import_coi
+                            )
+                    self.bpfg_wl.connect()
+
+
+                # histgram
+                if 'show_btot_histogram' in self.p_funcs.keys():
+                    Btot = si['dfmag']['Btot']
+
+                    # delete unphysical values
+                    ind1 = Btot < 0.1
+                    Btot[ind1] = np.nan
+                    # Btot = Btot.interpolate()
+
+                    # normalize with dist_au
+                    r = si['Dist_au']
+                    Btot1 = Btot * ((r/np.mean(r))**2)
+                    bstd = np.std(Btot1)
+                    bmean = np.mean(Btot1)
+
+                    # keep ind
+                    if 'discard_3std' in self.p_funcs['show_btot_histogram'].keys():
+                        print("Discarding 3std!")
+                        keep_ind = (Btot1 > bmean - 3*bstd) & (Btot1 < bmean + 3*bstd)
+                        Btot1[np.invert(keep_ind)] = np.nan
+                        discard_rate = 1-np.sum(keep_ind)/len(keep_ind)
+                        # Btot1 = Btot1.interpolate()
+                    else:
+                        discard_rate = 0
+                    
+                    # show the histogram of Btot
+                    self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
+                    
+                    # show normality test
+                    x = Btot1.values[np.invert(np.isnan(Btot1.values))]
+                    if 'normality' in self.p_funcs['show_btot_histogram'].keys():
+                        a1 = np.array([shapiro(np.random.choice(x, size=500, replace=False)).pvalue for i1 in range(10000)])
+                        sa1 = np.sum(a1 > 0.05)/len(a1)
+                        plt.title("Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'large')
+                    else:
+                        plt.title("Discard %.2f %%" %(discard_rate*100), fontsize = 'large')
+
+                    plt.sca(self.ax_btot_hist)
+                    plt.hist(
+                        Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^2$', color = 'C2'
+                    )
+                    plt.hist(
+                        Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
+                    )
+                    # plt.xlim([-1, np.max(Btot)*1.05])
+                    plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
+                    plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
+                    plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
+                    # over plot gaussian
+                    x_data = np.linspace(np.mean(Btot1)-4*np.std(Btot1), np.mean(Btot1)+4*np.std(Btot1), 1000)
+                    y_data = stats.norm.pdf(x_data, np.mean(Btot1), np.std(Btot1))
+                    plt.plot(
+                        x_data, y_data, 'k--'
+                    )
+                    plt.xlim([bmean-5*bstd, bmean+5*bstd])
+
+                    plt.legend(fontsize = 'medium')
+
 
                 # psd
                 if 'PSD' in self.p_funcs.keys():
@@ -1367,7 +1707,7 @@ class TimeSeriesViewer:
                         self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
 
                     
-                # wavelet PSD: (nikos)
+                # wavelet PSD:
                 if 'wavelet_PSD' in self.p_funcs.keys():
 
                     self.wavelet_PSD = si['wavelet_PSD']
@@ -1375,22 +1715,137 @@ class TimeSeriesViewer:
                     freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
                     sm_freqs_FFT, sm_PSD_FFT = si['wavelet_PSD']['sm_freqs_FFT'], si['wavelet_PSD']['sm_PSD_FFT']
 
-                    self.bpfg_wl = BPFG(
-                            freqs_wl, PSD_wl, label = 'PSD_WL',
-                            diagnostics = self.wavelet_PSD['diagnostics'],
-                            secondary = {
-                                'x': freqs_FFT,
-                                'y': PSD_FFT,
-                                'label': 'PSD_FFT'
-                            },
-                            third = {
-                                'x': sm_freqs_FFT,
-                                'y': sm_PSD_FFT,
-                                'label': 'sm_PSD_FFT'
-                            }
-                            )
-                    self.bpfg_wl.connect()
+                    import_coi = None
+                    try:
+                        coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
+
+                        # show coi range, threshold = 80% under coi
+                        if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
+                            coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
+                        else:
+                            coi_thresh = 0.8
+                        ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
+
+                        import_coi = {
+                            'range': [freqs_wl[ind][0], freqs_wl[ind][-1]],
+                            'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
+                        }
+
+                    except:
+                        print("COI information is not present in wavelet_PSD")
+
+                    if "incompressible_only" not in self.p_funcs['wavelet_PSD'].keys():
+                        self.bpfg_wl = BPFG(
+                                freqs_wl, PSD_wl, label = 'PSD_WL',
+                                diagnostics = self.wavelet_PSD['diagnostics'],
+                                secondary = {
+                                    'x': freqs_FFT,
+                                    'y': PSD_FFT,
+                                    'label': 'PSD_FFT'
+                                },
+                                third = {
+                                    'x': sm_freqs_FFT,
+                                    'y': sm_PSD_FFT,
+                                    'label': 'sm_PSD_FFT'
+                                },
+                                import_coi = import_coi
+                                )
+                        self.bpfg_wl.connect()
+
+
+                    else:
+                        Br, Bt, Bn, Btot = si['dfmag']['Bx'], si['dfmag']['By'], si['dfmag']['Bz'], si['dfmag']['Btot']
+                        res = si['high_res_infos']['resolution']
+                        Bmean = np.mean(Btot)
+                        Bstd = np.std(Btot)
+                        mode_list = ['2std','1std','10percent']
+                        try:
+                            keep_mode = self.p_funcs['wavelet_PSD']['incompressible_only']['keep_mode']
+                            if keep_mode == '2std':
+                                keep_ind = (Btot > Bmean - 2*Bstd) & (Btot < Bmean + 2*Bstd)
+                            elif keep_mode == '1std':
+                                keep_ind = (Btot > Bmean - 1*Bstd) & (Btot < Bmean + 1*Bstd)
+                            elif keep_mode == '10percent':
+                                keep_ind = (Btot > Bmean*0.9) & (Btot < Bmean*1.1)
+                        except:
+                            # default keep mode 2 std
+                            print("Supported modes: "+"".join(["%s, "%(s) for s in mode_list]))
+                            print("Using default: keep_mode == 2std")
+                            keep_mode = '2std'
+                            keep_ind = (Btot > Bmean - 2*Bstd) & (Btot < Bmean + 2*Bstd)
+
+                        _,_,_,freqs_wl,PSD_wl,scales,coi = trace_PSD_wavelet(
+                            Br.values, Bt.values, Bn.values, res, 
+                            dj = 1./12, keep_ind = keep_ind
+                        )
+
+                        si['wavelet_PSD']['incompressible_only'] = {
+                            'freqs': freqs_wl,
+                            'PSD': PSD_wl,
+                            'scales': scales,
+                            'coi': coi,
+                            'Bmean': Bmean,
+                            'Bstd': Bstd,
+                            'keep_mode': keep_mode,
+                            'keep_ind': keep_ind
+                        }
+
+                        self.bpfg_wl = BPFG(
+                                freqs_wl, PSD_wl, label = 'PSD_WL_incompressible_only',
+                                diagnostics = self.wavelet_PSD['diagnostics'],
+                                secondary = {
+                                    'x': si['wavelet_PSD']['freqs'],
+                                    'y': si['wavelet_PSD']['PSD'],
+                                    'label': 'PSD_WL'
+                                },
+                                import_coi = import_coi
+                                )
+                        self.bpfg_wl.connect()
+
+
+                if 'wavelet_rainbow' in self.p_funcs.keys():
+                    if 'wavelet_rainbows' in si.keys():
+                        diags = si['wavelet_rainbows']
+                    else:
+                        diags = WaveletRainbow(
+                            si['dfmag'], si['high_res_infos']['resolution'] 
+                        )
+
+                        si['wavelet_rainbows'] = diags
+
+                    N = diags['N']
+
+                    fig, axes = plt.subplots(1,2,figsize = [12,6])
+
+                    plt.sca(axes[0])
+
+                    coi, scales = diags['0']['coi'], diags['0']['scales']
+                    coi_thresh = 0.4
+
+                    ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
+                    f0 = diags['0']['freqs'][ind][0]
+                    f1 = diags['0']['freqs'][ind][-1]
+
+                    plt.axvspan(f0, f1, color = 'r', alpha = 0.05, label = 'coi thresh = %.2f' %(coi_thresh))
+
+                    plt.legend(fontsize = 'large')
+
+                    colors = plt.cm.rainbow(np.linspace(0, 1, N))
+                    for i1 in range(N):
+                        plt.loglog(diags['%d'%(i1)]['freqs'], diags['%d'%(i1)]['PSD'], color = colors[i1], alpha = 0.5)
                         
+                    try:
+                        freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']    
+                        plt.loglog(freqs_wl, PSD_wl, 'k--')
+                    except:
+                        print("WL Rainbow: no wl present...")
+
+
+                    plt.sca(axes[1])
+
+                    for i1 in range(N):
+                        plt.loglog(1/(2*diags['%d'%(i1)]['struc_funcs']['dts']/1000), diags['%d'%(i1)]['struc_funcs']['dBvecnorms'], color = colors[i1])
+
 
             except:
                 raise ValueError("Func p: failed!")
@@ -1652,13 +2107,14 @@ class TimeSeriesViewer:
                         "%s, R[AU] = %.2f [AU] / %.2f [Rs], tadv = %.2f [Hr], Current = %.2f [Hr], vsw = %.0f [km/s]" %(xt, rau, rau*au_to_rsun, tadv, dtint, vsw)
                     )
                 except:
+                    # raise ValueError("..")
                     self.text.set_text(
                         "%s, R[AU] = %.2f [AU] / %.2f [Rs], tadv = %.2f [Hr], vsw = %.0f [km/s]" %(xt, rau, rau*au_to_rsun, tadv, vsw)
                     )
             # xt = pd.Period(ordinal=int(event.xdata), freq=self.resample_rate)
             # self.text.set_text("%s" %(str(xt)))
-            self.text.set_fontsize('xx-large')
-            self.text.set_x(-0.1)
+            self.text.set_fontsize('x-large')
+            self.text.set_x(0.0)
             self.text.set_y(1.05)
 
             for k, ax in self.axes.items():
