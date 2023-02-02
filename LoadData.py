@@ -898,7 +898,7 @@ def LoadTimeSeriesPSP(
 
         # add qtn
         try:
-            dfpar['np_qtn'] = dfqtn['np_qtn'].resample(freq).mean().interpolate()
+            dfpar['np_qtn'] = dfqtn['np_qtn'].resample(freq).mean()
         except:
             warnings.warn("No QTN data!")
             dfpar['np_qtn'] = np.nan
@@ -907,7 +907,7 @@ def LoadTimeSeriesPSP(
         # add SPC
         for k in keep_keys:
             try:
-                dfpar[k+"_spc"] = dfspc[k].resample(freq).mean().interpolate()
+                dfpar[k+"_spc"] = dfspc[k].resample(freq).mean()
             except:
                 warnings.warn("key: %s not present in dfspc!" %(k))
                 dfpar[k+"_spc"] = np.nan
@@ -916,9 +916,9 @@ def LoadTimeSeriesPSP(
         for k in keep_keys:
             try:
                 if k == 'na':
-                    dfpar[k+"_span"] = dfspan_a[k].resample(freq).mean().interpolate()
+                    dfpar[k+"_span"] = dfspan_a[k].resample(freq).mean()
                 else:
-                    dfpar[k+"_span"] = dfspan[k].resample(freq).mean().interpolate()
+                    dfpar[k+"_span"] = dfspan[k].resample(freq).mean()
             except:
                 warnings.warn("key: %s not present in dfspan!" %(k))
                 dfpar[k+"_span"] = np.nan
