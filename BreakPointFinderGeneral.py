@@ -43,7 +43,7 @@ class BreakPointFinder:
         app = '4pt_slope',
         view_fit = True, no_avg =False, import_4pt_fit = None,
         import_4pt_intersect = None, import_2pt_avg = None,
-        import_coi = None
+        import_coi = None, suptitle = None
         ):
         """
         Initialize the class with fig, ax, and plot data
@@ -66,6 +66,7 @@ class BreakPointFinder:
         self.import_4pt_intersect = import_4pt_intersect
         self.import_2pt_avg = import_2pt_avg
         self.import_coi = import_coi
+        self.suptitle = suptitle
         
         self.no_avg = no_avg
         # self.struc_funcs = struc_funcs
@@ -200,6 +201,9 @@ class BreakPointFinder:
             "QF: %d" %(self.diagnostics['QualityFlag']),
             fontsize = 'xx-large'
         )
+        
+        if self.suptitle is not None:
+            plt.gcf().suptitle(self.suptitle, fontsize = 'x-large')
 
         # draw cone of influence for wavelets
         if self.import_coi is not None:

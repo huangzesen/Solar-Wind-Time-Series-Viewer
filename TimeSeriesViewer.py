@@ -474,7 +474,8 @@ class TimeSeriesViewer:
             'density': 'QTN',
             'moments': 'empirical'
         },
-        dfts = None
+        dfts = None,
+        mag_res = None
         ):
         """ 
         Initialize figure 
@@ -505,6 +506,9 @@ class TimeSeriesViewer:
 
         # set par_settings
         self.par_settings = par_settings
+
+        # mag resolution
+        self.mag_res = mag_res
 
         # Prepare Time Series
         if dfts is None:
@@ -698,7 +702,10 @@ class TimeSeriesViewer:
                 ax = axes['mag']
                 if self.mag_option['norm'] == 0:
                     if self.mag_option['sc'] == 0:
-                        dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8, alpha = 0.7)
+                        if self.mag_res is not None:
+                            self.dfmag_raw_high_res[['Bx','By','Bz','Btot']].resample(self.mag_res).mean().plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8, alpha = 0.7)
+                        else:
+                            dfts[['Br','Bt','Bn','B_RTN']].plot(ax = ax, legend=False, style=['C0','C1','C2','k'], lw = 0.8, alpha = 0.7)
                         ax.legend(['Br [nT]','Bt','Bn','|B|_RTN'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                         lim = 1.1*dfts['B_RTN'].max()
                     elif self.mag_option['sc'] == 1:
@@ -798,6 +805,7 @@ class TimeSeriesViewer:
 
                 collect()
         except:
+            raise ValueError('ss')
             print("MAG Plotting have some problems...")
             pass
 
