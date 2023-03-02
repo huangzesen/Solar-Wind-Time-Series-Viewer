@@ -3,6 +3,8 @@ from matplotlib import pyplot as plt
 from matplotlib.backend_bases import MouseButton
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import matplotlib
+from packaging import version
 
 import numpy as np
 from scipy import stats
@@ -70,6 +72,12 @@ class TimeSeriesViewer:
         high_res_resolution = None
     ):
         """ Initialize the class """
+
+        # check compatibility
+        if version.parse(matplotlib.__version__) >= version.parse('3.7.0'):
+            pass
+        else:
+            raise ValueError("Matplotlib version: %s, required version >= %s" %(matplotlib.__version__, '3.7.0'))
 
         print("Initializing...")
         print("Current Directory: %s" %(os.getcwd()))
