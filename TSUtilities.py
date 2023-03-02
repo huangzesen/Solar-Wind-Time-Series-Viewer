@@ -522,7 +522,7 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
         'lines': {}
         }
     for k, ax in axes.items():
-        red_vline['lines'][k] = ax.axvline(x, color = color, ls = '--', lw = lw)
+        red_vline['lines'][k] = ax.axvline(x.timestamp(), color = color, ls = '--', lw = lw)
     
     interval['lines1'] = red_vline['lines']
 
@@ -534,14 +534,14 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
         'lines': {}
         }
     for k, ax in axes.items():
-        red_vline['lines'][k] = ax.axvline(x, color = color, ls = '--', lw = lw)
+        red_vline['lines'][k] = ax.axvline(x.timestamp(), color = color, ls = '--', lw = lw)
     
     interval['lines2'] = red_vline['lines']
 
     if 'rects' not in interval.keys():
         interval['rects'] = {}
     for k, ax in axes.items():
-        interval['rects'][k] = ax.axvspan(interval['start_time'], interval['end_time'], alpha = alpha, color = color)
+        interval['rects'][k] = ax.axvspan(interval['start_time'].timestamp(), interval['end_time'].timestamp(), alpha = alpha, color = color)
 
     return interval
 
