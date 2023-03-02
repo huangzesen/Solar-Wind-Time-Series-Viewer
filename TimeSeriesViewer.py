@@ -1078,7 +1078,7 @@ class TimeSeriesViewer:
                 ax = axes['density']
                 # speeds
                 dfts[['np']].plot(ax = ax, legend=False, style=['k'], lw = 0.8)
-                ax.legend(['np[cm^-3]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.legend(['np[$cm^{-3}$]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
@@ -1093,7 +1093,7 @@ class TimeSeriesViewer:
                 ls = lines['density']
                 # speeds
                 ls[0].set_data(dfts['np'].index, dfts['np'].values)
-                ax.legend(['np[cm^-3]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
+                ax.legend(['np[$cm^{-3}$]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
