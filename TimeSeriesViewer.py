@@ -22,6 +22,8 @@ import warnings
 
 from datetime import datetime
 
+from scipy.optimize import curve_fit
+
 # SPDF API
 from cdasws import CdasWs
 cdas = CdasWs()
@@ -435,6 +437,9 @@ class TimeSeriesViewer:
         # alfven speed
         valfven = dfts['B']*nT2T/np.sqrt(dfts['np']*1e6*m_p*mu0)
         dfts['valfven'] = valfven
+
+        # alfven mach number
+        dfts['malfven'] = dfts['vsw']/dfts['valfven']
 
         # na/np ratio
         nanp_ratio = dfts['na']/dfts['np']
@@ -1112,41 +1117,69 @@ class TimeSeriesViewer:
             except:
                 pass
 
-        """na/np"""
+        # """na/np"""
+        # if not(update):
+        #     try:
+        #         ax = axes['density'].twinx()
+        #         self.axes['nanp_ratio'] = ax
+        #         dfts[['nanp_ratio']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
+        #         ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+        #         try:
+        #             ax.set_ylim([-0.005, np.nanmax(dfts[['nanp_ratio']])*1.05])
+        #         except:
+        #             pass
+        #         lines['nanp_ratio'] = ax.get_lines()
+        #     except:
+        #         warnings.warn("Initializing nanp_ratio failed!")
+        # else:
+        #     try:
+        #         ax = axes['nanp_ratio']
+        #         ls = lines['nanp_ratio']
+        #         ls[0].set_data(dfts['nanp_ratio'].index, dfts['nanp_ratio'].values)
+        #         ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+        #         try:
+        #             ax.set_ylim([-0.005, np.nanmax(dfts[['nanp_ratio']])*1.05])
+        #         except:
+        #             pass
+        #         lines['nanp_ratio'] = ax.get_lines()
+        #     except:
+        #         warnings.warn("Updating nanp_ratio failed!...")
+
+        """malfven"""
         if not(update):
             try:
                 ax = axes['density'].twinx()
-                self.axes['nanp_ratio'] = ax
-                dfts[['nanp_ratio']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
-                ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+                self.axes['malfven'] = ax
+                dfts[['malfven']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
+                ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                try:
-                    ax.set_ylim([-0.005, np.nanmax(dfts[['nanp_ratio']])*1.05])
-                except:
-                    pass
-                lines['nanp_ratio'] = ax.get_lines()
+                lines['malfven'] = ax.get_lines()
             except:
                 warnings.warn("Initializing nanp_ratio failed!")
         else:
             try:
-                ax = axes['nanp_ratio']
-                ls = lines['nanp_ratio']
-                ls[0].set_data(dfts['nanp_ratio'].index, dfts['nanp_ratio'].values)
-                ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+                ax = axes['malfven']
+                ls = lines['malfven']
+                ls[0].set_data(dfts['malfven'].index, dfts['malfven'].values)
+                ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                try:
-                    ax.set_ylim([-0.005, np.nanmax(dfts[['nanp_ratio']])*1.05])
-                except:
-                    pass
-                lines['nanp_ratio'] = ax.get_lines()
+                lines['malfven'] = ax.get_lines()
             except:
-                warnings.warn("Updating nanp_ratio failed!...")
+                warnings.warn("Updating malfven failed!...")
 
         # """scales"""
         # if not(update):
@@ -1629,14 +1662,22 @@ class TimeSeriesViewer:
 
                     # normalize with dist_au
                     r = si['Dist_au']
-                    Btot1 = Btot * ((r/np.mean(r))**2)
+                    
+                    
+                    f = lambda x,a,b: a*x+b
+
+                    results = curve_fit(f, np.log10(r), np.log10(Btot))
+                    scale = -results[0][0]
+
+                    Btot1 = Btot * ((r/np.mean(r))**scale)
                     bstd = np.std(Btot1)
                     bmean = np.mean(Btot1)
 
                     # keep ind
-                    if 'discard_3std' in self.p_funcs['show_btot_histogram'].keys():
-                        print("Discarding 3std!")
-                        keep_ind = (Btot1 > bmean - 3*bstd) & (Btot1 < bmean + 3*bstd)
+                    if 'discard_std' in self.p_funcs['show_btot_histogram'].keys():
+                        nstd = self.p_funcs['show_btot_histogram']['discard_std']
+                        print("Discarding %dstd!" %(nstd))
+                        keep_ind = (Btot1 > bmean - nstd*bstd) & (Btot1 < bmean + nstd*bstd)
                         Btot1[np.invert(keep_ind)] = np.nan
                         discard_rate = 1-np.sum(keep_ind)/len(keep_ind)
                         # Btot1 = Btot1.interpolate()
@@ -1653,11 +1694,11 @@ class TimeSeriesViewer:
                         sa1 = np.sum(a1 > 0.05)/len(a1)
                         plt.title("Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'large')
                     else:
-                        plt.title("Discard %.2f %%" %(discard_rate*100), fontsize = 'large')
+                        plt.title("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'large')
 
                     plt.sca(self.ax_btot_hist)
                     plt.hist(
-                        Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^2$', color = 'C2'
+                        Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^%.4f$' %(scale), color = 'C2'
                     )
                     plt.hist(
                         Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
