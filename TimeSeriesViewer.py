@@ -434,8 +434,8 @@ class TimeSeriesViewer:
         # except:
         #     pass
 
-        # alfven speed
-        valfven = dfts['B']*nT2T/np.sqrt(dfts['np']*1e6*m_p*mu0)
+        # alfven speed [km/s]
+        valfven = dfts['B']*nT2T/np.sqrt(dfts['np']*1e6*m_p*mu0)/1e3
         dfts['valfven'] = valfven
 
         # alfven mach number
@@ -1091,7 +1091,7 @@ class TimeSeriesViewer:
             try:
                 ax = axes['density']
                 # speeds
-                dfts[['np']].plot(ax = ax, legend=False, style=['k'], lw = 0.8)
+                dfts[['np']].plot(ax = ax, legend=False, style=['k'], lw = 0.8, alpha = 0.7)
                 ax.legend(['np[$cm^{-3}$]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 ax.set_xticks([], minor=True)
                 ax.set_xticks([])
@@ -1164,7 +1164,10 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                ax.axhline(y=1.0, ls = '--', lw = 1.5, color = 'darkgreen')
                 lines['malfven'] = ax.get_lines()
+                ax.set_yscale('log')
+                ax.set_ylim([10**(-1.1), 10**(1.1)])
             except:
                 warnings.warn("Initializing nanp_ratio failed!")
         else:
@@ -1178,6 +1181,8 @@ class TimeSeriesViewer:
                 ax.set_xlabel('')
                 ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 lines['malfven'] = ax.get_lines()
+                ax.set_yscale('log')
+                ax.set_ylim([10**(-1.1), 10**(1.1)])
             except:
                 warnings.warn("Updating malfven failed!...")
 
