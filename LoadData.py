@@ -1504,7 +1504,10 @@ def LoadHighResMagPSP(
 
         dfe = dfe.resample('1s').interpolate()
 
+        Dist_au = (dfe[['sc_pos_r','sc_pos_t','sc_pos_n']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
+
         infos['ephemeris'] = dfe
+        infos['Dist_au'] = Dist_au
 
     return dfmag, dfmag1, infos
 
