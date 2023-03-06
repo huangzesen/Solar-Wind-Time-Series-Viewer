@@ -1296,7 +1296,7 @@ def LoadHighResMagPSP(
     start_time, end_time, 
     verbose = True, credentials = None, resolution = None, 
     load_4_per_cyc = True, use_spedas = True,
-    load_ephemeris = True
+    load_ephemeris = False
     ):
     """
     resolution in ms!
