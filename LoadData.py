@@ -1293,7 +1293,10 @@ def LoadHighResMagSOLO(
     return dfmag, dfmag1, infos
 
 def LoadHighResMagPSP(
-    start_time, end_time, verbose = True, credentials = None, resolution = None, load_4_per_cyc = True, use_spedas = True,
+    start_time, end_time, 
+    verbose = True, credentials = None, resolution = None, 
+    load_4_per_cyc = True, use_spedas = True,
+    load_ephemeris = True
     ):
     """
     resolution in ms!
@@ -1471,7 +1474,37 @@ def LoadHighResMagPSP(
         }
         print("Final PSP Resolution: %.2f, fraction missing %.2f" %(resolution, np.sum(np.isnan(dfmag1['Bx']))/len(dfmag1)*100))
 
+    if load_ephemeris:
+        print("Loading ephemeris...")
+        fields_vars = pyspedas.psp.fields(
+            trange=[t0, t1], 
+            datatype='ephem_spp_rtn', level='l1', 
+            time_clip=True, 
+            username=credentials['psp']['fields']['username'], 
+            password=credentials['psp']['fields']['password'])
 
+        data = get_data('position')
+        dfe = pd.DataFrame(
+            index = data.times,
+            data = data.y,
+            columns = ['sc_pos_r','sc_pos_t','sc_pos_n']
+        )
+
+        data = get_data('velocity')
+        dfe = dfe.join(
+            pd.DataFrame(
+                index = data.times,
+                data = data.y,
+                columns = ['sc_vel_r','sc_vel_t','sc_vel_n']
+            )
+        )
+
+        dfe.index = time_string.time_datetime(time=dfe.index)
+        dfe.index = dfe.index.tz_localize(None)
+
+        dfe = dfe.resample('1s').interpolate()
+
+        infos['ephemeris'] = dfe
 
     return dfmag, dfmag1, infos
 
