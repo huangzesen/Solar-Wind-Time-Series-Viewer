@@ -63,14 +63,25 @@ def CalculateMagDiagnostics(Br, Bt, Bn, dt, rolling_window):
 
     return np.nanmean(dBvecmod), np.nanmean(dBvecmod/Bmodmean), np.nanmean(np.abs(dBmod)), np.nanmean(np.abs(dBmod)/Bmodmean), np.nanmean(np.abs(dBmod)/dBvecmod)
 
+
+def MagModStrucFunc(B, dt, rolling_window):
+    """
+    Calculate <dB> and <dB>/<B> of given dt
+    """
+    dB, Bmean = TimeseriesDifference(B, dt, rolling_window)
+
+    return np.nanmean(dB), np.nanmean(dB/Bmean)
+
 def TimeseriesDifference(ts, dt, rolling_window):
     """
     Input:
         ts: pandas timeseries with index of time, increment should be uniform
         dt: pandas time delta
     Output:
-        tsout: pandas timeseries with index of time
+        tsout: pandas series with index of time
             tsout(t, dt) = ts(t+dt) - ts(t)
+        tsmean: pandas series
+            tsmean = ts.rolling(rolling_window).mean().interpolate()
     """
 
     if not isinstance(ts, pd.Series):
