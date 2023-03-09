@@ -453,30 +453,38 @@ class TimeSeriesViewer:
     
     def AxesInit(self):
         """ Initialize Axes """
-        fig, axes = plt.subplots(6,1, figsize = [20,10], layout=self.layout)
+        if self.import_timeseries is None:
+            fig, axes = plt.subplots(6,1, figsize = [20,10], layout=self.layout)
+        else:
+            fig, axes = plt.subplots(7,1, figsize = [20,10], layout=self.layout)
         
         self.fig = fig
-        self.axes = {
-            'mag': axes[0],             # magnetic field
-            # 'speed': axes[1],           # Vth and Vsw
-            'vsw': axes[1],             # just vsw, no log
-            'norm': axes[2],            # normalized quantities: sigma_c, sigma_r
-            # 'spec': axes[3],          # spectrum
-            'density': axes[3],         # density and di and rho_ci
-            #'scale': axes[3],           # di and rho_ci
-            'ang': axes[4],             # angles
-            # 'alfvenicity': axes[5]      # delta |B| / |delta \vec B|
-            'rau': axes[5]              # rau
-        }
-        self.lines = {
-            'mag': None,
-            'speed': None,
-            'norm': None,
-            'scale': None,
-            'ang': None,
-            'beta': None,
-            'alfvenicity': None
-        }
+        self.axeslist = axes
+        self.axes = {}
+        self.lines = {}
+
+        # assign the axes
+        if self.import_timeseries is None:
+            self.axes['mag'] = axes[0]              # magnetic field
+            self.axes['vsw'] = axes[1]              # just vsw, no log
+            self.axes['norm'] = axes[2]             # normalized quantities: sigma_c, sigma_r
+            self.axes['density'] = axes[3]          # density and di and rho_ci
+            self.axes['ang'] = axes[4]              # angles
+            self.axes['rau'] = axes[5]              # rau
+        else:
+            key = self.import_timeseries['key']
+            self.axes['mag'] = axes[0]              # magnetic field
+            self.axes[key] = axes[1]                # import time series
+            self.axes['vsw'] = axes[2]              # just vsw, no log
+            self.axes['norm'] = axes[3]             # normalized quantities: sigma_c, sigma_r
+            self.axes['density'] = axes[4]          # density and di and rho_ci
+            self.axes['ang'] = axes[5]              # angles
+            self.axes['rau'] = axes[6]              # rau
+
+        # self.axes['spec'] =  axes[3]            # spectrum
+        # self.axes['alfvenicity'] = axes[5]      # delta |B| / |delta \vec B|
+        # self.axes['speed'] = axes[1],           # Vth and Vsw
+        # self.axes['scale'] =  axes[3],           # di and rho_ci
 
 
     def InitFigure(self, start_time, end_time, 
@@ -488,7 +496,8 @@ class TimeSeriesViewer:
             'moments': 'empirical'
         },
         dfts = None,
-        mag_res = None
+        mag_res = None,
+        import_timeseries = None
         ):
         """ 
         Initialize figure 
@@ -508,6 +517,9 @@ class TimeSeriesViewer:
                 Note: 'empirical' use 'SPC' before 2021-07-01, and 'SPAN' afterwards
             dfts: 
                 import dfts instead of creating one, will be deprecate soon...
+            import_timeseries:
+                {'key':str, 'df':pd.DataFrame, 'labels':list of str, columns: list of keys, styles: list of str}
+                optional keys: {'ylim':np.array, 'yscale':'log'}
         """
 
         # default values
@@ -538,6 +550,10 @@ class TimeSeriesViewer:
         # just create dfts
         if no_plot:
             return
+
+        # Import Timeseries
+        if import_timeseries is not None:
+            self.import_timeseries = import_timeseries
 
         # Initialize Axes
         self.AxesInit()
@@ -752,11 +768,10 @@ class TimeSeriesViewer:
                     raise ValueError("mag_option['norm']==%d not supported!" %(self.mag_option['norm']))
 
                 # aesthetic
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                # ax.set_xlim([dfts.index[0], dfts.index[-1]])
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([-lim, lim])
                 lines['mag'] = ax.get_lines()
             else:
@@ -810,10 +825,10 @@ class TimeSeriesViewer:
                 else:
                     raise ValueError("mag_option['norm']==%d not supported!" %(self.mag_option['norm']))
                 # aesthetic
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([-lim, lim])
                 lines['mag'] = ax.get_lines()
 
@@ -830,10 +845,10 @@ class TimeSeriesViewer:
                 # speeds
                 dfts[['V']].plot(ax = ax, legend=False, style=['C2'], lw = 0.8)
                 ax.legend(['Vsw[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 if dfts[['V']].max() < 700:
                     ax.set_ylim([100,700])
                 else:
@@ -848,10 +863,10 @@ class TimeSeriesViewer:
                 # speeds
                 ls[0].set_data(dfts['V'].index, dfts['V'].values)
                 ax.legend(['Vsw[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 if dfts[['V']].max() < 700:
                     ax.set_ylim([100,700])
                 else:
@@ -867,10 +882,10 @@ class TimeSeriesViewer:
                 # speeds
                 dfts[['Vth']].plot(ax = ax, legend=False, style=['C1'], lw = 0.6, alpha = 0.6)
                 ax.legend(['Vth[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([0.95*np.nanmin(dfts['Vth']),1.05*np.nanmax(dfts['Vth'])])
                 lines['vth'] = ax.get_lines()
             except:
@@ -882,10 +897,10 @@ class TimeSeriesViewer:
                 # speeds
                 ls[0].set_data(dfts['Vth'].index, dfts['Vth'].values)
                 ax.legend(['Vth[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([0.95*np.nanmin(dfts['Vth']),1.05*np.nanmax(dfts['Vth'])])
                 lines['vth'] = ax.get_lines()
             except:
@@ -902,10 +917,10 @@ class TimeSeriesViewer:
                 ax.legend(['Vsw[km/s]','Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 if dfts['V'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 try:
                     min1 = np.nanmin(dfts['V']); max1 = np.nanmax(dfts['V'])
                     min2 = np.nanmin(dfts['Vth']); max2 = np.nanmax(dfts['Vth'])
@@ -926,10 +941,10 @@ class TimeSeriesViewer:
                 ax.legend(['Vsw[km/s]','Vth[km/s]'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 if dfts['V'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 try:
                     min1 = np.nanmin(dfts['V']); max1 = np.nanmax(dfts['V'])
                     min2 = np.nanmin(dfts['Vth']); max2 = np.nanmax(dfts['Vth'])
@@ -949,10 +964,10 @@ class TimeSeriesViewer:
                 # dfts[['sigma_r']].plot(ax = ax, legend=False, style=['C1'], lw = 0.7)
                 # ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
                 ax.legend([r'$\sigma_c$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([-1.05,1.05])
                 lines['norm'] = ax.get_lines()
             except:
@@ -965,10 +980,10 @@ class TimeSeriesViewer:
                 # ls[1].set_data(dfts['sigma_r'].index, dfts['sigma_r'].values)
                 # ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
                 ax.legend([r'$\sigma_c$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([-1.05,1.05])
                 lines['norm'] = ax.get_lines()
             except:
@@ -981,10 +996,10 @@ class TimeSeriesViewer:
                 axes['carr_lon'] = ax
                 (dfts[['carr_lon']]).plot(ax = ax, legend=False, style=['C1'], lw = 0.8, alpha = 0.8)
                 ax.legend(['Carr Lon'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 # ax.set_ylim([-185,185])
                 # ax.set_yticks([-180,-90,0,90,180])
                 lines['carr_lon'] = ax.get_lines()
@@ -997,10 +1012,10 @@ class TimeSeriesViewer:
                 # speeds
                 ls[0].set_data(dfts['carr_lon'].index, (dfts[['carr_lon']]).values)
                 ax.legend(['Carr Lon'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.6), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 # ax.set_ylim([-185,185])
                 # ax.set_yticks([-180,-90,0,90,180])
                 lines['carr_lon'] = ax.get_lines()
@@ -1093,10 +1108,10 @@ class TimeSeriesViewer:
                 # speeds
                 dfts[['np']].plot(ax = ax, legend=False, style=['k'], lw = 0.8, alpha = 0.7)
                 ax.legend(['np[$cm^{-3}$]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([0.95*np.nanmin(dfts['np']),1.05*np.nanmax(dfts['np'])])
                 lines['density'] = ax.get_lines()
             except:
@@ -1108,10 +1123,10 @@ class TimeSeriesViewer:
                 # speeds
                 ls[0].set_data(dfts['np'].index, dfts['np'].values)
                 ax.legend(['np[$cm^{-3}$]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([0.95*np.nanmin(dfts['np']),1.05*np.nanmax(dfts['np'])])
                 lines['density'] = ax.get_lines()
             except:
@@ -1160,10 +1175,10 @@ class TimeSeriesViewer:
                 self.axes['malfven'] = ax
                 dfts[['malfven']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
                 ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.axhline(y=1.0, ls = '--', lw = 1.5, color = 'darkgreen')
                 lines['malfven'] = ax.get_lines()
                 ax.set_yscale('log')
@@ -1176,10 +1191,10 @@ class TimeSeriesViewer:
                 ls = lines['malfven']
                 ls[0].set_data(dfts['malfven'].index, dfts['malfven'].values)
                 ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 lines['malfven'] = ax.get_lines()
                 ax.set_yscale('log')
                 ax.set_ylim([10**(-1.1), 10**(1.1)])
@@ -1280,10 +1295,10 @@ class TimeSeriesViewer:
                 except:
                     pass
 
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.grid(False)
                 ax.set_ylim([-5,185])
                 ax.set_yticks([0,45,90,135,180])
@@ -1312,10 +1327,10 @@ class TimeSeriesViewer:
                 except:
                     pass
 
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.grid(False)
                 ax.set_ylim([-5,185])
                 ax.set_yticks([0,45,90,135,180])
@@ -1331,10 +1346,10 @@ class TimeSeriesViewer:
                 ax.legend([r'$\beta$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
                 if dfts['beta'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 minbeta = np.abs(np.log10(np.nanmin(dfts['beta'])))
                 maxbeta = np.abs(np.log10(np.nanmax(dfts['beta'])))
                 lim = np.max([minbeta,maxbeta])
@@ -1353,10 +1368,10 @@ class TimeSeriesViewer:
                 ax.legend([r'$\beta$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
                 if dfts['beta'].apply(np.isnan).sum() != len(dfts):
                     ax.set_yscale('log')
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 minbeta = np.abs(np.log10(np.nanmin(dfts['beta'])))
                 maxbeta = np.abs(np.log10(np.nanmax(dfts['beta'])))
                 lim = np.max([minbeta,maxbeta])*1.05
@@ -1414,7 +1429,7 @@ class TimeSeriesViewer:
                 ydata = dfts['Dist_au']*au_to_rsun
                 ls[0].set_data(dfts['Dist_au'].index, (ydata).values)
                 ax.legend([r'$R\ [R_{\circ}]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([0.95*np.nanmin(ydata), 1.05*np.nanmax(ydata)])
                 lines['rau'] = ax.get_lines()
             except:
@@ -1423,7 +1438,7 @@ class TimeSeriesViewer:
                 ydata = dfts['RAD_AU']*au_to_rsun
                 ls[0].set_data(dfts['RAD_AU'].index, (ydata).values)
                 ax.legend([r'$R\ [R_{\circ}]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 1), loc = 2)
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([0.95*np.nanmin(ydata), 1.05*np.nanmax(ydata)])
                 lines['rau'] = ax.get_lines()
 
@@ -1434,7 +1449,7 @@ class TimeSeriesViewer:
                 axes['tadv'] = ax
                 dfts['tadv'].plot(ax = ax, style = ['r'], legend = False, lw = 0.8)
                 ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([np.nanmin(dfts['tadv'])*0.95, np.nanmax(dfts['tadv'])*1.05])
                 lines['tadv'] = ax.get_lines()
             except:
@@ -1445,12 +1460,95 @@ class TimeSeriesViewer:
                 ls = lines['tadv']
                 ls[0].set_data(dfts['tadv'].index, dfts['tadv'].values)
                 ax.legend([r'$\tau_{adv}\ [Hr]$'], fontsize='large', frameon=False, bbox_to_anchor=(1.02, 0), loc = 3)
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
                 ax.set_ylim([np.nanmin(dfts['tadv'])*0.95, np.nanmax(dfts['tadv'])*1.05])
                 lines['tadv'] = ax.get_lines()
             except:
                 pass
 
+        """import time series"""
+        import_dict = self.import_timeseries
+        imkey = import_dict['key']
+        imdf = import_dict['df']
+        styles = import_dict['styles']
+        labels = import_dict['labels']
+        cols = import_dict['columns']
+        if not(update):
+            try:
+                ax = axes[imkey]
+                imdf[cols].plot(ax = ax, style = styles, lw = 0.8, legend=False)
+                ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                if 'ylim' in import_dict.keys():
+                    ax.set_ylim(import_dict['ylim'])
+                if 'yscale' in import_dict.keys():
+                    ax.set_yscale(import_dict['yscale'])
+                lines[imkey] = ax.get_lines()
+            except:
+                raise ValueError('...')
+        else:
+            try:
+                ax = axes[imkey]
+                ls = lines[imkey]
+                for i1 in range(len(ls)):
+                    line = ls[i1]
+                    line.set_data(imdf[cols[i1]].index, imdf[cols[i1]].values)
+                ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                if 'ylim' in import_dict.keys():
+                    ax.set_ylim(import_dict['ylim'])
+                if 'yscale' in import_dict.keys():
+                    ax.set_yscale(import_dict['yscale'])
+                lines[imkey] = ax.get_lines()
+            except:
+                pass
+
+        """import time series twinx"""
+        if 'twinx' in self.import_timeseries.keys():
+            twinx_dict = self.import_timeseries['twinx']
+            imkey_mother = self.import_timeseries['key']
+            imkey = twinx_dict['key']
+            imdf = twinx_dict['df']
+            styles = twinx_dict['styles']
+            labels = twinx_dict['labels']
+            cols = twinx_dict['columns']
+            if not(update):
+                try:
+                    ax = axes[imkey_mother].twinx()
+                    axes[imkey] = ax
+                    imdf[cols].plot(ax = ax, style = styles, lw = 0.8, legend=False)
+                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    if 'ylim' in twinx_dict.keys():
+                        ax.set_ylim(twinx_dict['ylim'])
+                    if 'yscale' in twinx_dict.keys():
+                        ax.set_yscale(twinx_dict['yscale'])
+                    lines[imkey] = ax.get_lines()
+                except:
+                    pass
+            else:
+                try:
+                    ax = axes[imkey]
+                    ls = lines[imkey]
+                    for i1 in range(len(ls)):
+                        line = ls[i1]
+                        line.set_data(imdf[cols[i1]].index, imdf[cols[i1]].values)
+                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    if 'ylim' in twinx_dict.keys():
+                        ax.set_ylim(twinx_dict['ylim'])
+                    if 'yscale' in twinx_dict.keys():
+                        ax.set_yscale(twinx_dict['yscale'])
+                    lines[imkey] = ax.get_lines()
+                except:
+                    pass
+
+
+        # aesthetics
+        for i1 in range(len(self.axeslist)):
+            if i1 != len(self.axeslist)-1:
+                ax = self.axeslist[i1]
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+
+            ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
 
         # fig.tight_layout()
         self.lines = lines
@@ -1674,7 +1772,7 @@ class TimeSeriesViewer:
                     results = curve_fit(f, np.log10(r), np.log10(Btot))
                     scale = -results[0][0]
 
-                    Btot1 = Btot * ((r/np.mean(r))**scale)
+                    Btot1 = np.log10(Btot * ((r/np.mean(r))**scale))
                     bstd = np.std(Btot1)
                     bmean = np.mean(Btot1)
 
@@ -1703,7 +1801,7 @@ class TimeSeriesViewer:
 
                     plt.sca(self.ax_btot_hist)
                     plt.hist(
-                        Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^%.4f$' %(scale), color = 'C2'
+                        Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'C2'
                     )
                     plt.hist(
                         Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
