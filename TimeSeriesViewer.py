@@ -1629,385 +1629,7 @@ class TimeSeriesViewer:
         elif (event.key == 'p'):
             try:
                 x = self.current_x
-
-                i1 = self.FindSelectedIntervals(x)
-                selected_interval = self.selected_intervals[i1]
-                self.selected_interval = selected_interval
-                si = self.selected_intervals[i1]
-                t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
-
-                # calculate the time series for later diagnostics
-                if len(self.p_funcs) > 0:
-                    ind = (self.dfts.index > t0) & (self.dfts.index < t1)
-                    dftemp = self.dfts.loc[ind]
-
-                    # save the time series to dataframe
-                    si['TimeSeries'] = dftemp
-                    si['LTSWsettings'] = self.LTSWsettings
-
-                    # save dfmag
-                    ind = (self.dfmag_raw_high_res.index > t0) & (self.dfmag_raw_high_res.index <= t1)
-                    si['dfmag_raw'] = self.dfmag_raw_high_res[ind]
-                    ind = (self.dfmag_high_res.index > t0) & (self.dfmag_high_res.index <= t1)
-                    si['dfmag'] = self.dfmag_high_res[ind]
-
-                    # save dist_au to the dictionary
-                    Btot = si['dfmag']['Btot']
-                    Dist_au = self.dfts_raw0['Dist_au'].resample(pd.infer_freq(Btot.index)).interpolate()
-                    self.selected_interval['Dist_au_raw'] = Dist_au[Btot.index]
-                    r = Dist_au[Btot.index].values
-                    self.selected_interval['Dist_au'] = r
-
-                    
-                    if (self.sc == 0):
-                        si['par_settings'] = self.par_settings
-
-                    if 'rescale_mag' in self.p_funcs.keys():
-                        rescale_mag = self.p_funcs['rescale_mag']
-                    else:
-                        rescale_mag = False
-
-                    # load the magnetic field data and create empty diagnostics
-                    try:
-                        # import the preloaded high resolution magnetic field data to save time
-                        PreloadDiagnostics(
-                            si, 
-                            self.p_funcs, 
-                            resolution = self.high_res_resolution, 
-                            credentials = self.credentials,
-                            import_dfmag = {
-                                'dfmag_raw': si['dfmag_raw'],
-                                'dfmag': si['dfmag'],
-                                'infos': self.dfmag_infos
-                            },
-                            rescale_mag = rescale_mag
-                        )
-                    except:
-                        raise ValueError("Import dfmag failed!")
-                        PreloadDiagnostics(
-                            si, self.p_funcs, 
-                            resolution = self.high_res_resolution, credentials = self.credentials,
-                            rescale_mag = rescale_mag
-                        )
-
-                # compare magnetic field rescaling
-                if 'compare_mag_rescale' in self.p_funcs.keys():
-                    # calculate diagnostics without rescale
-                    PreloadDiagnostics(
-                        si, 
-                        self.p_funcs, 
-                        resolution = self.high_res_resolution, 
-                        credentials = self.credentials,
-                        import_dfmag = {
-                            'dfmag_raw': si['dfmag_raw'],
-                            'dfmag': si['dfmag'],
-                            'infos': self.dfmag_infos
-                        },
-                        rescale_mag = False
-                    )
-                    freqs_wl1, PSD_wl1 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
-
-                    # calculate diagnostics with rescale
-                    PreloadDiagnostics(
-                        si, 
-                        self.p_funcs, 
-                        resolution = self.high_res_resolution, 
-                        credentials = self.credentials,
-                        import_dfmag = {
-                            'dfmag_raw': si['dfmag_raw'],
-                            'dfmag': si['dfmag'],
-                            'infos': self.dfmag_infos
-                        },
-                        rescale_mag = True
-                    )
-                    freqs_wl2, PSD_wl2 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
-
-                    coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
-                    freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
-
-                    # show coi range, threshold = 80% under coi
-                    if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
-                        coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
-                    else:
-                        coi_thresh = 0.8
-                    ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
-                    import_coi = {
-                        'range': [freqs_wl1[ind][0], freqs_wl1[ind][-1]],
-                        'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
-                    }
-
-                    # plot the spectrum
-                    self.bpfg_wl = BPFG(
-                            freqs_wl1, PSD_wl1, label = 'original',
-                            secondary = {
-                                'x': freqs_FFT,
-                                'y': PSD_FFT,
-                                'label': 'PSD_FFT'
-                            },
-                            third = {
-                                'x': freqs_wl2,
-                                'y': PSD_wl2,
-                                'label': 'rescaled'
-                            },
-                            import_coi = import_coi
-                            )
-                    self.bpfg_wl.connect()
-
-
-                # histgram
-                if 'show_btot_histogram' in self.p_funcs.keys():
-                    Btot = si['dfmag']['Btot']
-
-                    # delete unphysical values
-                    ind1 = Btot < 0.1
-                    Btot[ind1] = np.nan
-                    # Btot = Btot.interpolate()
-
-                    # normalize with dist_au
-                    r = si['Dist_au']
-                    
-                    
-                    f = lambda x,a,b: a*x+b
-
-                    results = curve_fit(f, np.log10(r), np.log10(Btot))
-                    scale = -results[0][0]
-
-                    Btot1 = np.log10(Btot * ((r/np.mean(r))**scale))
-                    bstd = np.std(Btot1)
-                    bmean = np.mean(Btot1)
-
-                    # keep ind
-                    if 'discard_std' in self.p_funcs['show_btot_histogram'].keys():
-                        nstd = self.p_funcs['show_btot_histogram']['discard_std']
-                        print("Discarding %dstd!" %(nstd))
-                        keep_ind = (Btot1 > bmean - nstd*bstd) & (Btot1 < bmean + nstd*bstd)
-                        Btot1[np.invert(keep_ind)] = np.nan
-                        discard_rate = 1-np.sum(keep_ind)/len(keep_ind)
-                        # Btot1 = Btot1.interpolate()
-                    else:
-                        discard_rate = 0
-                    
-                    # show the histogram of Btot
-                    self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
-                    
-                    # show normality test
-                    x = Btot1.values[np.invert(np.isnan(Btot1.values))]
-                    if 'normality' in self.p_funcs['show_btot_histogram'].keys():
-                        a1 = np.array([shapiro(np.random.choice(x, size=500, replace=False)).pvalue for i1 in range(10000)])
-                        sa1 = np.sum(a1 > 0.05)/len(a1)
-                        plt.title("Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'large')
-                    else:
-                        plt.title("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'large')
-
-                    plt.sca(self.ax_btot_hist)
-                    plt.hist(
-                        Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'C2'
-                    )
-                    plt.hist(
-                        Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
-                    )
-                    # plt.xlim([-1, np.max(Btot)*1.05])
-                    plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
-                    plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
-                    plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
-                    # over plot gaussian
-                    x_data = np.linspace(np.mean(Btot1)-4*np.std(Btot1), np.mean(Btot1)+4*np.std(Btot1), 1000)
-                    y_data = stats.norm.pdf(x_data, np.mean(Btot1), np.std(Btot1))
-                    plt.plot(
-                        x_data, y_data, 'k--'
-                    )
-                    plt.xlim([bmean-5*bstd, bmean+5*bstd])
-
-                    plt.legend(fontsize = 'medium')
-
-
-                # psd
-                if 'PSD' in self.p_funcs.keys():
-
-                    self.bpfg_PSD = BPFG(
-                        si['PSD']['sm_freqs'], si['PSD']['sm_PSD'], label = 'sm_PSD_FFT',
-                        secondary={
-                            'x': si['PSD']['freqs'],
-                            'y': si['PSD']['PSD'],
-                            'label': 'PSD_FFT'
-                        },
-                        diagnostics = si['PSD']['diagnostics']
-                    )
-
-                # structure func: dB
-                if 'struc_funcs' in self.p_funcs.keys():
-
-                    self.struc_funcs = si['struc_funcs']
-                    struc_funcs = si['struc_funcs']
-
-                    if self.p_funcs['struc_funcs'] == 1:
-                        print("Showing dBvecnorms")
-                        # freq /2 -> freq for FFT
-                        self.bpfg = BPFG(
-                            1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecnorms'], 
-                            diagnostics = si['struc_funcs']['diagnostics']
-                            )
-                    elif self.p_funcs['struc_funcs'] == 2:
-                        print("Showing dBvecs")
-                        self.bpfg = BPFG(
-                            1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecs'], 
-                            diagnostics = si['struc_funcs']['diagnostics']
-                            )
-                    elif self.p_funcs['struc_funcs'] == 3:
-                        self.bpfg = BPFG(
-                            1/(struc_funcs['dts']/1000*2), struc_funcs['dBmodnorms'], 
-                            diagnostics = si['struc_funcs']['diagnostics']
-                            )
-                    else:
-                        raise ValueError("Wrong Struc_Func!")
-
-                    self.bpfg.connect()
-                    if np.nanmin(struc_funcs['dBvecnorms']) > 1e-1:
-                        self.bpfg.arts['PSD']['ax'].set_ylim([1e-1,5e0])
-                    elif np.nanmin(struc_funcs['dBvecnorms']) > 1e-2:
-                        self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
-
-                    
-                # wavelet PSD:
-                if 'wavelet_PSD' in self.p_funcs.keys():
-
-                    self.wavelet_PSD = si['wavelet_PSD']
-                    freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
-                    freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
-                    sm_freqs_FFT, sm_PSD_FFT = si['wavelet_PSD']['sm_freqs_FFT'], si['wavelet_PSD']['sm_PSD_FFT']
-
-                    import_coi = None
-                    try:
-                        coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
-
-                        # show coi range, threshold = 80% under coi
-                        if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
-                            coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
-                        else:
-                            coi_thresh = 0.8
-                        ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
-
-                        import_coi = {
-                            'range': [freqs_wl[ind][0], freqs_wl[ind][-1]],
-                            'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
-                        }
-
-                    except:
-                        print("COI information is not present in wavelet_PSD")
-
-                    if "incompressible_only" not in self.p_funcs['wavelet_PSD'].keys():
-                        self.bpfg_wl = BPFG(
-                                freqs_wl, PSD_wl, label = 'PSD_WL',
-                                diagnostics = self.wavelet_PSD['diagnostics'],
-                                secondary = {
-                                    'x': freqs_FFT,
-                                    'y': PSD_FFT,
-                                    'label': 'PSD_FFT'
-                                },
-                                third = {
-                                    'x': sm_freqs_FFT,
-                                    'y': sm_PSD_FFT,
-                                    'label': 'sm_PSD_FFT'
-                                },
-                                import_coi = import_coi
-                                )
-                        self.bpfg_wl.connect()
-
-
-                    else:
-                        Br, Bt, Bn, Btot = si['dfmag']['Bx'], si['dfmag']['By'], si['dfmag']['Bz'], si['dfmag']['Btot']
-                        res = si['high_res_infos']['resolution']
-                        Bmean = np.mean(Btot)
-                        Bstd = np.std(Btot)
-                        mode_list = ['2std','1std','10percent']
-                        try:
-                            keep_mode = self.p_funcs['wavelet_PSD']['incompressible_only']['keep_mode']
-                            if keep_mode == '2std':
-                                keep_ind = (Btot > Bmean - 2*Bstd) & (Btot < Bmean + 2*Bstd)
-                            elif keep_mode == '1std':
-                                keep_ind = (Btot > Bmean - 1*Bstd) & (Btot < Bmean + 1*Bstd)
-                            elif keep_mode == '10percent':
-                                keep_ind = (Btot > Bmean*0.9) & (Btot < Bmean*1.1)
-                        except:
-                            # default keep mode 2 std
-                            print("Supported modes: "+"".join(["%s, "%(s) for s in mode_list]))
-                            print("Using default: keep_mode == 2std")
-                            keep_mode = '2std'
-                            keep_ind = (Btot > Bmean - 2*Bstd) & (Btot < Bmean + 2*Bstd)
-
-                        _,_,_,freqs_wl,PSD_wl,scales,coi = trace_PSD_wavelet(
-                            Br.values, Bt.values, Bn.values, res, 
-                            dj = 1./12, keep_ind = keep_ind
-                        )
-
-                        si['wavelet_PSD']['incompressible_only'] = {
-                            'freqs': freqs_wl,
-                            'PSD': PSD_wl,
-                            'scales': scales,
-                            'coi': coi,
-                            'Bmean': Bmean,
-                            'Bstd': Bstd,
-                            'keep_mode': keep_mode,
-                            'keep_ind': keep_ind
-                        }
-
-                        self.bpfg_wl = BPFG(
-                                freqs_wl, PSD_wl, label = 'PSD_WL_incompressible_only',
-                                diagnostics = self.wavelet_PSD['diagnostics'],
-                                secondary = {
-                                    'x': si['wavelet_PSD']['freqs'],
-                                    'y': si['wavelet_PSD']['PSD'],
-                                    'label': 'PSD_WL'
-                                },
-                                import_coi = import_coi
-                                )
-                        self.bpfg_wl.connect()
-
-
-                if 'wavelet_rainbow' in self.p_funcs.keys():
-                    if 'wavelet_rainbows' in si.keys():
-                        diags = si['wavelet_rainbows']
-                    else:
-                        diags = WaveletRainbow(
-                            si['dfmag'], si['high_res_infos']['resolution'] 
-                        )
-
-                        si['wavelet_rainbows'] = diags
-
-                    N = diags['N']
-
-                    fig, axes = plt.subplots(1,2,figsize = [12,6])
-
-                    plt.sca(axes[0])
-
-                    coi, scales = diags['0']['coi'], diags['0']['scales']
-                    coi_thresh = 0.4
-
-                    ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
-                    f0 = diags['0']['freqs'][ind][0]
-                    f1 = diags['0']['freqs'][ind][-1]
-
-                    plt.axvspan(f0, f1, color = 'r', alpha = 0.05, label = 'coi thresh = %.2f' %(coi_thresh))
-
-                    plt.legend(fontsize = 'large')
-
-                    colors = plt.cm.rainbow(np.linspace(0, 1, N))
-                    for i1 in range(N):
-                        plt.loglog(diags['%d'%(i1)]['freqs'], diags['%d'%(i1)]['PSD'], color = colors[i1], alpha = 0.5)
-                        
-                    try:
-                        freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']    
-                        plt.loglog(freqs_wl, PSD_wl, 'k--')
-                    except:
-                        print("WL Rainbow: no wl present...")
-
-
-                    plt.sca(axes[1])
-
-                    for i1 in range(N):
-                        plt.loglog(1/(2*diags['%d'%(i1)]['struc_funcs']['dts']/1000), diags['%d'%(i1)]['struc_funcs']['dBvecnorms'], color = colors[i1])
-
-
+                self.p_application(x)
             except:
                 raise ValueError("Func p: failed!")
             collect()
@@ -2300,7 +1922,385 @@ class TimeSeriesViewer:
         self.cid2 = self.fig.canvas.mpl_connect('key_press_event', self.on_key_event)
 
 
-    #-------- Obsolete --------#
+    #-------- p application --------#
+
+    def p_application(self, x):
+
+        i1 = self.FindSelectedIntervals(x)
+        selected_interval = self.selected_intervals[i1]
+        self.selected_interval = selected_interval
+        print("%s, %s" %(self.selected_interval['start_time'], self.selected_interval['end_time']))
+        si = self.selected_intervals[i1]
+        t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
+
+        # calculate the time series for later diagnostics
+        if len(self.p_funcs) > 0:
+            ind = (self.dfts.index > t0) & (self.dfts.index < t1)
+            dftemp = self.dfts.loc[ind]
+
+            # save the time series to dataframe
+            si['TimeSeries'] = dftemp
+            si['LTSWsettings'] = self.LTSWsettings
+
+            # save dfmag
+            ind = (self.dfmag_raw_high_res.index > t0) & (self.dfmag_raw_high_res.index <= t1)
+            si['dfmag_raw'] = self.dfmag_raw_high_res[ind]
+            ind = (self.dfmag_high_res.index > t0) & (self.dfmag_high_res.index <= t1)
+            si['dfmag'] = self.dfmag_high_res[ind]
+
+            # save dist_au to the dictionary
+            Btot = si['dfmag']['Btot']
+            Dist_au = self.dfts_raw0['Dist_au'].resample(pd.infer_freq(Btot.index)).interpolate()
+            self.selected_interval['Dist_au_raw'] = Dist_au[Btot.index]
+            r = Dist_au[Btot.index].values
+            self.selected_interval['Dist_au'] = r
+
+            
+            if (self.sc == 0):
+                si['par_settings'] = self.par_settings
+
+            if 'rescale_mag' in self.p_funcs.keys():
+                rescale_mag = self.p_funcs['rescale_mag']
+            else:
+                rescale_mag = False
+
+            # load the magnetic field data and create empty diagnostics
+            try:
+                # import the preloaded high resolution magnetic field data to save time
+                PreloadDiagnostics(
+                    si, 
+                    self.p_funcs, 
+                    resolution = self.high_res_resolution, 
+                    credentials = self.credentials,
+                    import_dfmag = {
+                        'dfmag_raw': si['dfmag_raw'],
+                        'dfmag': si['dfmag'],
+                        'infos': self.dfmag_infos
+                    },
+                    rescale_mag = rescale_mag
+                )
+            except:
+                raise ValueError("Import dfmag failed!")
+                PreloadDiagnostics(
+                    si, self.p_funcs, 
+                    resolution = self.high_res_resolution, credentials = self.credentials,
+                    rescale_mag = rescale_mag
+                )
+
+        # compare magnetic field rescaling
+        if 'compare_mag_rescale' in self.p_funcs.keys():
+            # calculate diagnostics without rescale
+            PreloadDiagnostics(
+                si, 
+                self.p_funcs, 
+                resolution = self.high_res_resolution, 
+                credentials = self.credentials,
+                import_dfmag = {
+                    'dfmag_raw': si['dfmag_raw'],
+                    'dfmag': si['dfmag'],
+                    'infos': self.dfmag_infos
+                },
+                rescale_mag = False
+            )
+            freqs_wl1, PSD_wl1 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
+
+            # calculate diagnostics with rescale
+            PreloadDiagnostics(
+                si, 
+                self.p_funcs, 
+                resolution = self.high_res_resolution, 
+                credentials = self.credentials,
+                import_dfmag = {
+                    'dfmag_raw': si['dfmag_raw'],
+                    'dfmag': si['dfmag'],
+                    'infos': self.dfmag_infos
+                },
+                rescale_mag = True
+            )
+            freqs_wl2, PSD_wl2 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
+
+            coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
+            freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
+
+            # show coi range, threshold = 80% under coi
+            if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
+                coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
+            else:
+                coi_thresh = 0.8
+            ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
+            import_coi = {
+                'range': [freqs_wl1[ind][0], freqs_wl1[ind][-1]],
+                'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
+            }
+
+            # plot the spectrum
+            self.bpfg_wl = BPFG(
+                    freqs_wl1, PSD_wl1, label = 'original',
+                    secondary = {
+                        'x': freqs_FFT,
+                        'y': PSD_FFT,
+                        'label': 'PSD_FFT'
+                    },
+                    third = {
+                        'x': freqs_wl2,
+                        'y': PSD_wl2,
+                        'label': 'rescaled'
+                    },
+                    import_coi = import_coi
+                    )
+            self.bpfg_wl.connect()
 
 
+        # histgram
+        if 'show_btot_histogram' in self.p_funcs.keys():
+            Btot = si['dfmag']['Btot']
+
+            # delete unphysical values
+            ind1 = Btot < 0.1
+            Btot[ind1] = np.nan
+            # Btot = Btot.interpolate()
+
+            # normalize with dist_au
+            r = si['Dist_au']
+            
+            
+            f = lambda x,a,b: a*x+b
+
+            results = curve_fit(f, np.log10(r), np.log10(Btot))
+            scale = -results[0][0]
+
+            Btot1 = Btot * ((r/np.mean(r))**scale)
+            bstd = np.std(Btot1)
+            bmean = np.mean(Btot1)
+
+            # keep ind
+            if 'discard_std' in self.p_funcs['show_btot_histogram'].keys():
+                nstd = self.p_funcs['show_btot_histogram']['discard_std']
+                print("Discarding %dstd!" %(nstd))
+                keep_ind = (Btot1 > bmean - nstd*bstd) & (Btot1 < bmean + nstd*bstd)
+                Btot1[np.invert(keep_ind)] = np.nan
+                discard_rate = 1-np.sum(keep_ind)/len(keep_ind)
+                # Btot1 = Btot1.interpolate()
+            else:
+                discard_rate = 0
+            
+            # show the histogram of Btot
+            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
+            
+            # show normality test
+            x = Btot1.values[np.invert(np.isnan(Btot1.values))]
+            if 'normality' in self.p_funcs['show_btot_histogram'].keys():
+                a1 = np.array([shapiro(np.random.choice(x, size=500, replace=False)).pvalue for i1 in range(10000)])
+                sa1 = np.sum(a1 > 0.05)/len(a1)
+                plt.title("Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'large')
+            else:
+                plt.title("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'large')
+
+            plt.sca(self.ax_btot_hist)
+            plt.hist(
+                Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'C2'
+            )
+            plt.hist(
+                Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
+            )
+            # plt.xlim([-1, np.max(Btot)*1.05])
+            plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
+            plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
+            plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
+            # over plot gaussian
+            x_data = np.linspace(np.mean(Btot1)-4*np.std(Btot1), np.mean(Btot1)+4*np.std(Btot1), 1000)
+            y_data = stats.norm.pdf(x_data, np.mean(Btot1), np.std(Btot1))
+            plt.plot(
+                x_data, y_data, 'k--'
+            )
+            plt.xlim([bmean-5*bstd, bmean+5*bstd])
+
+            plt.legend(fontsize = 'medium')
+
+
+        # psd
+        if 'PSD' in self.p_funcs.keys():
+
+            self.bpfg_PSD = BPFG(
+                si['PSD']['sm_freqs'], si['PSD']['sm_PSD'], label = 'sm_PSD_FFT',
+                secondary={
+                    'x': si['PSD']['freqs'],
+                    'y': si['PSD']['PSD'],
+                    'label': 'PSD_FFT'
+                },
+                diagnostics = si['PSD']['diagnostics']
+            )
+
+        # structure func: dB
+        if 'struc_funcs' in self.p_funcs.keys():
+
+            self.struc_funcs = si['struc_funcs']
+            struc_funcs = si['struc_funcs']
+
+            if self.p_funcs['struc_funcs'] == 1:
+                print("Showing dBvecnorms")
+                # freq /2 -> freq for FFT
+                self.bpfg = BPFG(
+                    1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecnorms'], 
+                    diagnostics = si['struc_funcs']['diagnostics']
+                    )
+            elif self.p_funcs['struc_funcs'] == 2:
+                print("Showing dBvecs")
+                self.bpfg = BPFG(
+                    1/(struc_funcs['dts']/1000*2), struc_funcs['dBvecs'], 
+                    diagnostics = si['struc_funcs']['diagnostics']
+                    )
+            elif self.p_funcs['struc_funcs'] == 3:
+                self.bpfg = BPFG(
+                    1/(struc_funcs['dts']/1000*2), struc_funcs['dBmodnorms'], 
+                    diagnostics = si['struc_funcs']['diagnostics']
+                    )
+            else:
+                raise ValueError("Wrong Struc_Func!")
+
+            self.bpfg.connect()
+            if np.nanmin(struc_funcs['dBvecnorms']) > 1e-1:
+                self.bpfg.arts['PSD']['ax'].set_ylim([1e-1,5e0])
+            elif np.nanmin(struc_funcs['dBvecnorms']) > 1e-2:
+                self.bpfg.arts['PSD']['ax'].set_ylim([1e-2,1e0])
+
+            
+        # wavelet PSD:
+        if 'wavelet_PSD' in self.p_funcs.keys():
+
+            self.wavelet_PSD = si['wavelet_PSD']
+            freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
+            freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
+            sm_freqs_FFT, sm_PSD_FFT = si['wavelet_PSD']['sm_freqs_FFT'], si['wavelet_PSD']['sm_PSD_FFT']
+
+            import_coi = None
+            try:
+                coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
+
+                # show coi range, threshold = 80% under coi
+                if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
+                    coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
+                else:
+                    coi_thresh = 0.8
+                ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
+
+                import_coi = {
+                    'range': [freqs_wl[ind][0], freqs_wl[ind][-1]],
+                    'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
+                }
+
+            except:
+                print("COI information is not present in wavelet_PSD")
+
+            if "incompressible_only" not in self.p_funcs['wavelet_PSD'].keys():
+                self.bpfg_wl = BPFG(
+                        freqs_wl, PSD_wl, label = 'PSD_WL',
+                        diagnostics = self.wavelet_PSD['diagnostics'],
+                        secondary = {
+                            'x': freqs_FFT,
+                            'y': PSD_FFT,
+                            'label': 'PSD_FFT'
+                        },
+                        third = {
+                            'x': sm_freqs_FFT,
+                            'y': sm_PSD_FFT,
+                            'label': 'sm_PSD_FFT'
+                        },
+                        import_coi = import_coi
+                        )
+                self.bpfg_wl.connect()
+
+
+            else:
+                Br, Bt, Bn, Btot = si['dfmag']['Bx'], si['dfmag']['By'], si['dfmag']['Bz'], si['dfmag']['Btot']
+                res = si['high_res_infos']['resolution']
+                Bmean = np.mean(Btot)
+                Bstd = np.std(Btot)
+                mode_list = ['2std','1std','10percent']
+                try:
+                    keep_mode = self.p_funcs['wavelet_PSD']['incompressible_only']['keep_mode']
+                    if keep_mode == '2std':
+                        keep_ind = (Btot > Bmean - 2*Bstd) & (Btot < Bmean + 2*Bstd)
+                    elif keep_mode == '1std':
+                        keep_ind = (Btot > Bmean - 1*Bstd) & (Btot < Bmean + 1*Bstd)
+                    elif keep_mode == '10percent':
+                        keep_ind = (Btot > Bmean*0.9) & (Btot < Bmean*1.1)
+                except:
+                    # default keep mode 2 std
+                    print("Supported modes: "+"".join(["%s, "%(s) for s in mode_list]))
+                    print("Using default: keep_mode == 2std")
+                    keep_mode = '2std'
+                    keep_ind = (Btot > Bmean - 2*Bstd) & (Btot < Bmean + 2*Bstd)
+
+                _,_,_,freqs_wl,PSD_wl,scales,coi = trace_PSD_wavelet(
+                    Br.values, Bt.values, Bn.values, res, 
+                    dj = 1./12, keep_ind = keep_ind
+                )
+
+                si['wavelet_PSD']['incompressible_only'] = {
+                    'freqs': freqs_wl,
+                    'PSD': PSD_wl,
+                    'scales': scales,
+                    'coi': coi,
+                    'Bmean': Bmean,
+                    'Bstd': Bstd,
+                    'keep_mode': keep_mode,
+                    'keep_ind': keep_ind
+                }
+
+                self.bpfg_wl = BPFG(
+                        freqs_wl, PSD_wl, label = 'PSD_WL_incompressible_only',
+                        diagnostics = self.wavelet_PSD['diagnostics'],
+                        secondary = {
+                            'x': si['wavelet_PSD']['freqs'],
+                            'y': si['wavelet_PSD']['PSD'],
+                            'label': 'PSD_WL'
+                        },
+                        import_coi = import_coi
+                        )
+                self.bpfg_wl.connect()
+
+
+        if 'wavelet_rainbow' in self.p_funcs.keys():
+            if 'wavelet_rainbows' in si.keys():
+                diags = si['wavelet_rainbows']
+            else:
+                diags = WaveletRainbow(
+                    si['dfmag'], si['high_res_infos']['resolution'] 
+                )
+
+                si['wavelet_rainbows'] = diags
+
+            N = diags['N']
+
+            fig, axes = plt.subplots(1,2,figsize = [12,6])
+
+            plt.sca(axes[0])
+
+            coi, scales = diags['0']['coi'], diags['0']['scales']
+            coi_thresh = 0.4
+
+            ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
+            f0 = diags['0']['freqs'][ind][0]
+            f1 = diags['0']['freqs'][ind][-1]
+
+            plt.axvspan(f0, f1, color = 'r', alpha = 0.05, label = 'coi thresh = %.2f' %(coi_thresh))
+
+            plt.legend(fontsize = 'large')
+
+            colors = plt.cm.rainbow(np.linspace(0, 1, N))
+            for i1 in range(N):
+                plt.loglog(diags['%d'%(i1)]['freqs'], diags['%d'%(i1)]['PSD'], color = colors[i1], alpha = 0.5)
+                
+            try:
+                freqs_wl, PSD_wl = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']    
+                plt.loglog(freqs_wl, PSD_wl, 'k--')
+            except:
+                print("WL Rainbow: no wl present...")
+
+
+            plt.sca(axes[1])
+
+            for i1 in range(N):
+                plt.loglog(1/(2*diags['%d'%(i1)]['struc_funcs']['dts']/1000), diags['%d'%(i1)]['struc_funcs']['dBvecnorms'], color = colors[i1])
 
