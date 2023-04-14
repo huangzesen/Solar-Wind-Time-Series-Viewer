@@ -1515,7 +1515,7 @@ class TimeSeriesViewer:
                     ax = axes[imkey_mother].twinx()
                     axes[imkey] = ax
                     imdf[cols].plot(ax = ax, style = styles, lw = 0.8, legend=False)
-                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,0), loc = 3)
                     if 'ylim' in twinx_dict.keys():
                         ax.set_ylim(twinx_dict['ylim'])
                     if 'yscale' in twinx_dict.keys():
@@ -1530,7 +1530,7 @@ class TimeSeriesViewer:
                     for i1 in range(len(ls)):
                         line = ls[i1]
                         line.set_data(imdf[cols[i1]].index, imdf[cols[i1]].values)
-                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,0), loc = 3)
                     if 'ylim' in twinx_dict.keys():
                         ax.set_ylim(twinx_dict['ylim'])
                     if 'yscale' in twinx_dict.keys():
