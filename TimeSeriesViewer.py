@@ -116,6 +116,7 @@ class TimeSeriesViewer:
         self.LTSWsettings = LTSWsettings
         self.p_funcs = p_funcs
         self.layout = layout
+        self.import_timeseries=None
 
         self.high_res_resolution = high_res_resolution
         self.skipPreLoadDiagnostics = False
@@ -1467,62 +1468,25 @@ class TimeSeriesViewer:
                 pass
 
         """import time series"""
-        import_dict = self.import_timeseries
-        imkey = import_dict['key']
-        imdf = import_dict['df']
-        styles = import_dict['styles']
-        labels = import_dict['labels']
-        cols = import_dict['columns']
-        if not(update):
-            try:
-                ax = axes[imkey]
-                imdf[cols].plot(ax = ax, style = styles, lw = 0.8, legend=False)
-                ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
-                if 'ylim' in import_dict.keys():
-                    ax.set_ylim(import_dict['ylim'])
-                if 'yscale' in import_dict.keys():
-                    ax.set_yscale(import_dict['yscale'])
-                lines[imkey] = ax.get_lines()
-            except:
-                raise ValueError('...')
-        else:
-            try:
-                ax = axes[imkey]
-                ls = lines[imkey]
-                for i1 in range(len(ls)):
-                    line = ls[i1]
-                    line.set_data(imdf[cols[i1]].index, imdf[cols[i1]].values)
-                ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
-                if 'ylim' in import_dict.keys():
-                    ax.set_ylim(import_dict['ylim'])
-                if 'yscale' in import_dict.keys():
-                    ax.set_yscale(import_dict['yscale'])
-                lines[imkey] = ax.get_lines()
-            except:
-                pass
-
-        """import time series twinx"""
-        if 'twinx' in self.import_timeseries.keys():
-            twinx_dict = self.import_timeseries['twinx']
-            imkey_mother = self.import_timeseries['key']
-            imkey = twinx_dict['key']
-            imdf = twinx_dict['df']
-            styles = twinx_dict['styles']
-            labels = twinx_dict['labels']
-            cols = twinx_dict['columns']
+        try:
+            import_dict = self.import_timeseries
+            imkey = import_dict['key']
+            imdf = import_dict['df']
+            styles = import_dict['styles']
+            labels = import_dict['labels']
+            cols = import_dict['columns']
             if not(update):
                 try:
-                    ax = axes[imkey_mother].twinx()
-                    axes[imkey] = ax
+                    ax = axes[imkey]
                     imdf[cols].plot(ax = ax, style = styles, lw = 0.8, legend=False)
-                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,0), loc = 3)
-                    if 'ylim' in twinx_dict.keys():
-                        ax.set_ylim(twinx_dict['ylim'])
-                    if 'yscale' in twinx_dict.keys():
-                        ax.set_yscale(twinx_dict['yscale'])
+                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    if 'ylim' in import_dict.keys():
+                        ax.set_ylim(import_dict['ylim'])
+                    if 'yscale' in import_dict.keys():
+                        ax.set_yscale(import_dict['yscale'])
                     lines[imkey] = ax.get_lines()
                 except:
-                    pass
+                    raise ValueError('...')
             else:
                 try:
                     ax = axes[imkey]
@@ -1530,14 +1494,54 @@ class TimeSeriesViewer:
                     for i1 in range(len(ls)):
                         line = ls[i1]
                         line.set_data(imdf[cols[i1]].index, imdf[cols[i1]].values)
-                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,0), loc = 3)
-                    if 'ylim' in twinx_dict.keys():
-                        ax.set_ylim(twinx_dict['ylim'])
-                    if 'yscale' in twinx_dict.keys():
-                        ax.set_yscale(twinx_dict['yscale'])
+                    ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,1), loc = 2)
+                    if 'ylim' in import_dict.keys():
+                        ax.set_ylim(import_dict['ylim'])
+                    if 'yscale' in import_dict.keys():
+                        ax.set_yscale(import_dict['yscale'])
                     lines[imkey] = ax.get_lines()
                 except:
                     pass
+
+            """import time series twinx"""
+            if 'twinx' in self.import_timeseries.keys():
+                twinx_dict = self.import_timeseries['twinx']
+                imkey_mother = self.import_timeseries['key']
+                imkey = twinx_dict['key']
+                imdf = twinx_dict['df']
+                styles = twinx_dict['styles']
+                labels = twinx_dict['labels']
+                cols = twinx_dict['columns']
+                if not(update):
+                    try:
+                        ax = axes[imkey_mother].twinx()
+                        axes[imkey] = ax
+                        imdf[cols].plot(ax = ax, style = styles, lw = 0.8, legend=False)
+                        ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,0), loc = 3)
+                        if 'ylim' in twinx_dict.keys():
+                            ax.set_ylim(twinx_dict['ylim'])
+                        if 'yscale' in twinx_dict.keys():
+                            ax.set_yscale(twinx_dict['yscale'])
+                        lines[imkey] = ax.get_lines()
+                    except:
+                        pass
+                else:
+                    try:
+                        ax = axes[imkey]
+                        ls = lines[imkey]
+                        for i1 in range(len(ls)):
+                            line = ls[i1]
+                            line.set_data(imdf[cols[i1]].index, imdf[cols[i1]].values)
+                        ax.legend(labels, fontsize='large', frameon=False, bbox_to_anchor=(1.02,0), loc = 3)
+                        if 'ylim' in twinx_dict.keys():
+                            ax.set_ylim(twinx_dict['ylim'])
+                        if 'yscale' in twinx_dict.keys():
+                            ax.set_yscale(twinx_dict['yscale'])
+                        lines[imkey] = ax.get_lines()
+                    except:
+                        pass
+        except:
+            pass
 
 
         # aesthetics
