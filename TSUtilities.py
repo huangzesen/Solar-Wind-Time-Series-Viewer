@@ -504,7 +504,7 @@ def trace_PSD_wavelet(
 
 # -----------  Drawing ----------- #
 
-def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw = 2):
+def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.04, lw = 2):
     """
     Draw shaded event area in time series
     Input:
