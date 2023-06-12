@@ -321,15 +321,15 @@ class TimeSeriesViewer:
         Bmod = (dfts['Br']**2 + dfts['Bt']**2 + dfts['Bn']**2).apply('sqrt')
         Bmod0 = (dfts['Br0']**2 + dfts['Bt0']**2 + dfts['Bn0']**2).apply('sqrt')
 
-        np = dfts['np'].interpolate(method='linear')
+        nproton = dfts['np'].interpolate(method='linear')
 
-        Va_r = 1e-15* dfts['Br']/np.sqrt(mu0*np*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-        Va_t = 1e-15* dfts['Bt']/np.sqrt(mu0*np*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-        Va_n = 1e-15* dfts['Bn']/np.sqrt(mu0*np*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_r = 1e-15* dfts['Br']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_t = 1e-15* dfts['Bt']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_n = 1e-15* dfts['Bn']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
 
-        Va_r0 = 1e-15* dfts['Br0']/np.sqrt(mu0*np*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-        Va_t0 = 1e-15* dfts['Bt0']/np.sqrt(mu0*np*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
-        Va_n0 = 1e-15* dfts['Bn0']/np.sqrt(mu0*np*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_r0 = 1e-15* dfts['Br0']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_t0 = 1e-15* dfts['Bt0']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
+        Va_n0 = 1e-15* dfts['Bn0']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
 
         vr = dfts['Vr'].interpolate(); vt = dfts['Vt'].interpolate(); vn = dfts['Vn'].interpolate(); 
         vr0 = dfts['Vr0']; vt0 = dfts['Vt0']; vn0 = dfts['Vn0']; 
