@@ -1534,6 +1534,8 @@ class TimeSeriesViewer:
                         if 'yscale' in twinx_dict.keys():
                             ax.set_yscale(twinx_dict['yscale'])
                         lines[imkey] = ax.get_lines()
+                        if 'axhline' in twinx_dict.keys():
+                            ax.axhline(y=twinx_dict['axhline']['y'], color=twinx_dict['axhline']['color'], ls = twinx_dict['axhline']['ls'], lw = twinx_dict['axhline']['lw'])
                     except:
                         pass
                 else:
