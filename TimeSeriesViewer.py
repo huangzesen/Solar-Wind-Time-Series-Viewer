@@ -1496,6 +1496,8 @@ class TimeSeriesViewer:
                     if 'yscale' in import_dict.keys():
                         ax.set_yscale(import_dict['yscale'])
                     lines[imkey] = ax.get_lines()
+                    if 'axhline' in import_dict.keys():
+                        ax.axhline(y=import_dict['axhline']['y'], color=import_dict['axhline']['color'], ls = import_dict['axhline']['ls'], lw = import_dict['axhline']['lw'])
                 except:
                     raise ValueError('...')
             else:
