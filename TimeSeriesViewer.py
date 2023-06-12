@@ -290,6 +290,7 @@ class TimeSeriesViewer:
 
         dfts = self.dfts_raw.copy()
         resample_rate = self.resample_rate
+        rolling_rate = self.rolling_rate
         verbose = self.verbose
 
         """resample the time series"""
@@ -332,7 +333,7 @@ class TimeSeriesViewer:
         Va_n0 = 1e-15* dfts['Bn0']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
 
         vr = dfts['Vr'].interpolate(); vt = dfts['Vt'].interpolate(); vn = dfts['Vn'].interpolate(); 
-        vr0 = dfts['Vr'].rolling('10min').mean(); vt0 = dfts['Vt0'].rolling('10min').mean(); vn0 = dfts['Vn0'].rolling('10min').mean(); 
+        vr0 = dfts['Vr'].rolling(rolling_rate).mean(); vt0 = dfts['Vt0'].rolling(rolling_rate).mean(); vn0 = dfts['Vn0'].rolling(rolling_rate).mean(); 
 
         # # Estimate fluctuations of fields #
         # va_r = Va_r - np.nanmean(Va_r);   v_r = vr - np.nanmean(vr)
