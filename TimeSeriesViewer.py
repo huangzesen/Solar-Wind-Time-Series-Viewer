@@ -354,7 +354,7 @@ class TimeSeriesViewer:
         va_n = Va_n - Va_n0   
         v_r = vr - vr0
         v_t = vt - vt0
-        v_n = vn# - vn0
+        v_n = vn - vn0
 
         Z_plus_squared  = (v_r + va_r)**2 +  (v_t + va_t)**2 + ( v_n + va_n)**2
         Z_minus_squared = (v_r - va_r)**2 +  (v_t - va_t)**2 + ( v_n - va_n)**2
