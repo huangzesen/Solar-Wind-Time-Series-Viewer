@@ -320,6 +320,14 @@ class TimeSeriesViewer:
         """Diagnostics"""
 
         Bmod = (dfts['Br']**2 + dfts['Bt']**2 + dfts['Bn']**2).apply('sqrt')
+
+        dfts['Br0'] = dfts['Br'].rolling(rolling_rate).mean()
+        dfts['Bt0'] = dfts['Bt'].rolling(rolling_rate).mean()
+        dfts['Bn0'] = dfts['Bn'].rolling(rolling_rate).mean()
+        dfts['Vr0'] = dfts['Vr'].rolling(rolling_rate).mean()
+        dfts['Vt0'] = dfts['Vt'].rolling(rolling_rate).mean()
+        dfts['Vn0'] = dfts['Vn'].rolling(rolling_rate).mean()
+
         Bmod0 = (dfts['Br0']**2 + dfts['Bt0']**2 + dfts['Bn0']**2).apply('sqrt')
 
         nproton = dfts['np'].interpolate(method='linear')
@@ -333,7 +341,7 @@ class TimeSeriesViewer:
         Va_n0 = 1e-15* dfts['Bn0']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
 
         vr = dfts['Vr'].interpolate(); vt = dfts['Vt'].interpolate(); vn = dfts['Vn'].interpolate(); 
-        vr0 = dfts['Vr'].rolling(rolling_rate).mean(); vt0 = dfts['Vt0'].rolling(rolling_rate).mean(); vn0 = dfts['Vn0'].rolling(rolling_rate).mean(); 
+        vr0 = dfts['Vr0']; vt0 = dfts['Vt0']; vn0 = dfts['Vn0']; 
 
         # # Estimate fluctuations of fields #
         # va_r = Va_r - np.nanmean(Va_r);   v_r = vr - np.nanmean(vr)
