@@ -300,9 +300,9 @@ class TimeSeriesViewer:
 
         # remove outliers using hampel filter
         if self.use_hampel:
-            for k in dfts.columns:
-                outliers_indices = hampel(dfts[k], window_size = 20, n = 3)
-                dfts.iloc[k, outliers_indices] = np.nan
+            for k in ['Vr','Vt','Vn','np']:
+                outliers_indices = hampel(dfts[k], window_size = 100, n = 10)
+                dfts.loc[dfts.index[outliers_indices], k] = np.nan
 
 
         """Modulus of vectors"""
