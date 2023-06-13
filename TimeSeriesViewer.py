@@ -19,6 +19,7 @@ from pathlib import Path
 from glob import glob
 from gc import collect
 import warnings
+from hampel import hampel
 
 from datetime import datetime
 
@@ -117,6 +118,7 @@ class TimeSeriesViewer:
         self.p_funcs = p_funcs
         self.layout = layout
         self.import_timeseries=None
+        self.use_hampel = True
 
         self.high_res_resolution = high_res_resolution
         self.skipPreLoadDiagnostics = False
@@ -295,6 +297,12 @@ class TimeSeriesViewer:
 
         """resample the time series"""
         dfts = dfts.resample(resample_rate).mean()
+
+        # remove outliers using hampel filter
+        if self.use_hampel:
+            for k in dfts.columns:
+                outliers_indices = hampel(dfts[k], window_size = 20, n = 3)
+                dfts.loc[outliers_indices, k] = np.nan
 
 
         """Modulus of vectors"""
