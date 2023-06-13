@@ -2126,7 +2126,7 @@ class TimeSeriesViewer:
                 Btot1, bins = 200, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
             )
             plt.hist(
-                Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
+                Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
             )
             # plt.xlim([-1, np.max(Btot)*1.05])
             plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
