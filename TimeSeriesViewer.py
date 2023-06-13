@@ -1946,7 +1946,7 @@ class TimeSeriesViewer:
 
     #-------- p application --------#
 
-    def p_application(self, x):
+    def p_application(self, x, additional_settings = {}):
 
         i1 = self.FindSelectedIntervals(x)
         selected_interval = self.selected_intervals[i1]
@@ -2123,6 +2123,9 @@ class TimeSeriesViewer:
                 Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'C2'
             )
             plt.hist(
+                Btot1, bins = 200, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
+            )
+            plt.hist(
                 Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkblue', ls = '--', alpha = 0.7
             )
             # plt.xlim([-1, np.max(Btot)*1.05])
@@ -2136,6 +2139,9 @@ class TimeSeriesViewer:
                 x_data, y_data, 'k--'
             )
             plt.xlim([bmean-5*bstd, bmean+5*bstd])
+
+            if 'yscale' in additional_settings.keys():
+                plt.yscale(additional_settings['yscale'])
 
             plt.legend(fontsize = 'medium')
 
