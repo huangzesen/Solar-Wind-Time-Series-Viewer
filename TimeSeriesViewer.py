@@ -2120,7 +2120,7 @@ class TimeSeriesViewer:
 
             plt.sca(self.ax_btot_hist)
             plt.hist(
-                Btot1, bins = 200, histtype = 'step', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'C2'
+                Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
             )
             plt.hist(
                 Btot1, bins = 200, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
