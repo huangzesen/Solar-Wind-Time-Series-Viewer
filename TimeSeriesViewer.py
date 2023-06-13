@@ -302,7 +302,7 @@ class TimeSeriesViewer:
         if self.use_hampel:
             for k in dfts.columns:
                 outliers_indices = hampel(dfts[k], window_size = 20, n = 3)
-                dfts.loc[outliers_indices, k] = np.nan
+                dfts.iloc[k, outliers_indices] = np.nan
 
 
         """Modulus of vectors"""
