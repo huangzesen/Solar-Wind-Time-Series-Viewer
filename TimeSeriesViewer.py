@@ -2119,9 +2119,9 @@ class TimeSeriesViewer:
                 plt.title("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'large')
 
             plt.sca(self.ax_btot_hist)
-            plt.hist(
-                Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
-            )
+            # plt.hist(
+            #     Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
+            # )
             plt.hist(
                 Btot1, bins = 200, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
             )
