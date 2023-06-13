@@ -300,9 +300,9 @@ class TimeSeriesViewer:
 
         # remove outliers using hampel filter
         if self.use_hampel:
-            for k in ['Vr','Vt','Vn','np']:
+            for k in ['Vr','Vt','Vn','np','V_th']:
                 print("Filtering... "+k)
-                outliers_indices = hampel(dfts[k], window_size = 40, n = 5)
+                outliers_indices = hampel(dfts[k], window_size = 50, n = 10)
                 dfts.loc[dfts.index[outliers_indices], k] = np.nan
 
 
@@ -867,13 +867,13 @@ class TimeSeriesViewer:
             try:
                 ax = axes['vsw']
                 # speeds
-                dfts[['V']].plot(ax = ax, legend=False, style=['C2'], lw = 0.8)
+                dfts[['vsw']].plot(ax = ax, legend=False, style=['C2'], lw = 0.8)
                 ax.legend(['Vsw[km/s]'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 1), loc = 2)
                 # ax.set_xticks([], minor=True)
                 # ax.set_xticks([])
                 # ax.set_xlabel('')
                 # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                if dfts[['V']].max() < 700:
+                if dfts[['vsw']].max() < 700:
                     ax.set_ylim([100,700])
                 else:
                     ax.set_ylim([300,900])
@@ -891,7 +891,7 @@ class TimeSeriesViewer:
                 # ax.set_xticks([])
                 # ax.set_xlabel('')
                 # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                if dfts[['V']].max() < 700:
+                if dfts[['vsw']].max() < 700:
                     ax.set_ylim([100,700])
                 else:
                     ax.set_ylim([300,900])
