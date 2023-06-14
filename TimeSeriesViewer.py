@@ -119,6 +119,7 @@ class TimeSeriesViewer:
         self.layout = layout
         self.import_timeseries=None
         self.use_hampel = True
+        self.figsize = None
 
         self.high_res_resolution = high_res_resolution
         self.skipPreLoadDiagnostics = False
@@ -477,10 +478,15 @@ class TimeSeriesViewer:
     
     def AxesInit(self):
         """ Initialize Axes """
-        if self.import_timeseries is None:
-            fig, axes = plt.subplots(6,1, figsize = [20,10], layout=self.layout)
+        if self.figsize is None:
+            figsize = [20,10]
         else:
-            fig, axes = plt.subplots(7,1, figsize = [20,10], layout=self.layout)
+            figsize = self.figsize
+        
+        if self.import_timeseries is None:
+            fig, axes = plt.subplots(6,1, figsize = figsize, layout=self.layout)
+        else:
+            fig, axes = plt.subplots(7,1, figsize = figsize, layout=self.layout)
         
         self.fig = fig
         self.axeslist = axes
