@@ -302,6 +302,7 @@ def curve_fit_log(xdata, ydata) :
 
 # ----------- Wavelet ------------ #
 import pycwt as wavelet
+mother_morlet = wavelet.Morlet(f0=12)
 mother_wave_dict = {
     'gaussian': wavelet.DOG(),
     'paul': wavelet.Paul(),
@@ -416,7 +417,7 @@ def estimate_PSD_wavelets_all_intervals(db_x, db_y, db_z, angles, freqs,   dt,  
 
 def trace_PSD_wavelet(
         x, y, z, dt, dj,  
-        mother_wave='morlet', 
+        mother_wave=wavelet.Morlet(f0=12), 
         consider_coi=True,
         keep_ind = None
     ):
