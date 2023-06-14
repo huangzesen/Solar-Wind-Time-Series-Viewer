@@ -1961,7 +1961,7 @@ class TimeSeriesViewer:
 
     #-------- p application --------#
 
-    def p_application(self, x, additional_settings = {}):
+    def p_application(self, x, additional_settings = {}, check_exist=True):
 
         i1 = self.FindSelectedIntervals(x)
         selected_interval = self.selected_intervals[i1]
@@ -2014,7 +2014,8 @@ class TimeSeriesViewer:
                         'dfmag': si['dfmag'],
                         'infos': self.dfmag_infos
                     },
-                    rescale_mag = rescale_mag
+                    rescale_mag = rescale_mag,
+                    check_exist = check_exist
                 )
             except:
                 raise ValueError("Import dfmag failed!")
