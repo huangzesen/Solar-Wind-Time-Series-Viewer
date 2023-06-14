@@ -2134,9 +2134,9 @@ class TimeSeriesViewer:
                 plt.title("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'large')
 
             plt.sca(self.ax_btot_hist)
-            plt.hist(
-                Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
-            )
+            # plt.hist(
+            #     Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
+            # )
             plt.hist(
                 Btot1, bins = 200, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
             )
@@ -2147,6 +2147,10 @@ class TimeSeriesViewer:
             plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
             plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
             plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
+            plt.axvspan(
+                bmean-3*bstd, bmean+3*bstd,
+                alpha = 0.1, color = 'r', label = r'$3\sigma$'
+            )
             # over plot gaussian
             x_data = np.linspace(np.mean(Btot1)-4*np.std(Btot1), np.mean(Btot1)+4*np.std(Btot1), 1000)
             y_data = stats.norm.pdf(x_data, np.mean(Btot1), np.std(Btot1))
