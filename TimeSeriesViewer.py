@@ -303,7 +303,10 @@ class TimeSeriesViewer:
         if self.use_hampel:
             for k in ['Vr','Vt','Vn','np','Vth']:
                 print("Filtering... "+k)
-                outliers_indices = hampel(dfts[k], window_size = 50, n = 10)
+                if self.hampel_settings is not None:
+                    ws_hampel = self.hampel_settings['window_size']
+                    n_hampel = self.hampel_settings['n']
+                outliers_indices = hampel(dfts[k], window_size = ws_hampel, n = n_hampel)
                 dfts.loc[dfts.index[outliers_indices], k] = np.nan
 
 
