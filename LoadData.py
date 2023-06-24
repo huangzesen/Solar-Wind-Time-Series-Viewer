@@ -1029,7 +1029,6 @@ def LoadTimeSeriesPSP(
         'dfspc': dfspc,
         'dfspan': dfspan,
         'dfspan_a': dfspan_a,
-        
         'parmode': parmode,
         'settings': settings,
         'dfpar': dfpar,
