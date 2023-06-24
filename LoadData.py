@@ -1007,15 +1007,18 @@ def LoadTimeSeriesPSP(
 
     
     if 'local_carr_lon' in settings.keys():
-        print("Loading local carr lon from %s" %(Path(settings['local_carr_lon']).absolute()))
-        df_carr = pd.read_pickle(settings['local_carr_lon'])
-        ind = (df_carr.index > start_time - pd.Timedelta('1d')) & (df_carr.index < end_time + pd.Timedelta('1d'))
-        df_carr = df_carr[ind]
-        df_carr = df_carr.resample(freq).interpolate()
+        try:
+            print("Loading local carr lon from %s" %(Path(settings['local_carr_lon']).absolute()))
+            df_carr = pd.read_pickle(settings['local_carr_lon'])
+            ind = (df_carr.index > start_time - pd.Timedelta('1d')) & (df_carr.index < end_time + pd.Timedelta('1d'))
+            df_carr = df_carr[ind]
+            df_carr = df_carr.resample(freq).interpolate()
 
-        dfts.drop(columns = ['carr_lon','carr_lat'], inplace=True)
-        dfts = dfts.join(df_carr)
-        
+            dfts.drop(columns = ['carr_lon','carr_lat'], inplace=True)
+            dfts = dfts.join(df_carr)
+        except:
+            print("No corresponding carr lon from %s" %(Path(settings['local_carr_lon']).absolute()))
+            df_carr = None
 
     else:
         df_carr = None
