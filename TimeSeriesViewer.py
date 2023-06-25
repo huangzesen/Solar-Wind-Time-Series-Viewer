@@ -5,6 +5,7 @@ from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib
 from packaging import version
+from scipy.interpolate import interp1d
 
 import numpy as np
 from scipy import stats
@@ -46,7 +47,7 @@ from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries,
 from BreakPointFinderGeneral import BreakPointFinder as BPFG
 from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
 from WaveletRainbow import WaveletRainbow
-from scipy.stats import shapiro
+from scipy.stats import shapiro, kstest
 # from BreakPointFinderLite import BreakPointFinder
 # from StructureFunctions import MagStrucFunc
 # from TurbPy import trace_PSD_wavelet
@@ -1968,12 +1969,16 @@ class TimeSeriesViewer:
 
     #-------- p application --------#
 
-    def p_application(self, x, additional_settings = {}, check_exist=True):
+    def p_application(self, x, additional_settings = {}, check_exist=True, interval_index=None):
 
-        i1 = self.FindSelectedIntervals(x)
+        if interval_index is None:
+            i1 = self.FindSelectedIntervals(x)
+        else:
+            i1 = interval_index
+
         selected_interval = self.selected_intervals[i1]
         self.selected_interval = selected_interval
-        print("%s, %s" %(self.selected_interval['start_time'], self.selected_interval['end_time']))
+        print("%s, %s, len=%s" %(self.selected_interval['start_time'], self.selected_interval['end_time'], self.selected_interval['end_time']-self.selected_interval['start_time']))
         si = self.selected_intervals[i1]
         t0 = selected_interval['start_time']; t1 = selected_interval['end_time']
 
@@ -2031,6 +2036,8 @@ class TimeSeriesViewer:
                     resolution = self.high_res_resolution, credentials = self.credentials,
                     rescale_mag = rescale_mag
                 )
+
+        print("Rmin=%.2f, Rmax=%.2f, Rmean=%.2f" %(selected_interval['TimeSeries']['Dist_au'].min()*au_to_rsun, selected_interval['TimeSeries']['Dist_au'].max()*au_to_rsun, selected_interval['TimeSeries']['Dist_au'].mean()*au_to_rsun))
 
         # compare magnetic field rescaling
         if 'compare_mag_rescale' in self.p_funcs.keys():
@@ -2098,25 +2105,42 @@ class TimeSeriesViewer:
 
         # histgram
         if 'show_btot_histogram' in self.p_funcs.keys():
-            Btot = si['dfmag']['Btot']
 
-            # delete unphysical values
-            ind1 = Btot < 0.1
-            Btot[ind1] = np.nan
-            # Btot = Btot.interpolate()
+            Btot = si['dfmag_raw']['Btot']
+            Dist_au = si['Dist_au_raw']
 
-            # normalize with dist_au
-            r = si['Dist_au']
-            
-            
-            f = lambda x,a,b: a*x+b
+            print('Interpolating Dist_au...')
 
-            results = curve_fit(f, np.log10(r), np.log10(Btot))
-            scale = -results[0][0]
+            # interpolate Dist_au with scipy.interpolate.interp1d
+            ts = np.array([t.timestamp() for t in Dist_au.index])
+            f_dist_au = interp1d(ts, Dist_au.values, 'linear', fill_value='extrapolate')
 
+            # create Btot unix index
+            Btot_index_unix = np.array([t.timestamp() for t in Btot.index])
+            ts = Btot_index_unix
+
+            # print the input value range and Btot index range
+            print('Dist_au: %s - %s' %(Dist_au.index[0], Dist_au.index[-1]))
+            print('Btot: %s - %s' %(Btot.index[0], Btot.index[-1]))
+            print('Btot cadance: %s' %(Btot.index[1]-Btot.index[0]))
+            print('Total Points: %d' %(len(Btot)))
+
+            r = f_dist_au(ts)
+
+            # find the rescaling scale with r
+            ind = np.invert((np.isnan(r)) | np.isnan(Btot))
+            f = lambda x, a, b: a*x+b
+            rfit = curve_fit(f, np.log10(r[ind]), np.log10(Btot[ind]))
+            scale = -rfit[0][0]
+
+            # normalize btot with r
             Btot1 = Btot * ((r/np.mean(r))**scale)
-            bstd = np.std(Btot1)
-            bmean = np.mean(Btot1)
+
+            # dist ratio
+            r_ratio = np.max(r)/np.min(r)
+
+            bmean = np.nanmean(Btot1)
+            bstd = np.nanstd(Btot1)
 
             # keep ind
             if 'discard_std' in self.p_funcs['show_btot_histogram'].keys():
@@ -2130,18 +2154,30 @@ class TimeSeriesViewer:
                 discard_rate = 0
             
             # show the histogram of Btot
-            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,1,figsize=(6,6))
+            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,2,figsize=(11,5), layout='constrained')
             
             # show normality test
-            x = Btot1.values[np.invert(np.isnan(Btot1.values))]
+            x = (Btot1.values[np.invert(np.isnan(Btot1.values))] - bmean)/bstd
             if 'normality' in self.p_funcs['show_btot_histogram'].keys():
-                a1 = np.array([shapiro(np.random.choice(x, size=500, replace=False)).pvalue for i1 in range(10000)])
-                sa1 = np.sum(a1 > 0.05)/len(a1)
-                plt.title("Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'large')
-            else:
-                plt.title("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'large')
+                if 'downsample_size' in self.p_funcs['show_btot_histogram'].keys():
+                    downsample_size = self.p_funcs['show_btot_histogram']['downsample_size']
+                else:
+                    downsample_size = 2000
 
-            plt.sca(self.ax_btot_hist)
+                if 'Ntest' in self.p_funcs['show_btot_histogram'].keys():
+                    Ntest = self.p_funcs['show_btot_histogram']['Ntest']
+                else:
+                    Ntest = 2000
+
+                print('downsample_size: %d, Ntest: %d' %(downsample_size, Ntest))
+                
+                a1 = np.array([kstest(np.random.choice(x, size=downsample_size, replace=False), 'norm').pvalue for i1 in range(Ntest)])
+                sa1 = np.sum(a1 > 0.05)/len(a1)
+                plt.suptitle("KStest Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'x-large')
+            else:
+                plt.suptitle("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'x-large')
+
+            plt.sca(self.ax_btot_hist[0])
             plt.hist(
                 Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
             )
@@ -2166,10 +2202,36 @@ class TimeSeriesViewer:
                 x_data, y_data, 'k--'
             )
             plt.xlim([bmean-5*bstd, bmean+5*bstd])
+            plt.legend(fontsize = 'medium')
 
-            if 'yscale' in additional_settings.keys():
-                plt.yscale(additional_settings['yscale'])
+            # ------------------------------- #
 
+            plt.sca(self.ax_btot_hist[1])
+            plt.hist(
+                Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
+            )
+            plt.hist(
+                Btot1, bins = 200, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
+            )
+            plt.hist(
+                Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
+            )
+            # plt.xlim([-1, np.max(Btot)*1.05])
+            plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
+            plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
+            plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
+            plt.axvspan(
+                bmean-3*bstd, bmean+3*bstd,
+                alpha = 0.1, color = 'r', label = r'$3\sigma$'
+            )
+            # over plot gaussian
+            x_data = np.linspace(np.mean(Btot1)-4*np.std(Btot1), np.mean(Btot1)+4*np.std(Btot1), 1000)
+            y_data = stats.norm.pdf(x_data, np.mean(Btot1), np.std(Btot1))
+            plt.plot(
+                x_data, y_data, 'k--'
+            )
+            plt.semilogy()
+            plt.xlim([bmean-5*bstd, bmean+5*bstd])
             plt.legend(fontsize = 'medium')
 
 
