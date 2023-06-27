@@ -2038,6 +2038,7 @@ class TimeSeriesViewer:
                 )
 
         print("Rmin=%.2f, Rmax=%.2f, Rmean=%.2f" %(selected_interval['TimeSeries']['Dist_au'].min()*au_to_rsun, selected_interval['TimeSeries']['Dist_au'].max()*au_to_rsun, selected_interval['TimeSeries']['Dist_au'].mean()*au_to_rsun))
+        print("MAlfven_min=%.2f, MAlfven_max=%.2f, MAlfven_mean=%.2f" %(selected_interval['TimeSeries']['malfven'].min(), selected_interval['TimeSeries']['malfven'].max(), selected_interval['TimeSeries']['malfven'].mean()))
 
         # compare magnetic field rescaling
         if 'compare_mag_rescale' in self.p_funcs.keys():
@@ -2127,8 +2128,13 @@ class TimeSeriesViewer:
 
             r = f_dist_au(ts)
 
+            # get rid of weird values in Btot
+            print('Cleaning Btot, %d out of %d is less than 0.1 nT' %(np.sum(Btot < 0.1), len(Btot)))
+            Btot.loc[Btot.index[Btot < 0.1]] = np.nan
+
             # find the rescaling scale with r
             ind = np.invert((np.isnan(r)) | np.isnan(Btot))
+
             f = lambda x, a, b: a*x+b
             rfit = curve_fit(f, np.log10(r[ind]), np.log10(Btot[ind]))
             scale = -rfit[0][0]
@@ -2157,7 +2163,7 @@ class TimeSeriesViewer:
             self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,2,figsize=(11,5), layout='constrained')
             
             # show normality test
-            x = (Btot1.values[np.invert(np.isnan(Btot1.values))] - bmean)/bstd
+            x = (Btot1.values[np.invert(np.isnan(Btot1.values))])
             if 'normality' in self.p_funcs['show_btot_histogram'].keys():
                 if 'downsample_size' in self.p_funcs['show_btot_histogram'].keys():
                     downsample_size = self.p_funcs['show_btot_histogram']['downsample_size']
@@ -2171,6 +2177,7 @@ class TimeSeriesViewer:
 
                 print('downsample_size: %d, Ntest: %d' %(downsample_size, Ntest))
                 
+                x = (x-np.nanmean(x))/np.nanstd(x)
                 a1 = np.array([kstest(np.random.choice(x, size=downsample_size, replace=False), 'norm').pvalue for i1 in range(Ntest)])
                 sa1 = np.sum(a1 > 0.05)/len(a1)
                 plt.suptitle("KStest Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'x-large')
@@ -2188,8 +2195,8 @@ class TimeSeriesViewer:
                 Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
             )
             # plt.xlim([-1, np.max(Btot)*1.05])
-            plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
-            plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
+            plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot1)))
+            plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot1)))
             plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
             plt.axvspan(
                 bmean-3*bstd, bmean+3*bstd,
@@ -2217,8 +2224,8 @@ class TimeSeriesViewer:
                 Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
             )
             # plt.xlim([-1, np.max(Btot)*1.05])
-            plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot)))
-            plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot)))
+            plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot1)))
+            plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot1)))
             plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
             plt.axvspan(
                 bmean-3*bstd, bmean+3*bstd,
