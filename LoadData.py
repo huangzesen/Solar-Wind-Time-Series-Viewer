@@ -1004,6 +1004,8 @@ def LoadTimeSeriesPSP(
             dfts['Dist_au'] = (dfe[['sc_pos_r','sc_pos_t','sc_pos_n']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
         except:
             raise ValueError("Ephemeris could not be loaded!")
+    else:
+        dfe = None
 
     
     if 'local_carr_lon' in settings.keys():
