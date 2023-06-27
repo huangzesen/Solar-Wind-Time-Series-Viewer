@@ -73,7 +73,9 @@ class TimeSeriesViewer:
         p_funcs = {'PSD':True},
         LTSWsettings = {},
         layout = None,
-        high_res_resolution = None
+        high_res_resolution = None,
+        use_hampel_raw = True,
+        hampel_settings = None
     ):
         """ Initialize the class """
 
@@ -119,7 +121,9 @@ class TimeSeriesViewer:
         self.p_funcs = p_funcs
         self.layout = layout
         self.import_timeseries=None
-        self.use_hampel = True
+        self.use_hampel = False
+        self.use_hampel_raw = use_hampel_raw
+        self.hampel_settings = hampel_settings
         self.figsize = None
 
         self.high_res_resolution = high_res_resolution
@@ -137,7 +141,7 @@ class TimeSeriesViewer:
         print("Done.")
 
 
-    def PreLoadSCDataFrame(self):
+    def PreLoadSCDataFrame(self): 
         """ 
         Preload Spacecraft dataframe 
         """
@@ -192,7 +196,25 @@ class TimeSeriesViewer:
                     else:
                         print("%s not in columns...!" %(k))
 
+        # apply hampel filter
+        if self.use_hampel_raw == True:
+            print("Applying Hampel filter...")
+            if self.hampel_settings is not None:
+                ws_hampel = self.hampel_settings['window_size']
+                n_hampel = self.hampel_settings['n']
+            else:
+                ws_hampel = 100
+                n_hampel = 3
 
+            print("Window size: %s, n: %s" %(ws_hampel, n_hampel))
+
+            for k in ['Vr','Vt','Vn','np','Vth']:
+                print("Filtering... "+k)
+                
+                outliers_indices = hampel(dfts_raw0[k], window_size = ws_hampel, n = n_hampel)
+                dfts_raw0.loc[dfts_raw0.index[outliers_indices], k] = np.nan
+
+        # setting value
         self.dfts_raw0 = dfts_raw0
         self.dfts_misc = misc
 
