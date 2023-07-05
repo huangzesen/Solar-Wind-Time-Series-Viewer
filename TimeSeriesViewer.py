@@ -198,6 +198,9 @@ class TimeSeriesViewer:
 
         # apply hampel filter
         if self.use_hampel_raw == True:
+
+            self.hampel_results = {}
+
             print("Applying Hampel filter...")
             if self.hampel_settings is not None:
                 ws_hampel = self.hampel_settings['window_size']
@@ -208,15 +211,30 @@ class TimeSeriesViewer:
 
             print("Window size: %s, n: %s" %(ws_hampel, n_hampel))
 
-            for k in ['Vr','Vt','Vn','np','Vth']:
-                print("Filtering... "+k)
-                
-                outliers_indices = hampel(dfts_raw0[k], window_size = ws_hampel, n = n_hampel)
-                dfts_raw0.loc[dfts_raw0.index[outliers_indices], k] = np.nan
+            for kraw in ['Vr','Vt','Vn','np','Vth']:
+                for ins in ['span','spc']:
+                    k = kraw+'_'+ins
+                    try:
+                        outliers_indices = hampel(dfts_raw0[k], window_size = ws_hampel, n = n_hampel)
+                        dfts_raw0.loc[dfts_raw0.index[outliers_indices], k] = np.nan
+                        self.hampel_results[k] = {
+                            'window_size': ws_hampel,
+                            'n': n_hampel,
+                            'outliers_indices': outliers_indices,
+                            'outliers_values': dfts_raw0[k][outliers_indices],
+                            'outliers_index': dfts_raw0.index[outliers_indices],
+                            'outliers_count': len(outliers_indices),
+                            'total_count': len(dfts_raw0[k]),
+                            'outliers_percent': float(len(outliers_indices))/len(dfts_raw0[k]),
+                        }
+                        print("Filtering: %s, outliers ratio: %.4f"%(k, float(len(outliers_indices))/len(dfts_raw0[k])))
+                    except:
+                        print("key: %s does not exist!" %(k))
 
         # setting value
         self.dfts_raw0 = dfts_raw0
         self.dfts_misc = misc
+
 
 
     def PrepareTimeSeries(
@@ -291,6 +309,7 @@ class TimeSeriesViewer:
 
         # collect garbage
         collect()
+
 
 
     def CheckTimeBoundary(self):
@@ -2173,9 +2192,9 @@ class TimeSeriesViewer:
             # keep ind
             if 'discard_std' in self.p_funcs['show_btot_histogram'].keys():
                 nstd = self.p_funcs['show_btot_histogram']['discard_std']
-                print("Discarding %dstd!" %(nstd))
                 keep_ind = (Btot1 > bmean - nstd*bstd) & (Btot1 < bmean + nstd*bstd)
                 Btot1[np.invert(keep_ind)] = np.nan
+                print("Discarding %dstd, %d out of %d, percentage: %.4f" %(nstd, np.sum(np.invert(keep_ind)), len(keep_ind), np.sum(np.invert(keep_ind))/len(keep_ind)))
                 discard_rate = 1-np.sum(keep_ind)/len(keep_ind)
                 # Btot1 = Btot1.interpolate()
             else:

@@ -397,7 +397,7 @@ def norm_factor_Gauss_window(scales, dt):
 
 from numba import prange
 
-@jit( parallel =True)
+@njit( parallel =True)
 def estimate_PSD_wavelets_all_intervals(db_x, db_y, db_z, angles, freqs,   dt,  per_thresh, par_thresh):
 
     PSD_par = np.zeros(len(freqs))
