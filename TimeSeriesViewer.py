@@ -20,11 +20,12 @@ from pathlib import Path
 from glob import glob
 from gc import collect
 import warnings
-from hampel import hampel
+# from hampel import hampel
 
 from datetime import datetime
 
 from scipy.optimize import curve_fit
+from scipy.spatial.distance import jensenshannon
 
 # SPDF API
 from cdasws import CdasWs
@@ -43,7 +44,7 @@ au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
 
-from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries, smoothing_function, TracePSD, PreloadDiagnostics, trace_PSD_wavelet
+from TSUtilities import SolarWindCorrelationLength, DrawShadedEventInTimeSeries, smoothing_function, TracePSD, PreloadDiagnostics, trace_PSD_wavelet, hampel
 from BreakPointFinderGeneral import BreakPointFinder as BPFG
 from LoadData import LoadTimeSeriesWrapper, LoadHighResMagWrapper
 from WaveletRainbow import WaveletRainbow
@@ -205,17 +206,20 @@ class TimeSeriesViewer:
             if self.hampel_settings is not None:
                 ws_hampel = self.hampel_settings['window_size']
                 n_hampel = self.hampel_settings['n']
+                ins_list = self.hampel_settings['ins_list']
             else:
                 ws_hampel = 100
                 n_hampel = 3
+                ins_list = ['span','spc']
 
             print("Window size: %s, n: %s" %(ws_hampel, n_hampel))
 
             for kraw in ['Vr','Vt','Vn','np','Vth']:
-                for ins in ['span','spc']:
+                for ins in ins_list:
                     k = kraw+'_'+ins
                     try:
                         outliers_indices = hampel(dfts_raw0[k], window_size = ws_hampel, n = n_hampel)
+                        # print(outliers_indices)
                         dfts_raw0.loc[dfts_raw0.index[outliers_indices], k] = np.nan
                         self.hampel_results[k] = {
                             'window_size': ws_hampel,
@@ -227,8 +231,9 @@ class TimeSeriesViewer:
                             'total_count': len(dfts_raw0[k]),
                             'outliers_percent': float(len(outliers_indices))/len(dfts_raw0[k]),
                         }
-                        print("Filtering: %s, outliers ratio: %.4f"%(k, float(len(outliers_indices))/len(dfts_raw0[k])))
+                        print("Filtering: %s, outliers ratio: %.4f ppm"%(k, 1e6*float(len(outliers_indices))/len(dfts_raw0[k])))
                     except:
+                        raise ValueError("FUCK")
                         print("key: %s does not exist!" %(k))
 
         # setting value
@@ -2194,11 +2199,15 @@ class TimeSeriesViewer:
                 nstd = self.p_funcs['show_btot_histogram']['discard_std']
                 keep_ind = (Btot1 > bmean - nstd*bstd) & (Btot1 < bmean + nstd*bstd)
                 Btot1[np.invert(keep_ind)] = np.nan
-                print("Discarding %dstd, %d out of %d, percentage: %.4f" %(nstd, np.sum(np.invert(keep_ind)), len(keep_ind), np.sum(np.invert(keep_ind))/len(keep_ind)))
+                print("Discarding %dstd, %d out of %d, percentage: %.4f %%" %(nstd, np.sum(np.invert(keep_ind)), len(keep_ind), np.sum(np.invert(keep_ind))/len(keep_ind)*100))
                 discard_rate = 1-np.sum(keep_ind)/len(keep_ind)
                 # Btot1 = Btot1.interpolate()
             else:
-                discard_rate = 0
+                nstd = 5
+                keep_ind = (Btot1 > bmean - nstd*bstd) & (Btot1 < bmean + nstd*bstd)
+                # Btot1[np.invert(keep_ind)] = np.nan
+                print("No Discard, Counting %dstd, %d out of %d, percentage: %.4f %%" %(nstd, np.sum(np.invert(keep_ind)), len(keep_ind), np.sum(np.invert(keep_ind))/len(keep_ind)*100))
+                outside_rate = 1-np.sum(keep_ind)/len(keep_ind)
             
             # show the histogram of Btot
             self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,2,figsize=(11,5), layout='constrained')
@@ -2221,19 +2230,41 @@ class TimeSeriesViewer:
                 x = (x-np.nanmean(x))/np.nanstd(x)
                 a1 = np.array([kstest(np.random.choice(x, size=downsample_size, replace=False), 'norm').pvalue for i1 in range(Ntest)])
                 sa1 = np.sum(a1 > 0.05)/len(a1)
-                plt.suptitle("KStest Normality test score: %.4f, Discard %.2f %%" %(sa1, discard_rate*100), fontsize = 'x-large')
+                plt.suptitle("KStest Normality test score: %.4f, nstd = %.2f, Discard %.4f %%" %(sa1, nstd, discard_rate*100), fontsize = 'x-large')
+            elif 'JS' in self.p_funcs['show_btot_histogram'].keys():
+                if 'nbins' in self.p_funcs['show_btot_histogram'].keys():
+                    nbins = self.p_funcs['show_btot_histogram']['nbins']
+                else:
+                    nbins = 201
+
+                print('nbins: %d' %(nbins))
+                
+                x = (Btot1.values[np.invert(np.isnan(Btot1.values))])
+                x = (x-np.nanmean(x))/np.nanstd(x)
+                bins = np.linspace(-nstd,nstd,nbins)
+                # calculate pdf of x
+                hist_data, bin_edges_data = np.histogram(x, bins=bins, density=True)
+
+                # Compute the PDF of the Gaussian distribution at the mid-points of the histogram bins
+                bin_midpoints = bin_edges_data[:-1] + np.diff(bin_edges_data) / 2
+                pdf_gaussian = stats.norm.pdf(bin_midpoints, 0, 1)
+
+                js_div = jensenshannon(hist_data, pdf_gaussian)
+                plt.suptitle(r"J-S Distance: $10^{%.4f}$, nstd = %.2f, Outside ratio %.4f %%" %(np.log10(js_div), nstd, outside_rate*100), fontsize = 'x-large')
+                
             else:
                 plt.suptitle("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'x-large')
 
+            bins_plot = np.linspace(bmean-5*bstd, bmean+5*bstd, 201)
             plt.sca(self.ax_btot_hist[0])
             plt.hist(
-                Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
+                Btot1, bins = bins_plot, histtype = 'step', density = True, color = 'C2'
             )
             plt.hist(
-                Btot1, bins = 200, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
+                Btot1, bins = bins_plot, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
             )
             plt.hist(
-                Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
+                Btot, bins = 201, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
             )
             # plt.xlim([-1, np.max(Btot)*1.05])
             plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot1)))
@@ -2256,10 +2287,10 @@ class TimeSeriesViewer:
 
             plt.sca(self.ax_btot_hist[1])
             plt.hist(
-                Btot1, bins = 200, histtype = 'step', density = True, color = 'C2'
+                Btot1, bins = bins_plot, histtype = 'step', density = True, color = 'C2'
             )
             plt.hist(
-                Btot1, bins = 200, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
+                Btot1, bins = bins_plot, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
             )
             plt.hist(
                 Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
