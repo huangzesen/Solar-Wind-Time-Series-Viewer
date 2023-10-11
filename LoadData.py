@@ -1273,7 +1273,7 @@ def LoadHighResMagSOLO(
     t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
     t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
-    names = pyspedas.psp.fields(trange=[t0,t1], 
+    names = pyspedas.solo.mag(trange=[t0,t1], 
         datatype=datatype, level='l2', time_clip=True
     )
     data = get_data(names[0])
