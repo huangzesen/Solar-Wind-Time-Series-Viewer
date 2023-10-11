@@ -1266,30 +1266,30 @@ def LoadHighResMagWrapper(
 
 
 def LoadHighResMagSOLO(
-    start_time, end_time, verbose = True
+    start_time, end_time, datatype = 'rtn-normal'
     ):
 
-    vars = ['B_SRF']
-    time = [start_time.to_pydatetime( ).replace(tzinfo=pytz.UTC), end_time.to_pydatetime( ).replace(tzinfo=pytz.UTC)]
-    status, data = cdas.get_data('SOLO_L2_MAG-SRF-NORMAL', vars, time[0], time[1])
+    print("Loading %s from SPEDAS" %(datatype))
+    t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
+    t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
-    dfmag = pd.DataFrame(
-        index = data['EPOCH'],
-        data = {
-            'Bx': data['B_SRF'][:,0],
-            'By': data['B_SRF'][:,1],
-            'Bz': data['B_SRF'][:,2]
-        }
+    names = pyspedas.psp.fields(trange=[t0,t1], 
+        datatype=datatype, level='l2', time_clip=True
     )
+    data = get_data(names[0])
+    dfmag2 = pd.DataFrame(
+        index = data[0],
+        data = data[1]
+    )
+    dfmag2.columns = ['Bx','By','Bz']
+
+    dfmag = dfmag2
+    dfmag.index = time_string.time_datetime(time=dfmag.index)
+    dfmag.index = dfmag.index.tz_localize(None)
+
     dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
 
     dfmag1 = dfmag.resample('1s').mean()
-
-    if verbose:
-        print("Input tstart = %s, tend = %s" %(time[0], time[1]))
-        print("Returned tstart = %s, tend = %s" %(
-            data['EPOCH'][0], 
-            data['EPOCH'][-1]))
 
     infos = {
         'resolution': 1
