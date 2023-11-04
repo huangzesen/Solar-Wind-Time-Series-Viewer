@@ -299,7 +299,7 @@ class TimeSeriesViewer:
                         warnings.warn("density = %s not supported, use default QTN!" %(par_settings['density']))
                         self.dfts_raw['np'] = self.dfts_raw['np_qtn']
                 
-                mom_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth','na', 'Vx0','Vy0','Vz0','Vr0','Vt0','Vn0']
+                mom_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth', 'Vx0','Vy0','Vz0','Vr0','Vt0','Vn0']
                 if 'moments' in par_settings.keys():
                     if par_settings['moments'] == 'SPC':
                         for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_spc']
