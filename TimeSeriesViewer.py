@@ -2175,8 +2175,9 @@ class TimeSeriesViewer:
             r = f_dist_au(ts)
 
             # get rid of weird values in Btot
-            print('Cleaning Btot, %d out of %d is less than 0.1 nT' %(np.sum(Btot < 0.1), len(Btot)))
-            Btot.loc[Btot.index[Btot < 0.1]] = np.nan
+            print('Warning: Btot, %d out of %d is less than 0.1 nT' %(np.sum(Btot < 0.1), len(Btot)))
+            print('Warning: Btot, %d out of %d is NaN' %(np.sum(np.isnan(Btot)), len(Btot)))
+            # Btot.loc[Btot.index[Btot < 0.1]] = np.nan
 
             # find the rescaling scale with r
             ind = np.invert((np.isnan(r)) | np.isnan(Btot))
@@ -2191,70 +2192,51 @@ class TimeSeriesViewer:
             # dist ratio
             r_ratio = np.max(r)/np.min(r)
 
+            # mean and std
+            bmean0 = np.nanmean(Btot)
+            bstd0 = np.nanstd(Btot)
             bmean = np.nanmean(Btot1)
             bstd = np.nanstd(Btot1)
-
-            # keep ind
-            if 'discard_std' in self.p_funcs['show_btot_histogram'].keys():
-                nstd = self.p_funcs['show_btot_histogram']['discard_std']
-                keep_ind = (Btot1 > bmean - nstd*bstd) & (Btot1 < bmean + nstd*bstd)
-                Btot1[np.invert(keep_ind)] = np.nan
-                print("Discarding %dstd, %d out of %d, percentage: %.4f %%" %(nstd, np.sum(np.invert(keep_ind)), len(keep_ind), np.sum(np.invert(keep_ind))/len(keep_ind)*100))
-                discard_rate = 1-np.sum(keep_ind)/len(keep_ind)
-                # Btot1 = Btot1.interpolate()
-            else:
-                nstd = 5
-                keep_ind = (Btot1 > bmean - nstd*bstd) & (Btot1 < bmean + nstd*bstd)
-                # Btot1[np.invert(keep_ind)] = np.nan
-                print("No Discard, Counting %dstd, %d out of %d, percentage: %.4f %%" %(nstd, np.sum(np.invert(keep_ind)), len(keep_ind), np.sum(np.invert(keep_ind))/len(keep_ind)*100))
-                outside_rate = 1-np.sum(keep_ind)/len(keep_ind)
-            
-            # show the histogram of Btot
-            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,2,figsize=(11,5), layout='constrained')
             
             # show normality test
             x = (Btot1.values[np.invert(np.isnan(Btot1.values))])
-            if 'normality' in self.p_funcs['show_btot_histogram'].keys():
-                if 'downsample_size' in self.p_funcs['show_btot_histogram'].keys():
-                    downsample_size = self.p_funcs['show_btot_histogram']['downsample_size']
-                else:
-                    downsample_size = 2000
-
-                if 'Ntest' in self.p_funcs['show_btot_histogram'].keys():
-                    Ntest = self.p_funcs['show_btot_histogram']['Ntest']
-                else:
-                    Ntest = 2000
-
-                print('downsample_size: %d, Ntest: %d' %(downsample_size, Ntest))
-                
-                x = (x-np.nanmean(x))/np.nanstd(x)
-                a1 = np.array([kstest(np.random.choice(x, size=downsample_size, replace=False), 'norm').pvalue for i1 in range(Ntest)])
-                sa1 = np.sum(a1 > 0.05)/len(a1)
-                plt.suptitle("KStest Normality test score: %.4f, nstd = %.2f, Discard %.4f %%" %(sa1, nstd, discard_rate*100), fontsize = 'x-large')
-            elif 'JS' in self.p_funcs['show_btot_histogram'].keys():
-                if 'nbins' in self.p_funcs['show_btot_histogram'].keys():
-                    nbins = self.p_funcs['show_btot_histogram']['nbins']
-                else:
-                    nbins = 201
-
-                print('nbins: %d' %(nbins))
-                
-                x = (Btot1.values[np.invert(np.isnan(Btot1.values))])
-                x = (x-np.nanmean(x))/np.nanstd(x)
-                bins = np.linspace(-nstd,nstd,nbins)
-                # calculate pdf of x
-                hist_data, bin_edges_data = np.histogram(x, bins=bins, density=True)
-
-                # Compute the PDF of the Gaussian distribution at the mid-points of the histogram bins
-                bin_midpoints = bin_edges_data[:-1] + np.diff(bin_edges_data) / 2
-                pdf_gaussian = stats.norm.pdf(bin_midpoints, 0, 1)
-
-                js_div = jensenshannon(hist_data, pdf_gaussian)
-                plt.suptitle(r"J-S Distance: $10^{%.4f}$, nstd = %.2f, Outside ratio %.4f %%" %(np.log10(js_div), nstd, outside_rate*100), fontsize = 'x-large')
-                
+            if 'nbins' in self.p_funcs['show_btot_histogram'].keys():
+                nbins = self.p_funcs['show_btot_histogram']['nbins']
+                nstd = self.p_funcs['show_btot_histogram']['nstd']
             else:
-                plt.suptitle("Discard %.2f %%, rescale: %.4f" %(discard_rate*100, scale), fontsize = 'x-large')
+                nbins = 201
+                nstd = 5
 
+            print('nbins: %d' %(nbins))
+
+            # js distance for Btot
+            x = (Btot.values[np.invert(np.isnan(Btot.values))])
+            x = (x-np.nanmean(x))/np.nanstd(x)
+            bins = np.linspace(-nstd,nstd,nbins)
+            hist_data, bin_edges_data = np.histogram(x, bins=bins, density=True)
+            # Compute the PDF of the Gaussian distribution at the mid-points of the histogram bins
+            bin_midpoints = bin_edges_data[:-1] + np.diff(bin_edges_data) / 2
+            pdf_gaussian = stats.norm.pdf(bin_midpoints, 0, 1)
+            js_div0 = jensenshannon(hist_data, pdf_gaussian)
+            
+            # js distance for Btot1
+            x = (Btot1.values[np.invert(np.isnan(Btot1.values))])
+            x = (x-np.nanmean(x))/np.nanstd(x)
+            bins = np.linspace(-nstd,nstd,nbins)
+            hist_data, bin_edges_data = np.histogram(x, bins=bins, density=True)
+            # Compute the PDF of the Gaussian distribution at the mid-points of the histogram bins
+            bin_midpoints = bin_edges_data[:-1] + np.diff(bin_edges_data) / 2
+            pdf_gaussian = stats.norm.pdf(bin_midpoints, 0, 1)
+            js_div = jensenshannon(hist_data, pdf_gaussian)
+
+
+            # show the histogram of Btot
+            self.fig_btot_hist, self.ax_btot_hist = plt.subplots(1,2,figsize=(11,5), layout='constrained')
+
+            plt.suptitle(r"J-S Distance: $10^{%.4f}$, nstd = %.2f" %(np.log10(js_div), nstd), fontsize = 'x-large')
+
+            # ------------------------------- #
+            # left plot (scaled Btot)
             bins_plot = np.linspace(bmean-5*bstd, bmean+5*bstd, 201)
             plt.sca(self.ax_btot_hist[0])
             plt.hist(
@@ -2264,7 +2246,7 @@ class TimeSeriesViewer:
                 Btot1, bins = bins_plot, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
             )
             plt.hist(
-                Btot, bins = 201, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
+                Btot, bins = nbins, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
             )
             # plt.xlim([-1, np.max(Btot)*1.05])
             plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot1)))
@@ -2275,8 +2257,8 @@ class TimeSeriesViewer:
                 alpha = 0.1, color = 'r', label = r'$3\sigma$'
             )
             # over plot gaussian
-            x_data = np.linspace(np.mean(Btot1)-4*np.std(Btot1), np.mean(Btot1)+4*np.std(Btot1), 1000)
-            y_data = stats.norm.pdf(x_data, np.mean(Btot1), np.std(Btot1))
+            x_data = np.linspace(np.nanmean(Btot1)-4*np.nanstd(Btot1), np.nanmean(Btot1)+4*np.nanstd(Btot1), 1000)
+            y_data = stats.norm.pdf(x_data, np.nanmean(Btot1), np.nanstd(Btot1))
             plt.plot(
                 x_data, y_data, 'k--'
             )
@@ -2284,6 +2266,7 @@ class TimeSeriesViewer:
             plt.legend(fontsize = 'medium')
 
             # ------------------------------- #
+            # left plot (unscaled Btot)
 
             plt.sca(self.ax_btot_hist[1])
             plt.hist(
@@ -2293,24 +2276,24 @@ class TimeSeriesViewer:
                 Btot1, bins = bins_plot, histtype = 'bar', density = True, label = r'$B^{*} = |B| \cdot (r/r0)^{%.4f}$' %(scale), color = 'darkblue', alpha = 0.2
             )
             plt.hist(
-                Btot, bins = 200, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
+                Btot, bins = nbins, histtype = 'step', density = True, label = '|B|', color = 'darkred', ls = '--', alpha = 0.7
             )
             # plt.xlim([-1, np.max(Btot)*1.05])
-            plt.axvline(x = bmean, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot1)))
-            plt.axvline(x = bmean-bstd, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot1)))
-            plt.axvline(x = bmean+bstd, ls = '--', color = 'C1')
+            plt.axvline(x = bmean0, ls = '--', color = 'C0', label = '<$B^{*}$> = %.2f' %(np.mean(Btot1)))
+            plt.axvline(x = bmean0-bstd0, ls = '--', color = 'C1', label = r'$\sigma_{B^{*}}$ = %.2f' %(np.std(Btot1)))
+            plt.axvline(x = bmean0+bstd0, ls = '--', color = 'C1')
             plt.axvspan(
-                bmean-3*bstd, bmean+3*bstd,
+                bmean0-3*bstd0, bmean0+3*bstd0,
                 alpha = 0.1, color = 'r', label = r'$3\sigma$'
             )
             # over plot gaussian
-            x_data = np.linspace(np.mean(Btot1)-4*np.std(Btot1), np.mean(Btot1)+4*np.std(Btot1), 1000)
-            y_data = stats.norm.pdf(x_data, np.mean(Btot1), np.std(Btot1))
+            x_data = np.linspace(np.nanmean(Btot)-4*np.nanstd(Btot), np.nanmean(Btot)+4*np.nanstd(Btot), 1000)
+            y_data = stats.norm.pdf(x_data, np.nanmean(Btot), np.nanstd(Btot))
             plt.plot(
                 x_data, y_data, 'k--'
             )
             plt.semilogy()
-            plt.xlim([bmean-5*bstd, bmean+5*bstd])
+            plt.xlim([bmean0-5*bstd0, bmean0+5*bstd0])
             plt.legend(fontsize = 'medium')
 
 
