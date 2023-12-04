@@ -501,7 +501,8 @@ class TimeSeriesViewer:
         #     pass
 
         # advection time [Hr]
-        tadv = (dfts['Dist_au']/dfts['vsw']).to_numpy() * au_to_km /3600
+        # 1Rsun = 0.00465047AU
+        tadv = ((dfts['Dist_au']-0.00465047)/dfts['vsw']).to_numpy() * au_to_km /3600
         tadv[tadv < 0] = np.nan
         dfts['tadv'] = tadv
         # try:
