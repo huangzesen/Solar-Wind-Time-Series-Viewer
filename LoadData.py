@@ -31,7 +31,8 @@ cdas = CdasWs()
 import sys
 sys.path.insert(0,"../pyspedas")
 import pyspedas
-from pyspedas.utilities import time_string
+from pyspedas import time_string
+from pyspedas import time_datetime
 from pytplot import get_data
 
 au_to_km = 1.496e8  # Conversion factor
@@ -175,6 +176,11 @@ def LoadTimeSeriesHelios1(
     # set nan (nan = -1e31)
     df[df < -1e30] = np.nan
 
+    # drop duplicate index
+    df = df.reset_index()
+    df = df.drop_duplicates(subset='index', keep='first')
+    df = df.set_index('index')
+
     misc = {'settings': settings}
 
     return df, misc
@@ -229,6 +235,12 @@ def LoadTimeSeriesHelios2(
     # set nan (nan = -1e31)
     df[df < -1e30] = np.nan
 
+    # drop duplicate index
+    df = df.reset_index()
+    df = df.drop_duplicates(subset='index', keep='first')
+    df = df.set_index('index')
+
+
     misc = {'settings': settings}
 
     return df, misc
@@ -260,17 +272,19 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
     t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
     t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
+    print(t0,t1)
+
     swadata = pyspedas.solo.swa(trange=[t0, t1], datatype='pas-grnd-mom')
     data = get_data(swadata[0])
 
     dfpar = pd.DataFrame(
-        # index = time_string.time_datetime(time=data.times, tz=None)
+        # index = time_datetime(time=data.times, tz=None)
         index = data.times
     )
     temp = get_data('N')
     dfpar = dfpar.join(
         pd.DataFrame(
-            # index = time_string.time_datetime(time=np.times, tz=None),
+            # index = time_datetime(time=np.times, tz=None),
             index = temp.times,
             data = temp.y,
             columns = ['np']
@@ -313,7 +327,7 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
         )
     )
 
-    dfpar.index = time_string.time_datetime(time=dfpar.index)
+    dfpar.index = time_datetime(time=dfpar.index)
     dfpar.index = dfpar.index.tz_localize(None)
     dfpar.index.name = 'datetime'
 
@@ -331,7 +345,7 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
     dfpar = dfpar.resample("%ds" %(resolution)).mean().join(dfdis)
     dfpar['Dist_au'] = dfpar['RAD_AU']
 
-    names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal', level='l2', time_clip=True)
+    names = pyspedas.solo.mag(trange=[t0,t1], datatype='rtn-normal-1-minute', level='l2', time_clip=True)
     data = get_data(names[0])
     dfmag1 = pd.DataFrame(
         index = data[0],
@@ -354,7 +368,7 @@ def LoadTimeSeriesSOLO(start_time, end_time, settings = {}, credentials = None):
         dfmag = dfmag1.join(dfmag2)
 
     
-    dfmag.index = time_string.time_datetime(time=dfmag.index)
+    dfmag.index = time_datetime(time=dfmag.index)
     dfmag.index = dfmag.index.tz_localize(None)
 
     dfts = dfmag.resample('%ds' %(resolution)).mean().join(
@@ -447,7 +461,7 @@ def LoadTimeSeriesPSP(
         )
 
         dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
-        dfqtn.index = time_string.time_datetime(time=dfqtn.index)
+        dfqtn.index = time_datetime(time=dfqtn.index)
         dfqtn.index = dfqtn.index.tz_localize(None)
         dfqtn.index.name = 'datetime'
     except:
@@ -519,7 +533,7 @@ def LoadTimeSeriesPSP(
                 dfmag = dfmag1.join(dfmag2)
 
 
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
     except:
         print("No MAG Data!")
@@ -569,14 +583,14 @@ def LoadTimeSeriesPSP(
             data = get_data(spcdata[0])
 
         dfspc = pd.DataFrame(
-            # index = time_string.time_datetime(time=data.times, tz=None)
+            # index = time_datetime(time=data.times, tz=None)
             index = data.times
         )
 
         temp = get_data(spcdata[0])
         dfspc = dfspc.join(
             pd.DataFrame(
-                # index = time_string.time_datetime(time=np.times, tz=None),
+                # index = time_datetime(time=np.times, tz=None),
                 index = temp.times,
                 data = temp.y,
                 columns = ['np']
@@ -658,7 +672,7 @@ def LoadTimeSeriesPSP(
         # calculate Dist_au
         dfspc['Dist_au'] = (dfspc[['sc_x','sc_y','sc_z']]**2).sum(axis=1).apply(np.sqrt)/au_to_km
 
-        dfspc.index = time_string.time_datetime(time=dfspc.index)
+        dfspc.index = time_datetime(time=dfspc.index)
         dfspc.index = dfspc.index.tz_localize(None)
         dfspc.index.name = 'datetime'
     except:
@@ -782,11 +796,11 @@ def LoadTimeSeriesPSP(
         # for span the thermal speed is defined as the trace, hence have a sqrt(3) different from spc
         dfspan['Vth'] = dfspan['Vth']/np.sqrt(3)
 
-        dfspan.index = time_string.time_datetime(time=dfspan.index)
+        dfspan.index = time_datetime(time=dfspan.index)
         dfspan.index = dfspan.index.tz_localize(None)
         dfspan.index.name = 'datetime'
 
-        dfspan_a.index = time_string.time_datetime(time=dfspan_a.index)
+        dfspan_a.index = time_datetime(time=dfspan_a.index)
         dfspan_a.index = dfspan_a.index.tz_localize(None)
         dfspan_a.index.name = 'datetime'
     except:
@@ -989,7 +1003,7 @@ def LoadTimeSeriesPSP(
                 )
             )
 
-            dfe.index = time_string.time_datetime(time=dfe.index)
+            dfe.index = time_datetime(time=dfe.index)
             dfe.index = dfe.index.tz_localize(None)
 
             dfe = dfe.resample(freq).interpolate()
@@ -1088,7 +1102,7 @@ def LoadTimeSeriesULYSSES(
     # )
     # dfmag.columns = ['Br','Bt','Bn']
 
-    # dfmag.index = time_string.time_datetime(time=dfmag.index)
+    # dfmag.index = time_datetime(time=dfmag.index)
     # dfmag.index = dfmag.index.tz_localize(None)  
 
     vars = ['B_RTN','B_MAG']
@@ -1141,7 +1155,7 @@ def LoadTimeSeriesULYSSES(
         )
     )
 
-    dfpar.index = time_string.time_datetime(time=dfpar.index)
+    dfpar.index = time_datetime(time=dfpar.index)
     dfpar.index = dfpar.index.tz_localize(None)    
 
     # load ephemeris
@@ -1266,10 +1280,10 @@ def LoadHighResMagWrapper(
 
 
 def LoadHighResMagSOLO(
-    start_time, end_time, datatype = 'rtn-normal'
+    start_time, end_time, verbose, datatype = 'rtn-normal'
     ):
-
-    print("Loading %s from SPEDAS" %(datatype))
+    if verbose:
+        print("Loading %s from SPEDAS" %(datatype))
     t0 = start_time.strftime("%Y-%m-%d/%H:%M:%S")
     t1 = end_time.strftime("%Y-%m-%d/%H:%M:%S")
 
@@ -1284,7 +1298,7 @@ def LoadHighResMagSOLO(
     dfmag2.columns = ['Bx','By','Bz']
 
     dfmag = dfmag2
-    dfmag.index = time_string.time_datetime(time=dfmag.index)
+    dfmag.index = time_datetime(time=dfmag.index)
     dfmag.index = dfmag.index.tz_localize(None)
 
     dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
@@ -1324,7 +1338,7 @@ def LoadHighResMagPSP(
                 dfmag2.columns = ['Bx','By','Bz']
 
                 dfmag = dfmag2
-                dfmag.index = time_string.time_datetime(time=dfmag.index)
+                dfmag.index = time_datetime(time=dfmag.index)
                 dfmag.index = dfmag.index.tz_localize(None)
 
                 dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
@@ -1374,7 +1388,7 @@ def LoadHighResMagPSP(
             dfmag2.columns = ['Bx','By','Bz']
 
             dfmag = dfmag2
-            dfmag.index = time_string.time_datetime(time=dfmag.index)
+            dfmag.index = time_datetime(time=dfmag.index)
             dfmag.index = dfmag.index.tz_localize(None)
 
             dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
@@ -1397,7 +1411,7 @@ def LoadHighResMagPSP(
                 dfmag2.columns = ['Bx','By','Bz']
 
                 dfmag = dfmag2
-                dfmag.index = time_string.time_datetime(time=dfmag.index)
+                dfmag.index = time_datetime(time=dfmag.index)
                 dfmag.index = dfmag.index.tz_localize(None)
 
                 dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
@@ -1447,7 +1461,7 @@ def LoadHighResMagPSP(
             dfmag2.columns = ['Bx','By','Bz']
 
             dfmag = dfmag2
-            dfmag.index = time_string.time_datetime(time=dfmag.index)
+            dfmag.index = time_datetime(time=dfmag.index)
             dfmag.index = dfmag.index.tz_localize(None)
 
             dfmag['Btot'] = np.sqrt(dfmag['Bx']**2+dfmag['By']**2+dfmag['Bz']**2)
@@ -1504,7 +1518,7 @@ def LoadHighResMagPSP(
             )
         )
 
-        dfe.index = time_string.time_datetime(time=dfe.index)
+        dfe.index = time_datetime(time=dfe.index)
         dfe.index = dfe.index.tz_localize(None)
 
         dfe = dfe.resample('1s').interpolate()
@@ -1549,7 +1563,7 @@ def LoadHighResMagHelios1(
         print("Returned tstart = %s, tend = %s" %(data['Epoch'][0], data['Epoch'][-1]))
 
     infos = {
-        'resolution': 6
+        'resolution': 10
     }
 
     return dfmag, dfmag1, infos
@@ -1684,7 +1698,7 @@ def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):
             )
         )
 
-        dfscam.index = time_string.time_datetime(time=dfscam.index)
+        dfscam.index = time_datetime(time=dfscam.index)
         dfscam.index = dfscam.index.tz_localize(None)
         dfscam.index.name = 'datetime'
 
@@ -1729,7 +1743,7 @@ def LoadSCAMFromSPEDAS_PSP(start_time, end_time, credentials = None):
             )
         )
 
-        dfscam.index = time_string.time_datetime(time=dfscam.index)
+        dfscam.index = time_datetime(time=dfscam.index)
         dfscam.index = dfscam.index.tz_localize(None)
         dfscam.index.name = 'datetime'
 

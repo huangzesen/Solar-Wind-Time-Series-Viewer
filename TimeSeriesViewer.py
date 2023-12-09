@@ -76,7 +76,8 @@ class TimeSeriesViewer:
         layout = None,
         high_res_resolution = None,
         use_hampel_raw = True,
-        hampel_settings = None
+        hampel_settings = None,
+        no_high_res_mag = False,
     ):
         """ Initialize the class """
 
@@ -126,6 +127,7 @@ class TimeSeriesViewer:
         self.use_hampel_raw = use_hampel_raw
         self.hampel_settings = hampel_settings
         self.figsize = None
+        self.no_high_res_mag = no_high_res_mag
 
         self.high_res_resolution = high_res_resolution
         self.skipPreLoadDiagnostics = False
@@ -167,13 +169,19 @@ class TimeSeriesViewer:
             }
 
         else:
-            # Load High Res Magnetic field
-            dfmag_raw, dfmag, infos = LoadHighResMagWrapper(
-                self.sc, self.start_time_0, self.end_time_0, credentials = self.credentials
-            )
-            self.dfmag_raw_high_res = dfmag_raw
-            self.dfmag_high_res = dfmag
-            self.dfmag_infos = infos
+            if self.no_high_res_mag:
+                dfmag_raw = dfts_raw0[['Br','Bt','Bn']]
+                dfmag_raw['Btot'] = (dfmag_raw[['Br','Bt','Bn']]**2).sum(axis=1).apply(np.sqrt)
+                dfmag = dfmag_raw.copy()
+                infos = {'resolution': 60}
+            else:
+                # Load High Res Magnetic field
+                dfmag_raw, dfmag, infos = LoadHighResMagWrapper(
+                    self.sc, self.start_time_0, self.end_time_0, credentials = self.credentials
+                )
+                self.dfmag_raw_high_res = dfmag_raw
+                self.dfmag_high_res = dfmag
+                self.dfmag_infos = infos
 
         # calculate the averged field
         keys = ['Br','Bt','Bn','Vr','Vt','Vn','Bx','By','Bz','Vx','Vy','Vz']
@@ -185,17 +193,18 @@ class TimeSeriesViewer:
                 print("%s not in columns...!" %(k))
 
         # for parmode = 'keep_all', conduct additional rolling...
-        if (self.sc == 0) & (misc['parmode'] == 'keep_all'):
-            print("Parmode: keep_all, additional rolling...")
-            # keys = [mom+'_'+ins for mom in ['Vr','Vt','Vn','Vx','Vy','Vz'] for ins in ['spc','span']]
-            for mom in ['Vr','Vt','Vn','Vx','Vy','Vz']:
-                for ins in ['spc','span']:
-                    k = mom+'_'+ins
-                    if k in dfts_raw0.columns:
-                        print("Rolling: %s" %(k))
-                        dfts_raw0[mom+"0"+"_"+ins] = dfts_raw0[k].rolling(self.rolling_rate).mean()
-                    else:
-                        print("%s not in columns...!" %(k))
+        if (self.sc == 0):
+            if (misc['parmode'] == 'keep_all'):
+                print("Parmode: keep_all, additional rolling...")
+                # keys = [mom+'_'+ins for mom in ['Vr','Vt','Vn','Vx','Vy','Vz'] for ins in ['spc','span']]
+                for mom in ['Vr','Vt','Vn','Vx','Vy','Vz']:
+                    for ins in ['spc','span']:
+                        k = mom+'_'+ins
+                        if k in dfts_raw0.columns:
+                            print("Rolling: %s" %(k))
+                            dfts_raw0[mom+"0"+"_"+ins] = dfts_raw0[k].rolling(self.rolling_rate).mean()
+                        else:
+                            print("%s not in columns...!" %(k))
 
         # apply hampel filter
         if self.use_hampel_raw == True:
@@ -233,7 +242,7 @@ class TimeSeriesViewer:
                         }
                         print("Filtering: %s, outliers ratio: %.4f ppm"%(k, 1e6*float(len(outliers_indices))/len(dfts_raw0[k])))
                     except:
-                        raise ValueError("FUCK")
+                        # raise ValueError("FUCK")
                         print("key: %s does not exist!" %(k))
 
         # setting value
@@ -281,35 +290,36 @@ class TimeSeriesViewer:
 
         # if parmode = 'keep_all', now choose particle data, default is empirical
         par_settings = self.par_settings
-        if (self.dfts_misc['parmode'] == 'keep_all') & (self.sc == 0):
-            if self.verbose:
-                print("sc = %d, Parmode: keep_all" %(self.sc))
-                print("Current Partical settings:")
-                for k, v in par_settings.items():
-                    print("%s: %s" %(k, v))
+        if (self.sc == 0):
+            if (self.dfts_misc['parmode'] == 'keep_all'):
+                if self.verbose:
+                    print("sc = %d, Parmode: keep_all" %(self.sc))
+                    print("Current Partical settings:")
+                    for k, v in par_settings.items():
+                        print("%s: %s" %(k, v))
 
-                if 'density' in par_settings.keys():
-                    if par_settings['density'] == 'QTN':
-                        self.dfts_raw['np'] = self.dfts_raw['np_qtn']
-                    elif par_settings['density'] == 'SPC':
-                        self.dfts_raw['np'] = self.dfts_raw['np_spc']
-                    elif par_settings['density'] == 'SPAN':
-                        self.dfts_raw['np'] = self.dfts_raw['np_span']
-                    else:
-                        warnings.warn("density = %s not supported, use default QTN!" %(par_settings['density']))
-                        self.dfts_raw['np'] = self.dfts_raw['np_qtn']
-                
-                mom_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth', 'Vx0','Vy0','Vz0','Vr0','Vt0','Vn0']
-                if 'moments' in par_settings.keys():
-                    if par_settings['moments'] == 'SPC':
-                        for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_spc']
-                    elif par_settings['moments'] == 'SPAN':
-                        for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_span']
-                    elif par_settings['moments'] == 'empirical':
-                        if end_time < pd.Timestamp("2021-07-01"):
-                            for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_spc']
+                    if 'density' in par_settings.keys():
+                        if par_settings['density'] == 'QTN':
+                            self.dfts_raw['np'] = self.dfts_raw['np_qtn']
+                        elif par_settings['density'] == 'SPC':
+                            self.dfts_raw['np'] = self.dfts_raw['np_spc']
+                        elif par_settings['density'] == 'SPAN':
+                            self.dfts_raw['np'] = self.dfts_raw['np_span']
                         else:
+                            warnings.warn("density = %s not supported, use default QTN!" %(par_settings['density']))
+                            self.dfts_raw['np'] = self.dfts_raw['np_qtn']
+                    
+                    mom_keys = ['Vx','Vy','Vz','Vr','Vt','Vn','Vth', 'Vx0','Vy0','Vz0','Vr0','Vt0','Vn0']
+                    if 'moments' in par_settings.keys():
+                        if par_settings['moments'] == 'SPC':
+                            for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_spc']
+                        elif par_settings['moments'] == 'SPAN':
                             for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_span']
+                        elif par_settings['moments'] == 'empirical':
+                            if end_time < pd.Timestamp("2021-07-01"):
+                                for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_spc']
+                            else:
+                                for k in mom_keys: self.dfts_raw[k] = self.dfts_raw[k+'_span']
 
 
         # collect garbage
@@ -522,10 +532,16 @@ class TimeSeriesViewer:
         dfts['malfven'] = dfts['vsw']/dfts['valfven']
 
         # na/np ratio
-        nanp_ratio = dfts['na']/dfts['np']
-        ind =  nanp_ratio > 0.2
-        nanp_ratio[ind] = np.nan
-        dfts['nanp_ratio'] = nanp_ratio
+        # might not be available for some spacecrafts
+        try:
+            nanp_ratio = dfts['na']/dfts['np']
+            ind =  nanp_ratio > 0.2
+            nanp_ratio[ind] = np.nan
+            dfts['nanp_ratio'] = nanp_ratio
+        except:
+            print("No na/np ratio!! All NaNs")
+            nanp_ratio = dfts['np'] * np.nan
+            dfts['nanp_ratio'] = nanp_ratio
 
         # update dfts
         self.dfts = dfts
@@ -581,7 +597,7 @@ class TimeSeriesViewer:
             'moments': 'empirical'
         },
         dfts = None,
-        mag_res = None,
+        # mag_res = None,
         import_timeseries = None
         ):
         """ 
@@ -618,7 +634,7 @@ class TimeSeriesViewer:
         self.par_settings = par_settings
 
         # mag resolution
-        self.mag_res = mag_res
+        # self.mag_res = mag_res
 
         # Prepare Time Series
         if dfts is None:
@@ -793,7 +809,7 @@ class TimeSeriesViewer:
         
         # particle mode
         try:
-            parmode = self.dfmisc['parmode']
+            parmode = self.dfts_misc['particle_mode']
         except:
             parmode = 'None'
 
@@ -1640,7 +1656,8 @@ class TimeSeriesViewer:
                 ax.set_xticks([])
                 ax.set_xlabel('')
 
-            ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+            # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+            ax.set_xlim([dfts.index[0], dfts.index[-1]])
 
         # fig.tight_layout()
         self.lines = lines

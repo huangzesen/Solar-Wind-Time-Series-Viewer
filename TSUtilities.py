@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 from glob import glob
 from gc import collect
+from pyspedas import time_datetime
 
 import datetime
 from numba import jit,njit,prange
@@ -30,7 +31,7 @@ cdas = CdasWs()
 import sys
 sys.path.insert(0,"../pyspedas")
 import pyspedas
-from pyspedas.utilities import time_string
+from pyspedas import time_string
 from pytplot import get_data
 from scipy import signal
 # import TurbPy as turb
@@ -776,7 +777,7 @@ def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
             dfmag2.columns = ['Bx','By','Bz']
 
         dfmag = dfmag1.join(dfmag2)
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
 
     elif sc == 1:
@@ -797,7 +798,7 @@ def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
         dfmag2.columns = ['Bx','By','Bz']
         
         dfmag = dfmag1.join(dfmag2)
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
     else:
         raise ValueError("sc=%d not supported!" %(sc))

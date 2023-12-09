@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import pyspedas
 from pytplot import get_data
-from pyspedas.utilities import time_string
+from pyspedas import time_string
 import pandas as pd
 import numpy as np
 
@@ -173,7 +173,7 @@ def MovingFitOnSpectrum(x, y, window, limits, pad):
 #         data = data[1]
 #     )
 #     dfmag.columns = ['Br','Bt','Bn']
-#     dfmag.index = time_string.time_datetime(time=dfmag.index)
+#     dfmag.index = time_datetime(time=dfmag.index)
 #     dfmag.index = dfmag.index.tz_localize(None)
 #     dfmag = dfmag.resample('100ms').mean()
 
