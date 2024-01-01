@@ -512,7 +512,7 @@ class TimeSeriesViewer:
 
         # advection time [Hr]
         # 1Rsun = 0.00465047AU
-        tadv = ((dfts['Dist_au']-0.00465047)/dfts['vsw']).to_numpy() * au_to_km /3600
+        tadv = ((dfts['Dist_au']-0.00465047)/vr).to_numpy() * au_to_km /3600
         tadv[tadv < 0] = np.nan
         dfts['tadv'] = tadv
         # try:
@@ -529,7 +529,7 @@ class TimeSeriesViewer:
         dfts['valfven'] = valfven
 
         # alfven mach number
-        dfts['malfven'] = dfts['vsw']/dfts['valfven']
+        dfts['malfven'] = vr/dfts['valfven']
 
         # na/np ratio
         # might not be available for some spacecrafts
@@ -1233,74 +1233,74 @@ class TimeSeriesViewer:
             except:
                 pass
 
-        # """na/np"""
-        # if not(update):
-        #     try:
-        #         ax = axes['density'].twinx()
-        #         self.axes['nanp_ratio'] = ax
-        #         dfts[['nanp_ratio']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
-        #         ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-        #         ax.set_xticks([], minor=True)
-        #         ax.set_xticks([])
-        #         ax.set_xlabel('')
-        #         ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-        #         try:
-        #             ax.set_ylim([-0.005, np.nanmax(dfts[['nanp_ratio']])*1.05])
-        #         except:
-        #             pass
-        #         lines['nanp_ratio'] = ax.get_lines()
-        #     except:
-        #         warnings.warn("Initializing nanp_ratio failed!")
-        # else:
-        #     try:
-        #         ax = axes['nanp_ratio']
-        #         ls = lines['nanp_ratio']
-        #         ls[0].set_data(dfts['nanp_ratio'].index, dfts['nanp_ratio'].values)
-        #         ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-        #         ax.set_xticks([], minor=True)
-        #         ax.set_xticks([])
-        #         ax.set_xlabel('')
-        #         ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-        #         try:
-        #             ax.set_ylim([-0.005, np.nanmax(dfts[['nanp_ratio']])*1.05])
-        #         except:
-        #             pass
-        #         lines['nanp_ratio'] = ax.get_lines()
-        #     except:
-        #         warnings.warn("Updating nanp_ratio failed!...")
-
-        """malfven"""
+        """na/np"""
         if not(update):
             try:
                 ax = axes['density'].twinx()
-                self.axes['malfven'] = ax
-                dfts[['malfven']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
-                ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-                # ax.set_xticks([], minor=True)
-                # ax.set_xticks([])
-                # ax.set_xlabel('')
-                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                ax.axhline(y=1.0, ls = '--', lw = 1.5, color = 'darkgreen')
-                lines['malfven'] = ax.get_lines()
-                ax.set_yscale('log')
-                ax.set_ylim([10**(-1.1), 10**(1.1)])
+                self.axes['nanp_ratio'] = ax
+                dfts[['nanp_ratio']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
+                ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                try:
+                    ax.set_ylim([-0.005, 0.08])
+                except:
+                    pass
+                lines['nanp_ratio'] = ax.get_lines()
             except:
                 warnings.warn("Initializing nanp_ratio failed!")
         else:
             try:
-                ax = axes['malfven']
-                ls = lines['malfven']
-                ls[0].set_data(dfts['malfven'].index, dfts['malfven'].values)
-                ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-                # ax.set_xticks([], minor=True)
-                # ax.set_xticks([])
-                # ax.set_xlabel('')
-                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                lines['malfven'] = ax.get_lines()
-                ax.set_yscale('log')
-                ax.set_ylim([10**(-1.1), 10**(1.1)])
+                ax = axes['nanp_ratio']
+                ls = lines['nanp_ratio']
+                ls[0].set_data(dfts['nanp_ratio'].index, dfts['nanp_ratio'].values)
+                ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+                ax.set_xticks([], minor=True)
+                ax.set_xticks([])
+                ax.set_xlabel('')
+                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                try:
+                    ax.set_ylim([-0.005, 0.08])
+                except:
+                    pass
+                lines['nanp_ratio'] = ax.get_lines()
             except:
-                warnings.warn("Updating malfven failed!...")
+                warnings.warn("Updating nanp_ratio failed!...")
+
+        # """malfven"""
+        # if not(update):
+        #     try:
+        #         ax = axes['density'].twinx()
+        #         self.axes['malfven'] = ax
+        #         dfts[['malfven']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
+        #         ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+        #         # ax.set_xticks([], minor=True)
+        #         # ax.set_xticks([])
+        #         # ax.set_xlabel('')
+        #         # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+        #         ax.axhline(y=1.0, ls = '--', lw = 1.5, color = 'darkgreen')
+        #         lines['malfven'] = ax.get_lines()
+        #         ax.set_yscale('log')
+        #         ax.set_ylim([10**(-1.1), 10**(1.1)])
+        #     except:
+        #         warnings.warn("Initializing nanp_ratio failed!")
+        # else:
+        #     try:
+        #         ax = axes['malfven']
+        #         ls = lines['malfven']
+        #         ls[0].set_data(dfts['malfven'].index, dfts['malfven'].values)
+        #         ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+        #         # ax.set_xticks([], minor=True)
+        #         # ax.set_xticks([])
+        #         # ax.set_xlabel('')
+        #         # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+        #         lines['malfven'] = ax.get_lines()
+        #         ax.set_yscale('log')
+        #         ax.set_ylim([10**(-1.1), 10**(1.1)])
+        #     except:
+        #         warnings.warn("Updating malfven failed!...")
 
         # """scales"""
         # if not(update):
@@ -1850,9 +1850,10 @@ class TimeSeriesViewer:
 
     def on_click_event(self, event):
         """ click event """
-        if event.button is MouseButton.LEFT:
+        if event.button is MouseButton.RIGHT:
             """left click to select event"""
             x, y = event.xdata, event.ydata
+            # print(x,y)
             # red vertical line instance
             red_vline = {
                 'timestamp': pd.Period(ordinal=int(event.xdata), freq=self.resample_rate).to_timestamp(),
@@ -1886,7 +1887,7 @@ class TimeSeriesViewer:
                 self.selected_intervals.append(selected_interval)
 
             self.fig.canvas.draw()
-        elif event.button is MouseButton.RIGHT:
+        elif event.button is MouseButton.LEFT:
             """right click to zoom in"""
             x = event.xdata
             green_vline = {
@@ -1953,15 +1954,18 @@ class TimeSeriesViewer:
             self.set_cross_hair_visible(True)
             x, y = event.xdata, event.ydata
             self.current_x = pd.Period(ordinal=int(event.xdata), freq=self.resample_rate).to_timestamp()
+            # self.current_x = pd.Period(ordinal=int(event.xdata), freq='5s').to_timestamp()
             # update the line positions
 
             # find rau, tadv and calculate the recommended t interval
             # matplotlib and pandas does not work well together
             # solution: https://stackoverflow.com/questions/54035067/matplotlib-event-xdata-out-of-timeries-range?noredirect=1&lq=1
             xt = pd.Period(ordinal=int(event.xdata), freq=self.resample_rate).to_timestamp()
+            # xt = xt = pd.Period(ordinal=int(event.xdata), freq='5s').to_timestamp()
             self.xt = xt
             # try:
             tind = np.where(np.abs(self.dfts.index - xt) < 2*pd.Timedelta(self.resample_rate))[0][0]
+            # tind = np.where(np.abs(self.dfts.index - xt) < pd.Timedelta('5s'))[0][0]
             vsw = self.dfts['vsw'][tind]
             rau = self.dfts['Dist_au'][tind]
             if np.isnan(rau):
@@ -2195,7 +2199,10 @@ class TimeSeriesViewer:
             # get rid of weird values in Btot
             print('Warning: Btot, %d out of %d is less than 0.1 nT' %(np.sum(Btot < 0.1), len(Btot)))
             print('Warning: Btot, %d out of %d is NaN' %(np.sum(np.isnan(Btot)), len(Btot)))
-            # Btot.loc[Btot.index[Btot < 0.1]] = np.nan
+
+            self.Btot_temp = Btot
+            self.r_temp = r
+            Btot.loc[Btot.index[Btot < 0.1]] = np.nan
 
             # find the rescaling scale with r
             ind = np.invert((np.isnan(r)) | np.isnan(Btot))
@@ -2284,7 +2291,7 @@ class TimeSeriesViewer:
             plt.legend(fontsize = 'medium')
 
             # ------------------------------- #
-            # left plot (unscaled Btot)
+            # right plot (logged plot)
 
             plt.sca(self.ax_btot_hist[1])
             plt.hist(
@@ -2305,8 +2312,8 @@ class TimeSeriesViewer:
                 alpha = 0.1, color = 'r', label = r'$3\sigma$'
             )
             # over plot gaussian
-            x_data = np.linspace(np.nanmean(Btot)-4*np.nanstd(Btot), np.nanmean(Btot)+4*np.nanstd(Btot), 1000)
-            y_data = stats.norm.pdf(x_data, np.nanmean(Btot), np.nanstd(Btot))
+            x_data = np.linspace(np.nanmean(Btot1)-4*np.nanstd(Btot1), np.nanmean(Btot1)+4*np.nanstd(Btot1), 1000)
+            y_data = stats.norm.pdf(x_data, np.nanmean(Btot1), np.nanstd(Btot1))
             plt.plot(
                 x_data, y_data, 'k--'
             )

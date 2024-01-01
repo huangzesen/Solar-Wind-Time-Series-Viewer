@@ -298,7 +298,7 @@ class BreakPointFinder:
             self.arts['FitLine']['fitline2'], = ax.loglog(xdata, f2(xdata), color='gray', lw='2', alpha = 0.8, 
                                        label = r'$\alpha_B$'+' = %.4f' %(fit2[0][1]))
             self.arts['FitLine']['intersect'] = ax.axvline(intersect, color='r', lw='2', 
-                                        label = "%.4f" %(np.log10(intersect)))
+                                        label = "%.4f=%.2f min" %(np.log10(intersect), 1/intersect/60))
         except:
             pass
             # raise ValueError("Draw intersect failed!")
