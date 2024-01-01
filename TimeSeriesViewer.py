@@ -495,7 +495,7 @@ class TimeSeriesViewer:
         vsw = vr
         vsw[vsw < 0] = np.nan
         vsw[np.abs(vsw) > 1e5] = np.nan
-        # dfts['vsw'] = vsw
+        dfts['vsw'] = vsw
 
         # deal with weird values
         vth = dfts['Vth'].to_numpy()
