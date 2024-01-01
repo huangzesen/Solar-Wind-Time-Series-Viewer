@@ -491,10 +491,11 @@ class TimeSeriesViewer:
         dfts['beta'] = beta  
 
         # SW speed
-        vsw = np.sqrt(vr**2+vt**2+vn**2)
+        # vsw = np.sqrt(vr**2+vt**2+vn**2)
+        vsw = vr
         vsw[vsw < 0] = np.nan
         vsw[np.abs(vsw) > 1e5] = np.nan
-        dfts['vsw'] = vsw
+        # dfts['vsw'] = vsw
 
         # deal with weird values
         vth = dfts['Vth'].to_numpy()
