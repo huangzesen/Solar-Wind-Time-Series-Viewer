@@ -432,7 +432,11 @@ class TimeSeriesViewer:
 
         Z_plus_squared  = (v_r + va_r)**2 +  (v_t + va_t)**2 + ( v_n + va_n)**2
         Z_minus_squared = (v_r - va_r)**2 +  (v_t - va_t)**2 + ( v_n - va_n)**2
-        Z_amplitude     = np.sqrt( (Z_plus_squared + Z_minus_squared)/2 )    
+        Z_amplitude     = np.sqrt( (Z_plus_squared + Z_minus_squared)/2 )   
+
+        Z_plus_r_squared  = (v_r + va_r)**2
+        Z_minus_r_squared = (v_r - va_r)**2
+        Z_r_amplitude     = np.sqrt( (Z_plus_r_squared + Z_minus_r_squared)/2 ) 
 
         # cross helicity
         sigma_c         =  (Z_plus_squared - Z_minus_squared)/( Z_plus_squared + Z_minus_squared)
@@ -714,7 +718,7 @@ class TimeSeriesViewer:
         return intervals, keys
 
 
-    def ImportSelectedIntervals(self, intervals):
+    def ImportSelectedIntervals(self, intervals, no_draw = False):
         """ 
         Import selected Intervals 
         Return:
@@ -722,27 +726,30 @@ class TimeSeriesViewer:
                 should have at least the following keys:
                 spacecraft, start_time, end_time,
                 preferably with QualityFlag key
-            keys        :   list of keys for dict
+            no_draw: simply import the intervals without drawing
         """
 
         # print red vlines
         for i1 in range(len(intervals)):
             interval = intervals[i1]
 
-            if "QualityFlag" in interval.keys():
-                if interval['QualityFlag'] == 0:
-                    color = 'yellow'
-                    interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
-                elif interval['QualityFlag'] == 1:
-                    color = 'red'
-                    interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
-                elif interval['QualityFlag'] == 4:
-                    color = 'purple'
-                    interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
-                else:
-                    pass
+            if no_draw:
+                pass
             else:
-                interval = DrawShadedEventInTimeSeries(interval, self.axes, color = 'red')
+                if "QualityFlag" in interval.keys():
+                    if interval['QualityFlag'] == 0:
+                        color = 'yellow'
+                        interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
+                    elif interval['QualityFlag'] == 1:
+                        color = 'red'
+                        interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
+                    elif interval['QualityFlag'] == 4:
+                        color = 'purple'
+                        interval = DrawShadedEventInTimeSeries(interval, self.axes, color = color)
+                    else:
+                        pass
+                else:
+                    interval = DrawShadedEventInTimeSeries(interval, self.axes, color = 'red')
 
             if 'TimeSeries' not in interval.keys():
                 interval['TimeSeries'] = None
@@ -1234,74 +1241,74 @@ class TimeSeriesViewer:
             except:
                 pass
 
-        """na/np"""
-        if not(update):
-            try:
-                ax = axes['density'].twinx()
-                self.axes['nanp_ratio'] = ax
-                dfts[['nanp_ratio']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
-                ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                try:
-                    ax.set_ylim([-0.005, 0.08])
-                except:
-                    pass
-                lines['nanp_ratio'] = ax.get_lines()
-            except:
-                warnings.warn("Initializing nanp_ratio failed!")
-        else:
-            try:
-                ax = axes['nanp_ratio']
-                ls = lines['nanp_ratio']
-                ls[0].set_data(dfts['nanp_ratio'].index, dfts['nanp_ratio'].values)
-                ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-                ax.set_xticks([], minor=True)
-                ax.set_xticks([])
-                ax.set_xlabel('')
-                ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                try:
-                    ax.set_ylim([-0.005, 0.08])
-                except:
-                    pass
-                lines['nanp_ratio'] = ax.get_lines()
-            except:
-                warnings.warn("Updating nanp_ratio failed!...")
-
-        # """malfven"""
+        # """na/np"""
         # if not(update):
         #     try:
         #         ax = axes['density'].twinx()
-        #         self.axes['malfven'] = ax
-        #         dfts[['malfven']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
-        #         ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-        #         # ax.set_xticks([], minor=True)
-        #         # ax.set_xticks([])
-        #         # ax.set_xlabel('')
-        #         # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-        #         ax.axhline(y=1.0, ls = '--', lw = 1.5, color = 'darkgreen')
-        #         lines['malfven'] = ax.get_lines()
-        #         ax.set_yscale('log')
-        #         ax.set_ylim([10**(-1.1), 10**(1.1)])
+        #         self.axes['nanp_ratio'] = ax
+        #         dfts[['nanp_ratio']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
+        #         ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+        #         try:
+        #             ax.set_ylim([-0.005, 0.08])
+        #         except:
+        #             pass
+        #         lines['nanp_ratio'] = ax.get_lines()
         #     except:
         #         warnings.warn("Initializing nanp_ratio failed!")
         # else:
         #     try:
-        #         ax = axes['malfven']
-        #         ls = lines['malfven']
-        #         ls[0].set_data(dfts['malfven'].index, dfts['malfven'].values)
-        #         ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
-        #         # ax.set_xticks([], minor=True)
-        #         # ax.set_xticks([])
-        #         # ax.set_xlabel('')
-        #         # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-        #         lines['malfven'] = ax.get_lines()
-        #         ax.set_yscale('log')
-        #         ax.set_ylim([10**(-1.1), 10**(1.1)])
+        #         ax = axes['nanp_ratio']
+        #         ls = lines['nanp_ratio']
+        #         ls[0].set_data(dfts['nanp_ratio'].index, dfts['nanp_ratio'].values)
+        #         ax.legend([r'na/np'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+        #         ax.set_xticks([], minor=True)
+        #         ax.set_xticks([])
+        #         ax.set_xlabel('')
+        #         ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+        #         try:
+        #             ax.set_ylim([-0.005, 0.08])
+        #         except:
+        #             pass
+        #         lines['nanp_ratio'] = ax.get_lines()
         #     except:
-        #         warnings.warn("Updating malfven failed!...")
+        #         warnings.warn("Updating nanp_ratio failed!...")
+
+        """malfven"""
+        if not(update):
+            try:
+                ax = axes['density'].twinx()
+                self.axes['malfven'] = ax
+                dfts[['malfven']].plot(ax = ax, legend=False, style=['C3--'], lw = 0.8, alpha = 0.6)
+                ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                ax.axhline(y=1.0, ls = '--', lw = 1.5, color = 'darkgreen')
+                lines['malfven'] = ax.get_lines()
+                ax.set_yscale('log')
+                ax.set_ylim([10**(-1.1), 10**(1.1)])
+            except:
+                warnings.warn("Initializing nanp_ratio failed!")
+        else:
+            try:
+                ax = axes['malfven']
+                ls = lines['malfven']
+                ls[0].set_data(dfts['malfven'].index, dfts['malfven'].values)
+                ax.legend([r'$M_{A}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01, 0.7), loc = 2)
+                # ax.set_xticks([], minor=True)
+                # ax.set_xticks([])
+                # ax.set_xlabel('')
+                # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
+                lines['malfven'] = ax.get_lines()
+                ax.set_yscale('log')
+                ax.set_ylim([10**(-1.1), 10**(1.1)])
+            except:
+                warnings.warn("Updating malfven failed!...")
 
         # """scales"""
         # if not(update):
@@ -2038,7 +2045,7 @@ class TimeSeriesViewer:
 
     #-------- p application --------#
 
-    def p_application(self, x, additional_settings = {}, check_exist=True, interval_index=None):
+    def p_application(self, x, additional_settings = {}, check_exist=True, interval_index=None, no_plot = False):
 
         if interval_index is None:
             i1 = self.FindSelectedIntervals(x)
@@ -2109,70 +2116,8 @@ class TimeSeriesViewer:
         print("Rmin=%.2f, Rmax=%.2f, Rmean=%.2f" %(selected_interval['TimeSeries']['Dist_au'].min()*au_to_rsun, selected_interval['TimeSeries']['Dist_au'].max()*au_to_rsun, selected_interval['TimeSeries']['Dist_au'].mean()*au_to_rsun))
         print("MAlfven_min=%.2f, MAlfven_max=%.2f, MAlfven_mean=%.2f" %(selected_interval['TimeSeries']['malfven'].min(), selected_interval['TimeSeries']['malfven'].max(), selected_interval['TimeSeries']['malfven'].mean()))
 
-        # compare magnetic field rescaling
-        if 'compare_mag_rescale' in self.p_funcs.keys():
-            # calculate diagnostics without rescale
-            PreloadDiagnostics(
-                si, 
-                self.p_funcs, 
-                resolution = self.high_res_resolution, 
-                credentials = self.credentials,
-                import_dfmag = {
-                    'dfmag_raw': si['dfmag_raw'],
-                    'dfmag': si['dfmag'],
-                    'infos': self.dfmag_infos
-                },
-                rescale_mag = False
-            )
-            freqs_wl1, PSD_wl1 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
-
-            # calculate diagnostics with rescale
-            PreloadDiagnostics(
-                si, 
-                self.p_funcs, 
-                resolution = self.high_res_resolution, 
-                credentials = self.credentials,
-                import_dfmag = {
-                    'dfmag_raw': si['dfmag_raw'],
-                    'dfmag': si['dfmag'],
-                    'infos': self.dfmag_infos
-                },
-                rescale_mag = True
-            )
-            freqs_wl2, PSD_wl2 = si['wavelet_PSD']['freqs'], si['wavelet_PSD']['PSD']
-
-            coi, scales = si['wavelet_PSD']['coi'], si['wavelet_PSD']['scales']
-            freqs_FFT, PSD_FFT = si['wavelet_PSD']['freqs_FFT'], si['wavelet_PSD']['PSD_FFT']
-
-            # show coi range, threshold = 80% under coi
-            if 'coi_thresh' in self.p_funcs['wavelet_PSD'].keys():
-                coi_thresh = self.p_funcs['wavelet_PSD']['coi_thresh']
-            else:
-                coi_thresh = 0.8
-            ind = np.array([np.sum(s < coi)/len(coi) for s in scales]) < coi_thresh
-            import_coi = {
-                'range': [freqs_wl1[ind][0], freqs_wl1[ind][-1]],
-                'label': r'outside COI > %.1f %%' %((1-coi_thresh)*100)
-            }
-
-            # plot the spectrum
-            self.bpfg_wl = BPFG(
-                    freqs_wl1, PSD_wl1, label = 'original',
-                    secondary = {
-                        'x': freqs_FFT,
-                        'y': PSD_FFT,
-                        'label': 'PSD_FFT'
-                    },
-                    third = {
-                        'x': freqs_wl2,
-                        'y': PSD_wl2,
-                        'label': 'rescaled'
-                    },
-                    import_coi = import_coi
-                    )
-            self.bpfg_wl.connect()
-
-
+        if no_plot:
+            return 1
         # histgram
         if 'show_btot_histogram' in self.p_funcs.keys():
 
