@@ -483,12 +483,18 @@ def trace_PSD_wavelet(
                 else:
                     # ignore points labeled as False in keep_ind
                     ind = ind & keep_ind
-                if np.sum(ind)/len(ind) > 0.0:
-                    PSD[i1] = (
-                        np.nanmean(np.abs(db_x[i1, ind])**2) + 
-                        np.nanmean(np.abs(db_y[i1, ind])**2) + 
-                        np.nanmean(np.abs(db_z[i1, ind])**2)
-                    )*( 2*dt)
+
+                # print(np.sum(np.isnan(db_x[i1, ind])), len(db_x[i1, ind]))
+                if (np.sum(ind)/len(ind) > 0.0) & (len(db_x[i1, ind]) > 0):
+                    if np.sum(np.isnan(np.abs(db_x[i1, ind]))) == len(db_x[i1, ind]):
+                        # to suppress warning
+                        PSD[i1] = np.nan
+                    else:
+                        PSD[i1] = (
+                            np.nanmean(np.abs(db_x[i1, ind])**2) + 
+                            np.nanmean(np.abs(db_y[i1, ind])**2) + 
+                            np.nanmean(np.abs(db_z[i1, ind])**2)
+                        )*( 2*dt)
                 else:
                     PSD[i1] = np.nan
         except:
@@ -1012,7 +1018,7 @@ def calc_medians_std_parallel(window_size, arr, medians, medians_diff):
         medians_diff[i] = k * np.median(np.abs(x - np.median(x)))
         
         
-def hampel(arr, window_size=5, n=3, parallel=False):
+def hampel(arr, window_size=5, n=3, parallel=False, return_indices=True):
 
     if isinstance(arr, np.ndarray):
         pass
@@ -1032,9 +1038,12 @@ def hampel(arr, window_size=5, n=3, parallel=False):
         calc_medians(window_size, arr, medians)
         calc_medians_std(window_size, arr, medians, medians_diff)
     
-    outlier_indices = np.where(np.abs(arr - medians) > n*(medians_diff))
-    
-    return outlier_indices[0]
+    ind = np.abs(arr - medians) > n*(medians_diff)
+    outlier_indices = np.where(ind)
+    if return_indices:
+        return outlier_indices
+    else:
+        return np.squeeze(ind)
 
 
 

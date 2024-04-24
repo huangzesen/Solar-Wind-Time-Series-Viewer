@@ -460,7 +460,7 @@ def LoadTimeSeriesPSP(
             columns = ['ne_qtn']
         )
 
-        dfqtn['np_qtn'] = dfqtn['ne_qtn']/1.08 # 4% of alpha particle
+        dfqtn['np_qtn'] = dfqtn['ne_qtn'] #/1.08 # 4% of alpha particle
         dfqtn.index = time_datetime(time=dfqtn.index)
         dfqtn.index = dfqtn.index.tz_localize(None)
         dfqtn.index.name = 'datetime'
