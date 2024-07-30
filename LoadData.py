@@ -29,7 +29,7 @@ cdas = CdasWs()
 # SPEDAS API
 # make sure to use the local spedas
 import sys
-sys.path.insert(0,"../pyspedas")
+# sys.path.insert(0,"../pyspedas")
 import pyspedas
 from pyspedas import time_string
 from pyspedas import time_datetime
@@ -434,7 +434,7 @@ def LoadTimeSeriesPSP(
                             'electron_density',
                             'electron_core_temperature'
                         ], 
-                        time_clip=True)
+                        time_clip=True, last_version=True)
             temp = get_data(qtndata[0])
         except:
             print("No QTN data is presented in the public repository!")
@@ -450,7 +450,7 @@ def LoadTimeSeriesPSP(
                 'electron_density',
                 'electron_core_temperature'
             ], 
-            time_clip=True, username=username, password=password)
+            time_clip=True, username=username, password=password, last_version=True)
             temp = get_data(qtndata[0])
 
 
@@ -473,7 +473,7 @@ def LoadTimeSeriesPSP(
     # Magnetic field
     try:
         try:
-            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True)
+            names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_rtn_4_per_cycle', level='l2', time_clip=True, last_version=True)
             data = get_data(names[0])
             dfmag1 = pd.DataFrame(
                 index = data[0],
@@ -484,7 +484,7 @@ def LoadTimeSeriesPSP(
             if settings['rtn_only']:
                 dfmag = dfmag1
             else:
-                names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True)
+                names = pyspedas.psp.fields(trange=[t0,t1], datatype='mag_sc_4_per_cycle', level='l2', time_clip=True, last_version=True)
                 data = get_data(names[0])
                 dfmag2 = pd.DataFrame(
                     index = data[0],
@@ -506,7 +506,7 @@ def LoadTimeSeriesPSP(
 
             names = pyspedas.psp.fields(trange=[t0,t1], 
                 datatype='mag_RTN_4_Sa_per_Cyc', level='l2', time_clip=True,
-                username=username, password=password
+                username=username, password=password, last_version=True
             )
             data = get_data(names[0])
             dfmag1 = pd.DataFrame(
@@ -521,7 +521,7 @@ def LoadTimeSeriesPSP(
             else:
                 names = pyspedas.psp.fields(trange=[t0,t1], 
                     datatype='mag_SC_4_Sa_per_Cyc', level='l2', time_clip=True,
-                    username=username, password=password
+                    username=username, password=password, last_version=True
                 )
                 data = get_data(names[0])
                 dfmag2 = pd.DataFrame(
@@ -554,7 +554,7 @@ def LoadTimeSeriesPSP(
                                         'carr_longitude',
                                         'na_fit'
                                     ], 
-                                    time_clip=True)
+                                    time_clip=True, last_version=True)
 
             data = get_data(spcdata[0])
         except:
@@ -578,7 +578,7 @@ def LoadTimeSeriesPSP(
                                         'carr_longitude',
                                         'na_fit'
                                     ], 
-                                    time_clip=True, username=username, password=password)
+                                    time_clip=True, username=username, password=password, last_version=True)
 
             data = get_data(spcdata[0])
 
@@ -691,7 +691,7 @@ def LoadTimeSeriesPSP(
                         'SUN_DIST',
                         'SC_VEL_RTN_SUN'
                     ], 
-                    time_clip=True)
+                    time_clip=True, last_version=True)
             temp = get_data(spandata[0])
 
             spandata_a = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf0a_l3_mom', level='l3', 
@@ -699,7 +699,7 @@ def LoadTimeSeriesPSP(
                         'DENS'
                     ], 
                     time_clip=True)
-            temp_a = get_data(spandata_a[0])
+            temp_a = get_data(spandata_a[0], last_version=True)
         except:
             print("No SPAN data is presented in the public repository!")
             print("Trying unpublished data... please provide credentials...")
@@ -718,14 +718,14 @@ def LoadTimeSeriesPSP(
                         'SUN_DIST',
                         'SC_VEL_RTN_SUN'
                     ], 
-                    time_clip=True, username=username, password=password)
+                    time_clip=True, username=username, password=password, last_version=True)
             temp = get_data(spandata[0])
 
             spandata_a = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf0a', level='L3', 
                     varnames = [
                         'DENS'
                     ], 
-                    time_clip=True, username=username, password=password)
+                    time_clip=True, username=username, password=password, last_version=True)
             temp_a = get_data(spandata_a[0])
 
 

@@ -1039,7 +1039,7 @@ def hampel(arr, window_size=5, n=3, parallel=False, return_indices=True):
         calc_medians_std(window_size, arr, medians, medians_diff)
     
     ind = np.abs(arr - medians) > n*(medians_diff)
-    outlier_indices = np.where(ind)
+    outlier_indices = np.where(ind)[0]
     if return_indices:
         return outlier_indices
     else:

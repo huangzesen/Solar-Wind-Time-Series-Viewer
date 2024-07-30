@@ -227,9 +227,8 @@ class TimeSeriesViewer:
                 for ins in ins_list:
                     k = kraw+'_'+ins
                     try:
-                        outliers_indices = hampel(dfts_raw0[k], window_size = ws_hampel, n = n_hampel)
+                        outliers_indices = hampel(dfts_raw0[k], window_size = ws_hampel, n = n_hampel, return_indices = True)
                         # print(outliers_indices)
-                        dfts_raw0.loc[dfts_raw0.index[outliers_indices], k] = np.nan
                         self.hampel_results[k] = {
                             'window_size': ws_hampel,
                             'n': n_hampel,
@@ -240,10 +239,11 @@ class TimeSeriesViewer:
                             'total_count': len(dfts_raw0[k]),
                             'outliers_percent': float(len(outliers_indices))/len(dfts_raw0[k]),
                         }
+                        dfts_raw0.loc[dfts_raw0.index[outliers_indices], k] = np.nan
                         print("Filtering: %s, outliers ratio: %.4f ppm"%(k, 1e6*float(len(outliers_indices))/len(dfts_raw0[k])))
                     except:
-                        # raise ValueError("FUCK")
-                        print("key: %s does not exist!" %(k))
+                        raise ValueError("FUCK")
+                        # print("key: %s does not exist!" %(k))
 
         # setting value
         self.dfts_raw0 = dfts_raw0
