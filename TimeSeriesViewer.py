@@ -76,6 +76,7 @@ class TimeSeriesViewer:
         layout = None,
         high_res_resolution = None,
         use_hampel_raw = True,
+        use_hampel_mag = True,
         hampel_settings = None,
         no_high_res_mag = False,
     ):
@@ -125,6 +126,7 @@ class TimeSeriesViewer:
         self.import_timeseries=None
         self.use_hampel = False
         self.use_hampel_raw = use_hampel_raw
+        self.use_hampel_mag = use_hampel_mag
         self.hampel_settings = hampel_settings
         self.figsize = None
         self.no_high_res_mag = no_high_res_mag
@@ -159,7 +161,7 @@ class TimeSeriesViewer:
             # psp has 4 per cyc data, enough for our use
             dfmag_raw = misc['dfmag'][['Br','Bt','Bn']]
             dfmag_raw.columns = ['Bx','By','Bz']
-            dfmag_raw['Btot'] = (dfmag_raw[['Bx','By','Bz']]**2).sum(axis=1).apply(np.sqrt)
+            dfmag_raw['Btot'] =  np.sqrt((dfmag_raw['Bx']**2 + dfmag_raw['By']**2 + dfmag_raw['Bz']**2))
             self.dfmag_raw_high_res = dfmag_raw
             dfmag1 = dfmag_raw.resample("500ms").mean()
             self.dfmag_high_res = dfmag1
@@ -244,6 +246,43 @@ class TimeSeriesViewer:
                     except:
                         raise ValueError("FUCK")
                         # print("key: %s does not exist!" %(k))
+
+        # apply hampel filter to magnetic field
+        if self.use_hampel_mag == True:
+            print("Applying Hampel filter to magnetic field...")
+            print("Window size: %s, n: %s" %(ws_hampel, n_hampel))
+
+            Bmag = np.sqrt(dfts_raw0['Br']**2 + dfts_raw0['Bt']**2 + dfts_raw0['Bn']**2)
+
+            # before the perihelion
+            ind = (Bmag.index < self.start_time_0 + pd.Timedelta('3D'))
+
+            outliers_indices = hampel(Bmag.loc[ind], window_size = 500, n = 50, return_indices = True)
+
+            dfts_raw0.loc[dfts_raw0.index[outliers_indices], 'Br'] = np.nan
+            dfts_raw0.loc[dfts_raw0.index[outliers_indices], 'Bt'] = np.nan
+            dfts_raw0.loc[dfts_raw0.index[outliers_indices], 'Bn'] = np.nan
+
+            print("Filtering: %s, outliers ratio: %.4f ppm"%("Bmag", 1e6*float(len(outliers_indices))/len(Bmag)))
+
+            # list the outliers indices and values
+            for i in outliers_indices:
+                print(dfts_raw0.loc[ind].index[i], dfts_raw0['Br'].loc[ind][i], dfts_raw0['Bt'].loc[ind][i], dfts_raw0['Bn'].loc[ind][i], Bmag.loc[ind][i])
+
+            # after the perihelion
+            ind = (Bmag.index > self.end_time_0 - pd.Timedelta('3D'))
+
+            outliers_indices = hampel(Bmag.loc[ind], window_size = 100, n = 50, return_indices = True)
+
+            dfts_raw0.loc[dfts_raw0.index[outliers_indices], 'Br'] = np.nan
+            dfts_raw0.loc[dfts_raw0.index[outliers_indices], 'Bt'] = np.nan
+            dfts_raw0.loc[dfts_raw0.index[outliers_indices], 'Bn'] = np.nan
+
+            print("Filtering: %s, outliers ratio: %.4f ppm"%("Bmag", 1e6*float(len(outliers_indices))/len(Bmag)))
+
+            # list the outliers indices and values
+            for i in outliers_indices:
+                print(dfts_raw0.loc[ind].index[i], dfts_raw0['Br'].loc[ind][i], dfts_raw0['Bt'].loc[ind][i], dfts_raw0['Bn'].loc[ind][i], Bmag.loc[ind][i])
 
         # setting value
         self.dfts_raw0 = dfts_raw0
@@ -1070,9 +1109,10 @@ class TimeSeriesViewer:
             try:
                 ax = axes['norm']
                 dfts[['sigma_c']].plot(ax = ax, legend=False, style=['C0'], lw = 0.9)
+                dfts[['sigma_c']].resample('10min').mean().plot(ax = ax, legend=False, style=['darkred'], lw = 1.5)
                 # dfts[['sigma_r']].plot(ax = ax, legend=False, style=['C1'], lw = 0.7)
                 # ax.legend([r'$\sigma_c$',r'$\sigma_r$'], fontsize='x-large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
-                ax.legend([r'$\sigma_c$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
+                ax.legend([r'$\sigma_c$', r'$\langle \sigma_c\rangle_{10min}$'], fontsize='large', frameon=False, bbox_to_anchor=(1.01,1), loc = 2)
                 # ax.set_xticks([], minor=True)
                 # ax.set_xticks([])
                 # ax.set_xlabel('')
@@ -1221,7 +1261,8 @@ class TimeSeriesViewer:
                 # ax.set_xticks([])
                 # ax.set_xlabel('')
                 # ax.set_xlim([dfts.index[0].timestamp(), dfts.index[-1].timestamp()])
-                ax.set_ylim([0.95*np.nanmin(dfts['np']),1.05*np.nanmax(dfts['np'])])
+                ax.set_yscale('log')
+                ax.set_ylim([np.max([0.95*np.nanmin(dfts['np']),1]),1.05*np.nanmax(dfts['np'])])
                 lines['density'] = ax.get_lines()
             except:
                 pass
@@ -2351,10 +2392,15 @@ class TimeSeriesViewer:
                             'y': PSD_FFT,
                             'label': 'PSD_FFT'
                         },
+                        # third = {
+                        #     'x': sm_freqs_FFT,
+                        #     'y': sm_PSD_FFT,
+                        #     'label': 'sm_PSD_FFT'
+                        # },
                         third = {
-                            'x': sm_freqs_FFT,
-                            'y': sm_PSD_FFT,
-                            'label': 'sm_PSD_FFT'
+                            'x': freqs_wl,
+                            'y': PSD_wl * freqs_wl / np.median(freqs_wl),
+                            'label': 'P(f) * f'
                         },
                         import_coi = import_coi
                         )
