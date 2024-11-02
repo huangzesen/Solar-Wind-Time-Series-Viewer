@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from glob import glob
 import pickle
+import copy
 
 from datetime import datetime
 
@@ -38,9 +39,11 @@ from TSUtilities import curve_fit_log_wrap
 class BreakPointFinder:
     def __init__(
         self, x, y, diagnostics=None,
-        label = None, secondary = None, 
+        label = None, secondary = None, third=None,
         app = '4pt_slope',
-        view_fit = True, no_avg =False
+        view_fit = True, no_avg =False, import_4pt_fit = None,
+        import_4pt_intersect = None, import_2pt_avg = None,
+        import_coi = None, suptitle = None
         ):
         """
         Initialize the class with fig, ax, and plot data
@@ -54,19 +57,37 @@ class BreakPointFinder:
         self.x = x
         self.y = y
         self.secondary = secondary
+        self.third = third
         self.label = label
         self.app = app
         self.view_fit = view_fit
+        self.app_list = ['4pt_slope','2pt_avg']
+        self.import_4pt_fit = import_4pt_fit
+        self.import_4pt_intersect = import_4pt_intersect
+        self.import_2pt_avg = import_2pt_avg
+        self.import_coi = import_coi
+        self.suptitle = suptitle
         
         self.no_avg = no_avg
         # self.struc_funcs = struc_funcs
 
         self.diagnostics_template = {
             "QualityFlag": 0,
-            'fit1': None,
-            'fit2': None,
-            'Intersect': np.nan,
-            'Intersect_r': np.nan
+            '4pt_slope':{
+                'fit1': None,
+                'fit2': None,
+                'Intersect': np.nan,
+                'Intersect_r': np.nan,
+                'xpts': [np.nan, np.nan, np.nan, np.nan]
+            },
+            '2pt_avg':{
+                'fit': None,
+                'avg_y': np.nan,
+                'avg_x': np.nan,
+                'std_y': np.nan,
+                'x1': np.nan,
+                'x2': np.nan
+                }
         }
 
         if diagnostics is None:
@@ -78,11 +99,33 @@ class BreakPointFinder:
 
         for k in self.diagnostics_template.keys():
             if k not in self.diagnostics.keys():
-                self.diagnostics[k] = self.diagnostics_template[k]
+                self.diagnostics[k] = copy.deepcopy(self.diagnostics_template)[k]
 
         self.AxesInit()
         self.FigureInit()
         self.connect()
+
+        # import intersects
+        if self.import_4pt_intersect is not None:
+            if ~(np.isnan(self.import_4pt_intersect)):
+                self.intersect_r = self.import_4pt_intersect
+                self.ResetFigure()
+
+        # import 4pts
+        if (self.import_4pt_fit is not None):
+            if (len(self.import_4pt_fit)==4) & ~(np.isnan(self.import_4pt_fit[0])):
+                print("Importing xpts...")
+                self.calculate_4pt_slope()
+                self.ResetFigure()
+
+        # import 2pts
+        if (self.import_2pt_avg is not None):
+            if (len(self.import_2pt_avg)==2) & ~(np.isnan(self.import_2pt_avg[0])):
+                print("Importing 2pt for avg...")
+                self.calculate_2pt_avg()
+                self.ResetFigure()
+
+
         
     def FigureInit(self):
 
@@ -105,7 +148,7 @@ class BreakPointFinder:
                     pass
             elif self.app == '2pt_avg':
                 try:
-                    self.DrawFitLine()
+                    self.DrawAvgLine()
                 except:
                     pass
             else:
@@ -132,10 +175,21 @@ class BreakPointFinder:
             l2 = ax.plot(
                 self.secondary['x'], 
                 self.secondary['y'], 
-                label = self.secondary['label']
+                label = self.secondary['label'],
+                color = 'C0'
             )
 
-        l1 = ax.plot(self.x, self.y, label = self.label)
+        if self.third is not None:
+            l3 = ax.plot(
+                self.third['x'], 
+                self.third['y'], 
+                label = self.third['label'],
+                color = 'C2',
+                ls = '--',
+                lw = 1.5
+            )
+
+        l1 = ax.plot(self.x, self.y, label = self.label, color = 'C1')
 
         ax.set_xscale("log")
         ax.set_yscale("log")
@@ -147,6 +201,21 @@ class BreakPointFinder:
             "QF: %d" %(self.diagnostics['QualityFlag']),
             fontsize = 'xx-large'
         )
+        
+        if self.suptitle is not None:
+            plt.gcf().suptitle(self.suptitle, fontsize = 'x-large')
+
+        # draw cone of influence for wavelets
+        if self.import_coi is not None:
+            try:
+                f0 = self.import_coi['range'][0]
+                f1 = self.import_coi['range'][1]
+                label = self.import_coi['label']
+                self.arts['PSD']['coi_box'] = ax.axvspan(f0, f1, color = 'r', alpha = 0.05, label = label)
+            except:
+                raise ValueError(
+                    "import_coi should be dictionary {'range': [f0,f1], 'label':label}"
+                )
 
         self.DrawArts()
 
@@ -159,6 +228,12 @@ class BreakPointFinder:
         """ Calculate Slope and intersect"""
         ax = self.arts['PSD']['ax']
         art = self.arts['PSD']
+
+        # import_4pt_xpts
+        if self.import_4pt_fit is not None:
+            self.xs = self.import_4pt_fit
+            self.import_4pt_fit = None
+
         if len(self.xs) == 4:
             
             xs1 = np.min(self.xs[0:2])
@@ -185,11 +260,13 @@ class BreakPointFinder:
                 
                 intersect = 10**((fit1[0][0]-fit2[0][0])/(fit2[0][1]-fit1[0][1])) 
                 
-                self.diagnostics['Intersect'] = intersect
-                self.diagnostics['fit1'] = fit1
-                self.diagnostics['fit2'] = fit2
+                self.diagnostics['4pt_slope']['Intersect'] = intersect
+                self.diagnostics['4pt_slope']['fit1'] = fit1
+                self.diagnostics['4pt_slope']['fit2'] = fit2
+                self.diagnostics['4pt_slope']['xpts'] = [xs1, xe1, xs2, xe2]
                 
                 self.DrawFitLine()
+                # self.ResetFigure()
         else:
             pass
 
@@ -208,9 +285,10 @@ class BreakPointFinder:
         xdata, ydata = self.x, self.y
         
         try:
-            intersect = self.diagnostics['Intersect']
-            fit1 = self.diagnostics['fit1']
-            fit2 = self.diagnostics['fit2']
+            intersect = self.diagnostics['4pt_slope']['Intersect']
+            self.intersect = intersect
+            fit1 = self.diagnostics['4pt_slope']['fit1']
+            fit2 = self.diagnostics['4pt_slope']['fit2']
             
             f1 = lambda x: (10**fit1[0][0])*x**(fit1[0][1])
             f2 = lambda x: (10**fit2[0][0])*x**(fit2[0][1])
@@ -220,18 +298,31 @@ class BreakPointFinder:
             self.arts['FitLine']['fitline2'], = ax.loglog(xdata, f2(xdata), color='gray', lw='2', alpha = 0.8, 
                                        label = r'$\alpha_B$'+' = %.4f' %(fit2[0][1]))
             self.arts['FitLine']['intersect'] = ax.axvline(intersect, color='r', lw='2', 
-                                        label = "%.4f" %(np.log10(intersect)))
+                                        label = "%.4f=%.2f min" %(np.log10(intersect), 1/intersect/60))
         except:
             pass
+            # raise ValueError("Draw intersect failed!")
         
+
         try:
-            if np.isnan(self.diagnostics['Intersect_r']):
+            if np.isnan(self.intersect_r):
                 pass
             else:
-                intersect_r = self.diagnostics['Intersect_r']
-                self.arts['FitLine']['intersect_right'] = ax.axvline(intersect_r, color='g', lw='2', 
-                                                  label = "%.4f" %(np.log10(intersect_r)))
+                self.diagnostics['4pt_slope']['Intersect_r'] = self.intersect_r
+                self.diagnostics['4pt_slope']['Intersect_flag'] = 1
+                self.arts['FitLine']['intersect_right'] = ax.axvline(self.intersect_r, color='lightblue', lw='2',label = "%.4f" %(np.log10(self.intersect_r)))
         except:
+            pass
+            # raise ValueError("Draw intersect R failed!")
+
+        # draw the plot location
+        try:
+            x1s = self.diagnostics['4pt_slope']['xpts'][0:2]
+            x2s = self.diagnostics['4pt_slope']['xpts'][2:]
+            plt.scatter(x1s, f1(np.array(x1s)), s = 100, marker = 'x', color = 'r', linewidths=1.5, zorder=5, alpha = 0.8)
+            plt.scatter(x2s, f2(np.array(x2s)), s = 100, marker = 'x', color = 'r', linewidths=1.5, zorder=5, alpha = 0.8)
+        except:
+            # raise ValueError("Draw 4pts failed!")
             pass
             
         self.arts['FitLine']['legend'] = ax.legend(loc = 3, fontsize = 'x-large', frameon=False) 
@@ -241,6 +332,11 @@ class BreakPointFinder:
         """ Calculate Slope """
         ax = self.arts['PSD']['ax']
         art = self.arts['PSD']
+
+        # import_2pt_xpts
+        if self.import_2pt_avg is not None:
+            self.xs = self.import_2pt_avg
+            self.import_2pt_avg = None
 
         if len(self.xs) == 2:
             xs1 = np.min(self.xs)
@@ -311,6 +407,13 @@ class BreakPointFinder:
         except:
             raise ValueError("Find avg line failed!")
 
+        try:
+            x1s = [self.diagnostics['2pt_avg']['x1'], self.diagnostics['2pt_avg']['x2']]
+            plt.scatter(x1s, f(np.array(x1s)), s = 100, marker = 'x', color = 'r', linewidths=1.5, zorder=5, alpha = 0.8)
+        except:
+            # raise ValueError("Draw 4pts failed!")
+            pass
+
         self.arts['AvgLine']['legend'] = ax.legend(loc = 3, fontsize = 'x-large', frameon=False) 
 
 
@@ -373,9 +476,7 @@ class BreakPointFinder:
             
         elif event.button is MouseButton.RIGHT:
             """ select the breakpoint by hand"""
-            intersect_r = event.xdata
-            self.diagnostics['Intersect_r'] = intersect_r
-            self.diagnostics['Intersect_flag'] = 1
+            self.intersect_r = event.xdata
             self.DrawFitLine()
 
     def on_key_event(self, event):
@@ -395,8 +496,14 @@ class BreakPointFinder:
             # Clean the current row
             self.arts['PSD']['ax'].text(0.5, 0.5, 'Cleaning Info...', transform=self.arts['PSD']['ax'].transAxes, fontsize=30, color = 'r')
             self.arts['PSD']['ax'].figure.canvas.draw()
-            for k, v in self.diagnostics_template.items():
+            for k, v in copy.deepcopy(self.diagnostics_template).items():
                 self.diagnostics[k] = v
+
+            # clean the caches
+            self.xs = []
+            self.ys = []
+            self.intersect = np.nan
+            self.intersect_r = np.nan
 
             # time.sleep(1)
             self.ResetFigure()

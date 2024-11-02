@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import pyspedas
 from pytplot import get_data
-from pyspedas.utilities import time_string
+from pyspedas import time_string
 import pandas as pd
 import numpy as np
 
@@ -63,18 +63,39 @@ def CalculateMagDiagnostics(Br, Bt, Bn, dt, rolling_window):
 
     return np.nanmean(dBvecmod), np.nanmean(dBvecmod/Bmodmean), np.nanmean(np.abs(dBmod)), np.nanmean(np.abs(dBmod)/Bmodmean), np.nanmean(np.abs(dBmod)/dBvecmod)
 
+
+def MagModStrucFunc(B, dt, rolling_window):
+    """
+    Calculate <dB> and <dB>/<B> of given dt
+    """
+    dB, Bmean = TimeseriesDifference(B, dt, rolling_window)
+
+    return np.nanmean(dB), np.nanmean(dB/Bmean)
+
 def TimeseriesDifference(ts, dt, rolling_window):
     """
     Input:
         ts: pandas timeseries with index of time, increment should be uniform
         dt: pandas time delta
     Output:
-        tsout: pandas timeseries with index of time
+        tsout: pandas series with index of time
             tsout(t, dt) = ts(t+dt) - ts(t)
+        tsmean: pandas series
+            tsmean = ts.rolling(rolling_window).mean().interpolate()
     """
 
     if not isinstance(ts, pd.Series):
-        raise ValueError("ts must be a pandas series")
+        try:
+            if isinstance(ts, pd.DataFrame):
+                ts = ts.squeeze()
+                if isinstance(ts, pd.Series):
+                    pass
+                else:
+                    ValueError("ts must be a pandas series or single column data frame")
+            else:
+                ValueError("ts must be a pandas series or single column data frame")
+        except:
+            raise ValueError("ts must be a pandas series")
 
     if not isinstance(dt, pd.Timedelta):
         raise ValueError("dt must be pandas.Timedelta")
@@ -152,7 +173,7 @@ def MovingFitOnSpectrum(x, y, window, limits, pad):
 #         data = data[1]
 #     )
 #     dfmag.columns = ['Br','Bt','Bn']
-#     dfmag.index = time_string.time_datetime(time=dfmag.index)
+#     dfmag.index = time_datetime(time=dfmag.index)
 #     dfmag.index = dfmag.index.tz_localize(None)
 #     dfmag = dfmag.resample('100ms').mean()
 

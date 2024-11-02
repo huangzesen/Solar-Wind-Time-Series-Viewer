@@ -16,9 +16,11 @@ import os
 from pathlib import Path
 from glob import glob
 from gc import collect
+from pyspedas import time_datetime
 
 import datetime
 from numba import jit,njit,prange
+import numba
 
 # SPDF API
 from cdasws import CdasWs
@@ -29,8 +31,10 @@ cdas = CdasWs()
 import sys
 sys.path.insert(0,"../pyspedas")
 import pyspedas
-from pyspedas.utilities import time_string
+from pyspedas import time_string
 from pytplot import get_data
+from scipy import signal
+# import TurbPy as turb
 
 au_to_km = 1.496e8  # Conversion factor
 rsun     = 696340   # Sun radius in units of  [km]
@@ -44,6 +48,9 @@ k          = constants.k                  # Boltzman's constant     [j/K]
 au_to_km   = 1.496e8
 au_to_rsun = 215.032
 T_to_Gauss = 1e4
+
+from LoadData import LoadHighResMagWrapper
+from StructureFunctions import MagStrucFunc
 
 
 # -----------  Tools ----------- #
@@ -170,23 +177,6 @@ def hampel_filter_forloop_numba(input_series, window_size, n_sigmas=3):
     return new_series, indices
     
 
-@jit(nopython=True, parallel=True)      
-def smoothing_function_obsolete(x,y, window=2, pad = 1):
-    xoutmid = np.zeros(len(x))*np.nan
-    xoutmean = np.zeros(len(x))*np.nan
-    yout = np.zeros(len(x))*np.nan
-    for i in prange(len(x)):
-        x0 = x[i]
-        xf = window*x[i]
-        
-        if xf < np.max(x):
-            e = np.where(x  == x.flat[np.abs(x - xf).argmin()])[0][0]
-            if e<len(x):
-                yout[i] = np.nanmean(y[i:e])
-                xoutmid[i] = x[i] + np.log10(0.5) * (x[i] - x[e])
-                xoutmean[i] = np.nanmean(x[i:e])
-    return xoutmid, xoutmean, yout 
-
 
 @jit(nopython=True, parallel=True)      
 def smoothing_function(x,y, window=2, pad = 1):
@@ -241,7 +231,7 @@ def smoothing_function(x,y, window=2, pad = 1):
     return xoutmid, xoutmean,  yout
 
 
-def TracePSD(x,y,z,dt, norm = 'ortho'):
+def TracePSD(x,y,z,dt, norm = None):
     """ 
     Estimate Power spectral density:
 
@@ -263,8 +253,10 @@ def TracePSD(x,y,z,dt, norm = 'ortho'):
           + np.abs(np.fft.rfft(z, norm=norm))**2
 
     freqs = np.fft.rfftfreq(len(x), dt)
+
+    coeff = len(x)/(2*dt)
     
-    return freqs, B_pow
+    return freqs, B_pow/coeff
 
 
 def curve_fit_log_wrap(x, y, x0, xf):  
@@ -309,10 +301,218 @@ def curve_fit_log(xdata, ydata) :
     return (popt_log, pcov_log, ydatafit_log)
 
 
+# ----------- Wavelet ------------ #
+import pycwt as wavelet
+mother_morlet = wavelet.Morlet(f0=12)
+mother_wave_dict = {
+    'gaussian': wavelet.DOG(),
+    'paul': wavelet.Paul(),
+    'mexican_hat': wavelet.MexicanHat()
+}
+
+@numba.njit(nogil=True)
+def norm_factor_Gauss_window(scales, dt):
+   
+    s             = scales*dt
+    numer         = np.arange(-3*s, 3*s+dt, dt)
+    multiplic_fac = np.exp(-(numer)**2/(2*s**2))
+    norm_factor   = np.sum(multiplic_fac)
+    window        = len(multiplic_fac)
+   
+    return window,  multiplic_fac, norm_factor
+
+# def estimate_wavelet_coeff(df_b, dj ):
+   
+#     """
+#     Method to calculate the  1) wavelet coefficients in RTN 2) The scale dependent angle between Vsw and Β
+#     Parameters
+#     ----------
+#     df_b: dataframe
+#         Magnetic field timeseries dataframe
+
+#     mother_wave: str
+#         The main waveform to transform data.
+#         Available waves are:
+#         'gaussian':
+#         'paul': apply lomb method to compute PSD
+#         'mexican_hat':
+#     Returns
+#     -------
+#     freq : list
+#         Frequency of the corresponding psd points.
+#     psd : list
+#         Power Spectral Density of the signal.
+#     """
+   
+#     # Turn columns of df into arrays  
+#     Br, Bt, Bn                           =  df_b.Br.values, df_b.Bt.values, df_b.Bn.values
+
+#     # Estimate magnitude of magnetic field
+#     mag_orig                             =  np.sqrt(Br**2 + Bt**2 +  Bn**2 )
+   
+#     # Estimate the magnitude of V vector
+#     mag_v = np.sqrt(df_b['Br']**2).values
+
+#     #Estimate sampling time of timeseries
+#     dt                                   =  (df_b.dropna().index.to_series().diff()/np.timedelta64(1, 's')).median()
+
+#     angles   = pd.DataFrame()
+#     VBangles = pd.DataFrame()
+
+#     # Estimate PSDand scale dependent fluctuations
+#     db_x, db_y, db_z, freqs, PSD, scales = turb.trace_PSD_wavelet(Br, Bt, Bn, dt, dj,  mother_wave='morlet')
+
+
+#     for ii in range(len(scales)):
+#         #if np.mod(ii, 2)==0:
+#            # print('Progress', 100*(ii/len(scales)))
+#         try:
+#             window, multiplic_fac, norm_factor= norm_factor_Gauss_window(scales[ii], dt)
+
+
+#             # Estimate scale dependent background magnetic field using a Gaussian averaging window
+
+#             res2_Br = (1/norm_factor)*signal.convolve(Br, multiplic_fac[::-1], 'same')
+#             res2_Bt = (1/norm_factor)*signal.convolve(Bt, multiplic_fac[::-1], 'same')
+#             res2_Bn = (1/norm_factor)*signal.convolve(Bn, multiplic_fac[::-1], 'same')
+
+
+#             # Estimate magnitude of scale dependent background
+#             mag_bac = np.sqrt(res2_Br**2 + res2_Bt**2 + res2_Bn**2 )
+
+#             # Estimate angle
+#             angles[str(ii+1)] = np.arccos(res2_Br/mag_bac) * 180 / np.pi
+
+#             # Estimate VB angle
+#             VBangles[str(ii+1)] = np.arccos((df_b['Br']*res2_Br)/(mag_bac*mag_v)) * 180 / np.pi
+
+#             # Restric to 0< Θvb <90
+#             VBangles[str(ii+1)][VBangles[str(ii+1)]>90] = 180 - VBangles[str(ii+1)][VBangles[str(ii+1)]>90]
+
+#             # Restric to 0< Θvb <90
+#             angles[str(ii+1)][angles[str(ii+1)]>90] = 180 - angles[str(ii+1)][angles[str(ii+1)]>90]
+#         except:
+#              pass
+
+#     return db_x, db_y, db_z, angles, VBangles, freqs, PSD, scales
+
+from numba import prange
+
+@njit( parallel =True)
+def estimate_PSD_wavelets_all_intervals(db_x, db_y, db_z, angles, freqs,   dt,  per_thresh, par_thresh):
+
+    PSD_par = np.zeros(len(freqs))
+    PSD_per = np.zeros(len(freqs))
+
+    for i in range(np.shape(angles)[1]):
+
+        index_per = (np.where(angles.T[i]>per_thresh)[0]).astype(np.int64)
+        index_par = (np.where(angles.T[i]<par_thresh)[0]).astype(np.int64)
+        #print(len(index_par), len(index_per))
+
+        PSD_par[i]  = (np.nanmean(np.abs(np.array(db_x[i])[index_par])**2) + np.nanmean(np.abs(np.array(db_y[i])[index_par])**2) + np.nanmean(np.abs(np.array(db_z[i])[index_par])**2) ) * ( 2*dt)
+        PSD_per[i]  = (np.nanmean(np.abs(np.array(db_x[i])[index_per])**2) + np.nanmean(np.abs(np.array(db_y[i])[index_per])**2) + np.nanmean(np.abs(np.array(db_z[i])[index_per])**2) ) * ( 2*dt)
+
+    return PSD_par, PSD_per
+
+
+def trace_PSD_wavelet(
+        x, y, z, dt, dj,  
+        mother_wave=wavelet.Morlet(f0=12), 
+        consider_coi=True,
+        keep_ind = None
+    ):
+    """
+    Method to calculate the  power spectral density using wavelet method.
+    Parameters
+    ----------
+    x,y,z: array-like
+        the components of the field to apply wavelet tranform
+    dt: float
+        the sampling time of the timeseries
+    dj: determines how many scales are used to estimate wavelet coeff
+    
+        (e.g., for dj=1 -> 2**numb_scales 
+    mother_wave: str
+        The main waveform to transform data.
+        Available waves are:
+        'gaussian':
+        'paul': apply lomb method to compute PSD
+        'mexican_hat':
+    consider_coi : boolean
+        consider coi or not when calculating trace PSD
+    keep_ind : array-like
+        same length as x,y,z, values are boolean True/False
+        the points labeled as False will be ignored upon averaging
+    Returns
+    -------
+    db_x,db_y,db_zz: array-like
+        component coeficients of th wavelet tranform
+    freq : array-like
+        Frequency of the corresponding psd points.
+    psd : array-like
+        Power Spectral Density of the signal.
+    scales : array-like
+        The scales at which wavelet was estimated
+    coi : array-like
+        The Cone of Influence (CoI)
+    """
+    
+
+    if mother_wave in mother_wave_dict.keys():
+        mother_morlet = mother_wave_dict[mother_wave]
+    else:
+        mother_morlet = wavelet.Morlet()
+        
+    N                                       = len(x)
+
+    db_x, scales, freqs, coi, _, _ = wavelet.cwt(x, dt, dj, wavelet=mother_morlet)
+    db_y, scales, freqs, coi, _, _ = wavelet.cwt(y, dt, dj, wavelet=mother_morlet)
+    db_z, scales, freqs, coi, _, _ = wavelet.cwt(z, dt, dj, wavelet=mother_morlet)
+
+
+    if consider_coi:
+        # Estimate trace PSD with coefficients under COI
+        try:
+            PSD = np.zeros_like(freqs)
+            for i1 in range(len(scales)):
+                scale = scales[i1]
+                ind = coi > scale
+                if keep_ind is None:
+                    pass
+                else:
+                    # ignore points labeled as False in keep_ind
+                    ind = ind & keep_ind
+
+                # print(np.sum(np.isnan(db_x[i1, ind])), len(db_x[i1, ind]))
+                if (np.sum(ind)/len(ind) > 0.0) & (len(db_x[i1, ind]) > 0):
+                    if np.sum(np.isnan(np.abs(db_x[i1, ind]))) == len(db_x[i1, ind]):
+                        # to suppress warning
+                        PSD[i1] = np.nan
+                    else:
+                        PSD[i1] = (
+                            np.nanmean(np.abs(db_x[i1, ind])**2) + 
+                            np.nanmean(np.abs(db_y[i1, ind])**2) + 
+                            np.nanmean(np.abs(db_z[i1, ind])**2)
+                        )*( 2*dt)
+                else:
+                    PSD[i1] = np.nan
+        except:
+            raise ValueError("failed at i1 = %d" %(i1))
+    else:
+        # Estimate trace powerspectral density without considering COI
+        PSD = (np.nanmean(np.abs(db_x)**2, axis=1) + np.nanmean(np.abs(db_y)**2, axis=1) + np.nanmean(np.abs(db_z)**2, axis=1)   )*( 2*dt)
+    
+    # # Also estimate the scales to use later
+    # scales = ((1/freqs)/dt)#.astype(int)
+    
+    return db_x, db_y, db_z, freqs, PSD, scales, coi
+
+
 
 # -----------  Drawing ----------- #
 
-def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw = 2):
+def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.04, lw = 2):
     """
     Draw shaded event area in time series
     Input:
@@ -330,7 +530,7 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
         'lines': {}
         }
     for k, ax in axes.items():
-        red_vline['lines'][k] = ax.axvline(x, color = color, ls = '--', lw = lw)
+        red_vline['lines'][k] = ax.axvline(x.timestamp(), color = color, ls = '--', lw = lw)
     
     interval['lines1'] = red_vline['lines']
 
@@ -342,20 +542,151 @@ def DrawShadedEventInTimeSeries(interval, axes, color = 'red', alpha = 0.02, lw 
         'lines': {}
         }
     for k, ax in axes.items():
-        red_vline['lines'][k] = ax.axvline(x, color = color, ls = '--', lw = lw)
+        red_vline['lines'][k] = ax.axvline(x.timestamp(), color = color, ls = '--', lw = lw)
     
     interval['lines2'] = red_vline['lines']
 
     if 'rects' not in interval.keys():
         interval['rects'] = {}
     for k, ax in axes.items():
-        interval['rects'][k] = ax.axvspan(interval['start_time'], interval['end_time'], alpha = alpha, color = color)
+        interval['rects'][k] = ax.axvspan(interval['start_time'].timestamp(), interval['end_time'].timestamp(), alpha = alpha, color = color)
 
     return interval
 
 
 
 # -----------  MISC ----------- #
+
+def PreloadDiagnostics(
+        selected_interval, p_funcs, 
+        credentials = None, resolution = None, import_dfmag = None,
+        rescale_mag = False, check_exist = True
+    ):
+    """
+    Preload the Diagnostics, and return the selected_interval dictionary
+    keywords:
+        import_dfmag        dictionary, contains dfmag_raw, dfmag, infos
+        rescale_mag         rescale magnetic field data with dist_au
+    """
+    si = selected_interval
+    sc = si['spacecraft']
+    t0 = si['start_time']
+    t1 = si['end_time']
+
+    try:
+        if import_dfmag is not None:
+            dfmag = import_dfmag['dfmag']
+            dfmag_raw = import_dfmag['dfmag_raw']
+            infos = import_dfmag['infos']
+        else:
+            raise ValueError("Importing dfmag failed!")
+
+    except:
+        dfmag_raw, dfmag, infos = LoadHighResMagWrapper(
+            sc, t0, t1,
+            credentials = credentials,
+            resolution = resolution
+        )
+
+    si['dfmag'] = dfmag
+    si['dfmag_raw'] = dfmag_raw
+    si['high_res_infos'] = infos
+
+    res = infos['resolution']
+    Br = dfmag['Bx'].interpolate()
+    Bt = dfmag['By'].interpolate()
+    Bn = dfmag['Bz'].interpolate()
+
+    # rescale magnetic field data with heliocentric distance
+    if rescale_mag == True:
+        # acquire radial distance from si
+        try:
+            r = si['Dist_au']
+            Br = Br * ((r/r[0])**2)
+            Bt = Bt * ((r/r[0]))
+            Bn = Bn * ((r/r[0]))
+        except:
+            raise ValueError("No r in selected_interval['Dist_au']")
+
+    # drop na
+    Br = Br.dropna().squeeze()
+    Bt = Bt.dropna().squeeze()
+    Bn = Bn.dropna().squeeze()
+
+    resample_info = {
+                'Fraction_missing': dfmag['Bx'].apply(np.isnan).sum()/len(dfmag['Bx'])*100,
+                'resolution': res
+            }
+    si['resample_info'] = resample_info
+
+    if check_exist:
+        print("Keeping the diagnostics!!")
+
+    if 'PSD' in p_funcs.keys():
+        if (check_exist) & ('PSD' in si.keys()):
+            print("Skipping PSD")
+        else:
+            freqs, PSD = TracePSD(Br.values, Bt.values, Bn.values, res)
+            _, sm_freqs, sm_PSD = smoothing_function(freqs, PSD)
+
+            si['PSD'] = {
+                'freqs': freqs,
+                'PSD': PSD,
+                'sm_freqs': sm_freqs,
+                'sm_PSD': sm_PSD,
+                'diagnostics': {}
+            }
+
+    if 'struc_funcs' in p_funcs.keys():
+        if (check_exist) & ('struc_funcs' in si.keys()):
+            print("Skipping struc_funcs")
+            pass
+        else:
+            maxtime = np.log10((t1-t0)/pd.Timedelta('1s')/2)
+            mintime = np.log10(2*res)
+            struc_funcs = MagStrucFunc(Br, Bt, Bn, (mintime, maxtime), 200)
+
+            si['struc_funcs'] = struc_funcs
+            si['struc_funcs']['diagnostics'] = {}
+            si['struc_funcs']['settings'] = {
+                'mintime': mintime,
+                'maxtime': maxtime,
+                'npts': 200
+            }
+
+    if 'wavelet_PSD' in p_funcs.keys():
+        if (check_exist) & ('wavelet_PSD' in si.keys()):
+            print("Skipping wavelet_PSD")
+            pass
+        else:
+            if 'coi_thresh' in p_funcs['wavelet_PSD'].keys():
+                coi_thresh = p_funcs['wavelet_PSD']['coi_thresh']
+            else:
+                coi_thresh = 0.8
+
+            _,_,_,freqs_wl,PSD_wl,scales,coi = trace_PSD_wavelet(
+                Br.values, Bt.values, Bn.values, res, 
+                dj = 1./12
+            )
+            freqs_FFT, PSD_FFT = TracePSD(Br.values, Bt.values, Bn.values, res)
+            _, sm_freqs_FFT, sm_PSD_FFT = smoothing_function(freqs_FFT, PSD_FFT)
+
+            si['wavelet_PSD'] = {
+                'freqs': freqs_wl,
+                'PSD': PSD_wl,
+                'scales': scales,
+                'coi': coi,
+                'freqs_FFT': freqs_FFT,
+                'PSD_FFT': PSD_FFT,
+                'sm_freqs_FFT': sm_freqs_FFT,
+                'sm_PSD_FFT': sm_PSD_FFT,
+                'diagnostics':{},
+                'settings':{
+                    'dj': 1./12
+                }
+            }
+
+
 
 def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
     """
@@ -452,7 +783,7 @@ def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
             dfmag2.columns = ['Bx','By','Bz']
 
         dfmag = dfmag1.join(dfmag2)
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
 
     elif sc == 1:
@@ -473,7 +804,7 @@ def UpdatePSDDict(path, credentials = None, loadSPEDASsettings = None):
         dfmag2.columns = ['Bx','By','Bz']
         
         dfmag = dfmag1.join(dfmag2)
-        dfmag.index = time_string.time_datetime(time=dfmag.index)
+        dfmag.index = time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
     else:
         raise ValueError("sc=%d not supported!" %(sc))
@@ -649,6 +980,73 @@ def FindDiagnostics(
 
 
 
+from numba import jit, njit, prange
+import numpy as np
+@jit(nopython=True)
+def calc_medians(window_size, arr, medians): 
+    for i in range(window_size, len(arr)-window_size, 1):
+        id0 = i - window_size
+        id1 = i + window_size
+        median = np.median(arr[id0:id1])
+        medians[i] = median
+
+@jit(nopython=True)
+def calc_medians_std(window_size, arr, medians, medians_diff): 
+    k = 1.4826
+    for i in range(window_size, len(arr)-window_size, 1):
+        id0 = i - window_size
+        id1 = i + window_size
+        x = arr[id0:id1]
+        medians_diff[i] = k * np.median(np.abs(x - np.median(x)))
+        
+        
+@njit(parallel=True) 
+def calc_medians_parallel(window_size, arr, medians): 
+    for i in prange(window_size, len(arr)-window_size, 1):
+        id0 = i - window_size
+        id1 = i + window_size
+        median = np.median(arr[id0:id1])
+        medians[i] = median
+
+@njit(parallel=True) 
+def calc_medians_std_parallel(window_size, arr, medians, medians_diff): 
+    k = 1.4826
+    for i in prange(window_size, len(arr)-window_size, 1):
+        id0 = i - window_size
+        id1 = i + window_size
+        x = arr[id0:id1]
+        medians_diff[i] = k * np.median(np.abs(x - np.median(x)))
+        
+        
+def hampel(arr, window_size=5, n=3, parallel=False, return_indices=True):
+
+    if isinstance(arr, np.ndarray):
+        pass
+    elif isinstance(arr, pd.Series):
+        arr = arr.values
+    elif isinstance(arr, pd.DataFrame):
+        arr = arr.values
+    else:
+        raise ValueError("arr must be a numpy array or pandas Series or DataFrame!")
+    
+    medians = np.ones_like(arr, dtype=float)*np.nan
+    medians_diff = np.ones_like(arr, dtype=float)*np.nan
+    if parallel:
+        calc_medians_parallel(window_size, arr, medians)
+        calc_medians_std_parallel(window_size, arr, medians, medians_diff)
+    else:
+        calc_medians(window_size, arr, medians)
+        calc_medians_std(window_size, arr, medians, medians_diff)
+    
+    ind = np.abs(arr - medians) > n*(medians_diff)
+    outlier_indices = np.where(ind)[0]
+    if return_indices:
+        return outlier_indices
+    else:
+        return np.squeeze(ind)
+
+
+
 # ------- obsolete ------- #
 # def FindIntervalInfo(sc, start_time, end_time, verbose = False, spdf = False, local = False, tsv = None, keys = None):
 
@@ -689,3 +1087,21 @@ def FindDiagnostics(
 #             'Diagnostics': None
 #         }
 #         return d
+
+
+# @jit(nopython=True, parallel=True)      
+# def smoothing_function_obsolete(x,y, window=2, pad = 1):
+#     xoutmid = np.zeros(len(x))*np.nan
+#     xoutmean = np.zeros(len(x))*np.nan
+#     yout = np.zeros(len(x))*np.nan
+#     for i in prange(len(x)):
+#         x0 = x[i]
+#         xf = window*x[i]
+        
+#         if xf < np.max(x):
+#             e = np.where(x  == x.flat[np.abs(x - xf).argmin()])[0][0]
+#             if e<len(x):
+#                 yout[i] = np.nanmean(y[i:e])
+#                 xoutmid[i] = x[i] + np.log10(0.5) * (x[i] - x[e])
+#                 xoutmean[i] = np.nanmean(x[i:e])
+#     return xoutmid, xoutmean, yout 
