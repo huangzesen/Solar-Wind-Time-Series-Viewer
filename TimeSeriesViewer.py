@@ -190,7 +190,7 @@ class TimeSeriesViewer:
 
         for k in keys:
             if k in dfts_raw0.columns:
-                dfts_raw0[k+'0'] = dfts_raw0[k].rolling(self.rolling_rate).mean()
+                dfts_raw0[k+'0'] = dfts_raw0[k].rolling(self.rolling_rate, center = True).mean()
             else:
                 print("%s not in columns...!" %(k))
 
@@ -204,7 +204,7 @@ class TimeSeriesViewer:
                         k = mom+'_'+ins
                         if k in dfts_raw0.columns:
                             print("Rolling: %s" %(k))
-                            dfts_raw0[mom+"0"+"_"+ins] = dfts_raw0[k].rolling(self.rolling_rate).mean()
+                            dfts_raw0[mom+"0"+"_"+ins] = dfts_raw0[k].rolling(self.rolling_rate, center = True).mean()
                         else:
                             print("%s not in columns...!" %(k))
 
@@ -434,16 +434,25 @@ class TimeSeriesViewer:
 
         Bmod = (dfts['Br']**2 + dfts['Bt']**2 + dfts['Bn']**2).apply('sqrt')
 
-        dfts['Br0'] = dfts['Br'].rolling(rolling_rate).mean()
-        dfts['Bt0'] = dfts['Bt'].rolling(rolling_rate).mean()
-        dfts['Bn0'] = dfts['Bn'].rolling(rolling_rate).mean()
-        dfts['Vr0'] = dfts['Vr'].rolling(rolling_rate).mean()
-        dfts['Vt0'] = dfts['Vt'].rolling(rolling_rate).mean()
-        dfts['Vn0'] = dfts['Vn'].rolling(rolling_rate).mean()
+        dfts['Br0'] = dfts['Br'].rolling(rolling_rate, center = True).mean()
+        dfts['Bt0'] = dfts['Bt'].rolling(rolling_rate, center = True).mean()
+        dfts['Bn0'] = dfts['Bn'].rolling(rolling_rate, center = True).mean()
+        dfts['Vr0'] = dfts['Vr'].rolling(rolling_rate, center = True).mean()
+        dfts['Vt0'] = dfts['Vt'].rolling(rolling_rate, center = True).mean()
+        dfts['Vn0'] = dfts['Vn'].rolling(rolling_rate, center = True).mean()
 
         Bmod0 = (dfts['Br0']**2 + dfts['Bt0']**2 + dfts['Bn0']**2).apply('sqrt')
 
-        nproton = dfts['np'].interpolate(method='linear')
+        # check if using QTN
+        if self.par_settings['density'] == 'QTN':
+            nproton = dfts['np_qtn']
+        elif self.par_settings['density'] == 'SPAN':
+            # use span envelope
+            nproton = dfts['np_span'].rolling('5min', center=True).quantile(0.95)
+        elif self.par_settings['density'] == 'SPC':
+            # use spc envelope
+            nproton = dfts['np_spc']
+
 
         Va_r = 1e-15* dfts['Br']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
         Va_t = 1e-15* dfts['Bt']/np.sqrt(mu0*nproton*m_p)   ### Multuply by 1e-15 to get units of [Km/s]
