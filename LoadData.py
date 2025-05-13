@@ -465,10 +465,17 @@ def LoadTimeSeriesPSP(
         dfqtn.index = dfqtn.index.tz_localize(None)
         dfqtn.index.name = 'datetime'
     except:
-        print("No QTN Data!")
-        dfqtn = None
-        if settings['must_have_qtn']:
-            raise ValueError("Must have QTN! No QTN!")
+        print("No public QTN Data!")
+        if (pd.Timestamp(t0) > pd.Timestamp("2024-12")) & (pd.Timestamp(t0) < pd.Timestamp("2025-01")):
+            print("Loading QTN locally from /Users/huangzesen/work/projects/alfvenic_wave_flux_E22/qtn_E22.pkl")
+            dfqtn = pd.read_pickle("/Users/huangzesen/work/projects/alfvenic_wave_flux_E22/qtn_E22.pkl")
+            dfqtn['np_qtn'] = dfqtn['ne_qtn']
+            dfqtn.index = dfqtn.index.tz_localize(None)
+            dfqtn.index.name = 'datetime'
+        else:
+            dfqtn = None
+            if settings['must_have_qtn']:
+                raise ValueError("Must have QTN! No QTN!")
 
     # Magnetic field
     try:
@@ -496,6 +503,7 @@ def LoadTimeSeriesPSP(
 
 
         except:
+            # raise ValueError("No MAG data is presented in the public repository!")
             print("No MAG data is presented in the public repository!")
             print("Trying unpublished data... please provide credentials...")
             if credentials is None:
@@ -536,6 +544,7 @@ def LoadTimeSeriesPSP(
         dfmag.index = time_datetime(time=dfmag.index)
         dfmag.index = dfmag.index.tz_localize(None)
     except:
+        raise ValueError("No MAG data!")
         print("No MAG Data!")
         dfmag = None
 
@@ -721,13 +730,6 @@ def LoadTimeSeriesPSP(
                     time_clip=True, username=username, password=password, last_version=True)
             temp = get_data(spandata[0])
 
-            spandata_a = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf0a', level='L3', 
-                    varnames = [
-                        'DENS'
-                    ], 
-                    time_clip=True, username=username, password=password, last_version=True)
-            temp_a = get_data(spandata_a[0])
-
 
         dfspan = pd.DataFrame(
             index = temp.times,
@@ -781,6 +783,14 @@ def LoadTimeSeriesPSP(
             )
         )
 
+        spandata_a = pyspedas.psp.spi(trange=[t0, t1], datatype='spi_sf0a', level='L3', 
+                varnames = [
+                    'DENS',
+                    'VEL_RTN_SUN',
+                ], 
+                time_clip=True, username=username, password=password, last_version=True)
+        temp_a = get_data(spandata_a[0])
+
         # alpha particle
         temp = get_data(spandata_a[0])
         dfspan_a = pd.DataFrame(
@@ -788,6 +798,15 @@ def LoadTimeSeriesPSP(
                 data = temp.y,
                 columns = ['na']
             )
+        
+        temp = get_data(spandata_a[1])
+        dfspan_a = dfspan_a.join(
+            pd.DataFrame(
+                index = temp.times,
+                data = temp.y,
+                columns = ['Vr_a', 'Vt_a', 'Vn_a']
+            )
+        )
 
         # calculate Vth from TEMP
         # k T (eV) = 1/2 mp Vth^2 => Vth = 13.84112218*sqrt(TEMP)
@@ -910,10 +929,14 @@ def LoadTimeSeriesPSP(
         # keep all particle information, default np is qtn, moments are empirical
         # default all are interpolated!
 
+
         # add qtn
         try:
-            dfpar['np_qtn'] = dfqtn['np_qtn'].resample(freq).mean().interpolate()
+            # Convert data to little-endian if necessary
+            dfpar = dfpar.join(dfqtn.resample(freq).mean().interpolate(), how='left')
+            # print(dfpar['np_qtn'].head(5))
         except:
+            # raise ValueError
             warnings.warn("No QTN data!")
             dfpar['np_qtn'] = np.nan
 

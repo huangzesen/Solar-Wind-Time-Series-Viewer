@@ -52,6 +52,16 @@ T_to_Gauss = 1e4
 from LoadData import LoadHighResMagWrapper
 from StructureFunctions import MagStrucFunc
 
+from numba import prange
+# ----------- Wavelet ------------ #
+import pycwt as wavelet
+mother_morlet = wavelet.Morlet(f0=12)
+mother_wave_dict = {
+    'gaussian': wavelet.DOG(),
+    'paul': wavelet.Paul(),
+    'mexican_hat': wavelet.MexicanHat()
+}
+
 
 # -----------  Tools ----------- #
 
@@ -301,15 +311,6 @@ def curve_fit_log(xdata, ydata) :
     return (popt_log, pcov_log, ydatafit_log)
 
 
-# ----------- Wavelet ------------ #
-import pycwt as wavelet
-mother_morlet = wavelet.Morlet(f0=12)
-mother_wave_dict = {
-    'gaussian': wavelet.DOG(),
-    'paul': wavelet.Paul(),
-    'mexican_hat': wavelet.MexicanHat()
-}
-
 @numba.njit(nogil=True)
 def norm_factor_Gauss_window(scales, dt):
    
@@ -395,8 +396,6 @@ def norm_factor_Gauss_window(scales, dt):
 #              pass
 
 #     return db_x, db_y, db_z, angles, VBangles, freqs, PSD, scales
-
-from numba import prange
 
 @njit( parallel =True)
 def estimate_PSD_wavelets_all_intervals(db_x, db_y, db_z, angles, freqs,   dt,  per_thresh, par_thresh):
